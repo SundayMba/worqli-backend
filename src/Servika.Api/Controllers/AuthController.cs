@@ -47,14 +47,19 @@ public sealed class AuthController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, result);
     }
 
-    /// <summary>Authenticate a user and return session tokens.</summary>
-    /// <remarks>Accepts email or phone in <c>emailOrPhone</c>. Used by all apps.</remarks>
-    /// <response code="200">Authenticated; session tokens returned.</response>
+    /// <summary>Authenticate a user.</summary>
+    /// <remarks>
+    /// Accepts email or phone in <c>emailOrPhone</c>. On success returns a
+    /// <c>Session</c> (tokens + profile). If the account's email is still
+    /// unverified, returns <c>verificationRequired: true</c> with no session and
+    /// (re)sends a verification code — the app then runs the verify-otp step.
+    /// </remarks>
+    /// <response code="200">Authenticated — session, or verificationRequired.</response>
     /// <response code="401">Invalid email/phone or password.</response>
     [HttpPost("login")]
-    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<AuthResponse>> Login(
+    public async Task<ActionResult<LoginResponse>> Login(
         [FromBody] LoginRequest request,
         [FromServices] LoginUserHandler handler,
         CancellationToken ct)
