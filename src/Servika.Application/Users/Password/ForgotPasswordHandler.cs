@@ -9,8 +9,8 @@ using Servika.Domain.Users;
 namespace Servika.Application.Users.Password;
 
 /// <summary>
-/// Starts a password reset: if the account exists, issue a reset token and send
-/// it. Always returns success — never reveals whether the account exists.
+/// Starts a password reset: if the account exists, issue a 6-digit reset code and
+/// send it. Always returns success — never reveals whether the account exists.
 /// </summary>
 public sealed class ForgotPasswordHandler
 {
@@ -40,17 +40,19 @@ public sealed class ForgotPasswordHandler
         if (user is not null)
         {
             var now = _clock.UtcNow;
-            var token = _otp.GenerateResetToken();
+            // 6-digit numeric code (entered in-app), not a long link token.
+            var code = _otp.GenerateNumericCode();
 
             _codes.Add(VerificationCode.Issue(
                 user.Id,
                 OtpPurpose.PasswordReset,
-                _otp.Hash(token),
+                _otp.Hash(code),
                 now.AddSeconds(OtpPolicy.ResetTokenTtlSeconds),
                 now));
-            await _codes.SaveChangesAsync(ct);
 
-            await _sender.SendAsync(request.EmailOrPhone!, token, OtpPurpose.PasswordReset, ct);
+            // Send before commit: a delivery failure leaves no dangling code.
+            await _sender.SendAsync(user.Email, code, OtpPurpose.PasswordReset, ct);
+            await _codes.SaveChangesAsync(ct);
         }
 
         return new ForgotPasswordResponse(ResetStarted: true);

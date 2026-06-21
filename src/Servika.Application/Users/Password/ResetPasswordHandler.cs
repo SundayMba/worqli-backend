@@ -40,19 +40,36 @@ public sealed class ResetPasswordHandler
         if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
             throw new ArgumentException("Password must be at least 8 characters.", nameof(request));
 
-        var now = _clock.UtcNow;
+        // A 6-digit code isn't unique by hash, so match it against the latest
+        // PasswordReset code for this specific account (same shape as verify-otp).
+        var user = await _users.FindByEmailOrPhoneAsync(request.EmailOrPhone ?? string.Empty, ct);
+        if (user is null)
+            throw new InvalidOtpException();
 
-        // Reset tokens are self-identifying: look up directly by their hash.
-        var code = await _codes.FindByHashAsync(
-            _otp.Hash(request.TokenOrOtp ?? string.Empty), OtpPurpose.PasswordReset, ct);
+        var now = _clock.UtcNow;
+        var code = await _codes.FindLatestAsync(user.Id, OtpPurpose.PasswordReset, ct);
         if (code is null || !code.IsRedeemable(now))
             throw new InvalidOtpException();
 
-        var user = await _users.FindByIdAsync(code.UserId, ct)
-            ?? throw new InvalidOtpException();
+        // Wrong code: count the attempt (eventually locks the code) and fail.
+        if (!FixedTimeEquals(_otp.Hash(request.TokenOrOtp ?? string.Empty), code.CodeHash))
+        {
+            code.RegisterFailedAttempt();
+            await _codes.SaveChangesAsync(ct);
+            throw new InvalidOtpException();
+        }
 
         user.ChangePassword(_passwordHasher.Hash(request.NewPassword));
         code.Consume(now);
         await _users.SaveChangesAsync(ct);
+    }
+
+    // Length-aware comparison that does not short-circuit on the first byte.
+    private static bool FixedTimeEquals(string a, string b)
+    {
+        if (a.Length != b.Length) return false;
+        var result = 0;
+        for (var i = 0; i < a.Length; i++) result |= a[i] ^ b[i];
+        return result == 0;
     }
 }

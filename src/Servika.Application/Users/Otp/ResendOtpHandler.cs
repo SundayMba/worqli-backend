@@ -49,14 +49,15 @@ public sealed class ResendOtpHandler
             if (last is not null && (now - last.CreatedAtUtc).TotalSeconds < OtpPolicy.ResendCooldownSeconds)
                 throw new TooManyRequestsException("Please wait before requesting another code.");
 
-            var code = purpose == OtpPurpose.PasswordReset
-                ? _otp.GenerateResetToken()
-                : _otp.GenerateNumericCode();
+            // Both account-verification and password-reset use 6-digit codes
+            // entered in-app.
+            var code = _otp.GenerateNumericCode();
 
             _codes.Add(VerificationCode.Issue(user.Id, purpose, _otp.Hash(code), now.AddSeconds(ttl), now));
-            await _codes.SaveChangesAsync(ct);
 
-            await _sender.SendAsync(request.EmailOrPhone!, code, purpose, ct);
+            // Send before commit so a delivery failure leaves no dangling code.
+            await _sender.SendAsync(user.Email, code, purpose, ct);
+            await _codes.SaveChangesAsync(ct);
         }
 
         return new ResendOtpResponse(Sent: true, ExpiresInSeconds: ttl);

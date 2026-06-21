@@ -9,7 +9,12 @@ public sealed record ForgotPasswordRequest(string EmailOrPhone);
 public sealed record ForgotPasswordResponse(bool ResetStarted);
 
 /// <summary>Body for PATCH /api/v1/auth/reset-password.</summary>
-/// <param name="TokenOrOtp">The reset token (or OTP) from the forgot-password step.</param>
+/// <param name="EmailOrPhone">The account being reset (identifies whose code to match).</param>
+/// <param name="TokenOrOtp">The 6-digit reset code from the forgot-password step.</param>
 /// <param name="NewPassword">The new password (min 8 chars).</param>
 /// <param name="ConfirmPassword">Must match NewPassword.</param>
-public sealed record ResetPasswordRequest(string TokenOrOtp, string NewPassword, string ConfirmPassword);
+public sealed record ResetPasswordRequest(
+    string EmailOrPhone,
+    string TokenOrOtp,
+    string NewPassword,
+    string ConfirmPassword);
