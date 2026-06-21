@@ -1,13 +1,47 @@
+using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Servika.Api.Middleware;
+using Servika.Application;
 using Servika.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // --- Services (the "DI container": register everything the app can use) -----
 
-// Infrastructure layer: database (and, in later slices, hashing/JWT/payments).
+// Infrastructure layer: database, password hashing, JWT/refresh token services.
 builder.Services.AddInfrastructure(builder.Configuration);
 
+// Application layer: the use-case handlers (register/login/refresh/logout/me).
+builder.Services.AddApplication();
+
+// --- Authentication: validate the JWT bearer token on protected endpoints ----
+var jwt = builder.Configuration.GetSection("Jwt");
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        // Keep claim names as-issued ("sub", "role") instead of remapping them.
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwt["Issuer"],
+            ValidateAudience = true,
+            ValidAudience = jwt["Audience"],
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwt["SigningKey"]!)),
+            NameClaimType = JwtRegisteredClaimNames.Sub,
+            RoleClaimType = ClaimTypes.Role,
+            ClockSkew = TimeSpan.FromSeconds(30),
+        };
+    });
+builder.Services.AddAuthorization();
 
 // Register MVC controllers. This makes ASP.NET scan the assembly for classes
 // that derive from ControllerBase and turn their methods into HTTP endpoints.
@@ -39,6 +73,22 @@ builder.Services.AddSwaggerGen(options =>
     {
         options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
     }
+
+    // "Authorize" button in Swagger UI: lets you paste a JWT and have it sent as
+    // the Authorization: Bearer header on protected endpoints (e.g. /auth/me).
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter your JWT access token (without the 'Bearer ' prefix).",
+    });
+    options.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
+    {
+        { new OpenApiSecuritySchemeReference("Bearer"), new List<string>() },
+    });
 });
 
 // Health checks (DB and other dependencies are added in later slices).
@@ -58,6 +108,10 @@ var app = builder.Build();
 
 // --- HTTP pipeline (the ordered list of middleware each request flows through) ---
 
+// First in the pipeline so it catches exceptions from everything downstream and
+// turns our use-case exceptions into clean ProblemDetails responses.
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 // Swagger UI is available in every environment for now (MVP); restrict later.
 app.UseSwagger();
 app.UseSwaggerUI(options =>
@@ -67,6 +121,11 @@ app.UseSwaggerUI(options =>
 });
 
 app.UseCors(MobileCorsPolicy);
+
+// Authentication must run before authorization: first work out *who* the caller
+// is (validate the JWT), then enforce *what* they're allowed to do ([Authorize]).
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Liveness/readiness probe. This stays here (not in a controller) because it is
 // framework infrastructure, not a business endpoint — MapHealthChecks wires the

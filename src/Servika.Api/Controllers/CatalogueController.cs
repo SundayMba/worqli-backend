@@ -1,0 +1,71 @@
+using Microsoft.AspNetCore.Mvc;
+using Servika.Application.Catalogue;
+using Servika.Contracts.Catalogue;
+
+namespace Servika.Api.Controllers;
+
+/// <summary>
+/// Marketplace catalogue endpoints (PRD §Marketplace): browse service categories
+/// and artisan profiles. All read-only and open to guests, so customers can
+/// explore before signing up.
+/// </summary>
+[ApiController]
+[Produces("application/json")]
+[Tags("Catalogue")]
+public sealed class CatalogueController : ControllerBase
+{
+    /// <summary>List the active service categories, in display order.</summary>
+    /// <response code="200">The category catalogue.</response>
+    [HttpGet("api/v1/categories")]
+    [ProducesResponseType(typeof(IReadOnlyList<CategoryDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<CategoryDto>>> GetCategories(
+        [FromServices] GetCategoriesHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(ct));
+    }
+
+    /// <summary>List artisan summaries, optionally filtered to one category.</summary>
+    /// <remarks>Powers the home "Nearby Artisans" carousel (no filter) and
+    /// category browsing (<c>?category={slug}</c>).</remarks>
+    /// <response code="200">Matching artisan summaries.</response>
+    /// <response code="404">The supplied category slug does not exist.</response>
+    [HttpGet("api/v1/artisans")]
+    [ProducesResponseType(typeof(IReadOnlyList<ArtisanSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<ArtisanSummaryDto>>> GetArtisans(
+        [FromServices] GetArtisansHandler handler,
+        CancellationToken ct,
+        [FromQuery] string? category = null)
+    {
+        return Ok(await handler.HandleAsync(category, ct));
+    }
+
+    /// <summary>List artisans that serve a given category (by slug).</summary>
+    /// <response code="200">Artisans in the category.</response>
+    /// <response code="404">No such category.</response>
+    [HttpGet("api/v1/categories/{slug}/artisans")]
+    [ProducesResponseType(typeof(IReadOnlyList<ArtisanSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<ArtisanSummaryDto>>> GetArtisansByCategory(
+        string slug,
+        [FromServices] GetArtisansHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(slug, ct));
+    }
+
+    /// <summary>Get a single artisan's full profile.</summary>
+    /// <response code="200">The artisan profile.</response>
+    /// <response code="404">No artisan with this id.</response>
+    [HttpGet("api/v1/artisans/{id:guid}")]
+    [ProducesResponseType(typeof(ArtisanDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ArtisanDetailDto>> GetArtisan(
+        Guid id,
+        [FromServices] GetArtisanByIdHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(id, ct));
+    }
+}

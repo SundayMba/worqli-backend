@@ -23,6 +23,9 @@ public sealed class User
     public Role Role { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 
+    /// <summary>When the user's email/phone was OTP-verified. Null until verified.</summary>
+    public DateTimeOffset? EmailVerifiedAtUtc { get; private set; }
+
     // EF Core needs a parameterless constructor to rebuild a User from a database
     // row. It's private so normal application code can't use it to skip our rules.
     private User() { }
@@ -75,4 +78,15 @@ public sealed class User
             role: role,
             createdAt: createdAt);
     }
+
+    /// <summary>Replaces the stored password hash (e.g. after a password reset).</summary>
+    public void ChangePassword(string newPasswordHash)
+    {
+        if (string.IsNullOrWhiteSpace(newPasswordHash))
+            throw new ArgumentException("Password hash is required.", nameof(newPasswordHash));
+        PasswordHash = newPasswordHash;
+    }
+
+    /// <summary>Marks the account as verified after a successful OTP check.</summary>
+    public void MarkEmailVerified(DateTimeOffset whenUtc) => EmailVerifiedAtUtc = whenUtc;
 }

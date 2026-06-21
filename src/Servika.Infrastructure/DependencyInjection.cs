@@ -1,9 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Servika.Application.Abstractions.Notifications;
+using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Security;
+using Servika.Application.Abstractions.Time;
+using Servika.Infrastructure.Notifications;
 using Servika.Infrastructure.Persistence;
 using Servika.Infrastructure.Security;
+using Servika.Infrastructure.Time;
 
 namespace Servika.Infrastructure;
 
@@ -33,6 +38,36 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Missing 'Jwt' configuration section.");
         services.AddSingleton(jwtOptions);
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddSingleton<IRefreshTokenGenerator, RefreshTokenGenerator>();
+
+        // Clock is stateless (Singleton); the repository wraps the per-request
+        // DbContext, so it must share its Scoped lifetime.
+        services.AddSingleton<IClock, SystemClock>();
+        services.AddScoped<IUserRepository, UserRepository>();
+
+        // Marketplace catalogue (read-only reference data), Scoped (EF).
+        services.AddScoped<ICatalogueRepository, CatalogueRepository>();
+
+        // OTP / password-reset: code generation+hashing (stateless → Singleton)
+        // and the code repository (Scoped, EF).
+        services.AddSingleton<IOtpService, OtpService>();
+        services.AddScoped<IVerificationCodeRepository, VerificationCodeRepository>();
+
+        // OTP delivery: real email via Resend when an API key is configured,
+        // otherwise the dev logger (so local dev needs no secret). Both are
+        // Singletons implementing the same IOtpSender port.
+        var resendOptions = configuration.GetSection(ResendOptions.SectionName).Get<ResendOptions>()
+            ?? new ResendOptions();
+        services.AddSingleton(resendOptions);
+        if (resendOptions.IsConfigured)
+        {
+            services.AddHttpClient("resend");
+            services.AddSingleton<IOtpSender, ResendEmailSender>();
+        }
+        else
+        {
+            services.AddSingleton<IOtpSender, LoggingOtpSender>();
+        }
 
         return services;
     }
