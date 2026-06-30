@@ -24,4 +24,7 @@ public sealed record ArtisanDetailDto(
     int InspectionFeeNaira,
     string About,
     IReadOnlyList<string> Services,
-    IReadOnlyList<string> GalleryKeys);
+    IReadOnlyList<string> GalleryKeys,
+    /// <summary>Category slugs this artisan serves; the first is treated as
+    /// primary when pre-filling a booking's service category.</summary>
+    IReadOnlyList<string> CategorySlugs);

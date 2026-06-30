@@ -1,0 +1,112 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using Servika.Application.Abstractions.Payments;
+
+namespace Servika.Infrastructure.Payments;
+
+/// <summary>
+/// Paystack implementation of <see cref="IPaymentGateway"/>. Initializes a
+/// transaction (amount sent in kobo), verifies webhooks with HMAC-SHA512 over the
+/// raw body using the secret key, and normalizes <c>charge.success</c>/failure
+/// events. Selected by DI only when a Paystack key is configured.
+/// </summary>
+public sealed class PaystackPaymentGateway : IPaymentGateway
+{
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly PaystackOptions _options;
+    private readonly ILogger<PaystackPaymentGateway> _logger;
+
+    public PaystackPaymentGateway(
+        IHttpClientFactory httpClientFactory,
+        PaystackOptions options,
+        ILogger<PaystackPaymentGateway> logger)
+    {
+        _httpClientFactory = httpClientFactory;
+        _options = options;
+        _logger = logger;
+    }
+
+    public string Provider => "paystack";
+
+    public async Task<PaymentInitResult> InitializeAsync(
+        PaymentInitInput input, CancellationToken ct)
+    {
+        var client = _httpClientFactory.CreateClient("paystack");
+        client.BaseAddress = new Uri(_options.BaseUrl);
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.SecretKey);
+
+        var body = JsonSerializer.Serialize(new
+        {
+            email = input.CustomerEmail,
+            amount = input.AmountNaira * 100, // Paystack expects kobo
+            reference = input.Reference,
+        });
+
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        using var response = await client.PostAsync("/transaction/initialize", content, ct);
+        var json = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogError("Paystack init failed ({Status}): {Body}", response.StatusCode, json);
+            throw new InvalidOperationException("Payment gateway could not start the transaction.");
+        }
+
+        using var doc = JsonDocument.Parse(json);
+        var data = doc.RootElement.GetProperty("data");
+        var authUrl = data.GetProperty("authorization_url").GetString();
+        var reference = data.TryGetProperty("reference", out var r)
+            ? r.GetString() ?? input.Reference
+            : input.Reference;
+
+        return new PaymentInitResult(reference, authUrl);
+    }
+
+    public bool VerifySignature(string rawBody, string? signature)
+    {
+        if (string.IsNullOrWhiteSpace(signature))
+            return false;
+
+        using var hmac = new HMACSHA512(Encoding.UTF8.GetBytes(_options.SecretKey));
+        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(rawBody));
+        var computed = Convert.ToHexString(hash).ToLowerInvariant();
+
+        // Constant-time comparison to avoid leaking via timing.
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(computed),
+            Encoding.UTF8.GetBytes(signature.Trim().ToLowerInvariant()));
+    }
+
+    public PaymentWebhookEvent? ParseWebhook(string rawBody)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(rawBody);
+            var root = doc.RootElement;
+            var evt = root.TryGetProperty("event", out var e) ? e.GetString() : null;
+            if (string.IsNullOrWhiteSpace(evt) || !evt.StartsWith("charge.", StringComparison.Ordinal))
+                return null;
+
+            if (!root.TryGetProperty("data", out var data) ||
+                !data.TryGetProperty("reference", out var refEl))
+                return null;
+
+            var reference = refEl.GetString();
+            if (string.IsNullOrWhiteSpace(reference))
+                return null;
+
+            var outcome = evt == "charge.success"
+                ? PaymentWebhookOutcome.Succeeded
+                : PaymentWebhookOutcome.Failed;
+
+            return new PaymentWebhookEvent(reference, outcome);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+}

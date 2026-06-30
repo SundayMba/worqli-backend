@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Servika.Domain.Catalogue;
+using Servika.Domain.Users;
 
 namespace Servika.Infrastructure.Persistence;
 
@@ -7,19 +8,77 @@ namespace Servika.Infrastructure.Persistence;
 /// Seeds the marketplace catalogue (categories + a few artisan profiles) via EF
 /// Core <c>HasData</c>, so a fresh database has browsable content immediately.
 /// Ids are fixed/deterministic — required by HasData and stable across migrations.
-/// In a later slice artisans become real, user-linked accounts; this is launch
-/// reference data the customer app reads.
+///
+/// Each seeded artisan profile is now backed by a real, verified <c>User</c>
+/// account (role <c>Artisan</c>) so an artisan can sign in and act on the jobs
+/// assigned to them. These are <b>dev/launch seed credentials</b> — see
+/// <see cref="ArtisanLoginPassword"/>.
 /// </summary>
 internal static class CatalogueSeed
 {
     private static Guid CategoryId(int n) => new($"a0000000-0000-0000-0000-{n:000000000000}");
     private static Guid ArtisanId(int n) => new($"b0000000-0000-0000-0000-{n:000000000000}");
+    private static Guid ArtisanUserId(int n) => new($"c0000000-0000-0000-0000-{n:000000000000}");
+
+    /// <summary>Shared password for all seeded artisan accounts (dev/test only).</summary>
+    public const string ArtisanLoginPassword = "Servika123!";
+
+    // Pre-computed BCrypt hash of <see cref="ArtisanLoginPassword"/> at work factor
+    // 12 (matching BCryptPasswordHasher). A constant is required because HasData
+    // seed values must be deterministic — a freshly salted hash would differ on
+    // every model build and force phantom migrations.
+    private const string ArtisanPasswordHash =
+        "$2a$12$nPLo4sZMl89KcvqqJUMcHuUgfVOIeVcVLaBqejV9sQjGqT7X8IriG";
+
+    // Fixed instant for all seeded timestamps (HasData must be deterministic).
+    private static readonly DateTimeOffset SeedTime = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     public static void Apply(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<User>().HasData(ArtisanUsers());
         modelBuilder.Entity<ServiceCategory>().HasData(Categories());
         modelBuilder.Entity<ArtisanProfile>().HasData(Artisans());
     }
+
+    // The login accounts behind the three seeded artisan profiles. Anonymous
+    // objects (matched by property name) keep User's setters private; Role is
+    // stored as a string by the configured value converter.
+    private static object[] ArtisanUsers() =>
+    [
+        new
+        {
+            Id = ArtisanUserId(1),
+            FullName = "Emeka Okafor",
+            Email = "emeka.okafor@artisan.servika.test",
+            PhoneNumber = "+2348100000001",
+            PasswordHash = ArtisanPasswordHash,
+            Role = Role.Artisan,
+            CreatedAt = SeedTime,
+            EmailVerifiedAtUtc = (DateTimeOffset?)SeedTime,
+        },
+        new
+        {
+            Id = ArtisanUserId(2),
+            FullName = "Ibrahim Yusuf",
+            Email = "ibrahim.yusuf@artisan.servika.test",
+            PhoneNumber = "+2348100000002",
+            PasswordHash = ArtisanPasswordHash,
+            Role = Role.Artisan,
+            CreatedAt = SeedTime,
+            EmailVerifiedAtUtc = (DateTimeOffset?)SeedTime,
+        },
+        new
+        {
+            Id = ArtisanUserId(3),
+            FullName = "Chidi Okeke",
+            Email = "chidi.okeke@artisan.servika.test",
+            PhoneNumber = "+2348100000003",
+            PasswordHash = ArtisanPasswordHash,
+            Role = Role.Artisan,
+            CreatedAt = SeedTime,
+            EmailVerifiedAtUtc = (DateTimeOffset?)SeedTime,
+        },
+    ];
 
     private static ServiceCategory[] Categories()
     {
@@ -65,6 +124,7 @@ internal static class CatalogueSeed
     [
         ArtisanProfile.Create(
             id: ArtisanId(1),
+            userId: ArtisanUserId(1),
             imageKey: "emeka-okafor",
             fullName: "Emeka Okafor",
             specialty: "Electrical Specialist",
@@ -85,6 +145,7 @@ internal static class CatalogueSeed
 
         ArtisanProfile.Create(
             id: ArtisanId(2),
+            userId: ArtisanUserId(2),
             imageKey: "ibrahim-yusuf",
             fullName: "Ibrahim Yusuf",
             specialty: "Plumbing Expert",
@@ -105,6 +166,7 @@ internal static class CatalogueSeed
 
         ArtisanProfile.Create(
             id: ArtisanId(3),
+            userId: ArtisanUserId(3),
             imageKey: "chidi-okeke",
             fullName: "Chidi Okeke",
             specialty: "AC Technician",

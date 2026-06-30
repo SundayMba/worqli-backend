@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Servika.Domain.Bookings;
 using Servika.Domain.Catalogue;
+using Servika.Domain.Payments;
+using Servika.Domain.Tracking;
 using Servika.Domain.Users;
 
 namespace Servika.Infrastructure.Persistence;
@@ -32,6 +35,18 @@ public sealed class ServikaDbContext : DbContext
 
     /// <summary>The "artisan_profiles" table — public marketplace artisan profiles.</summary>
     public DbSet<ArtisanProfile> ArtisanProfiles => Set<ArtisanProfile>();
+
+    /// <summary>The "bookings" table — one row per customer service request.</summary>
+    public DbSet<Booking> Bookings => Set<Booking>();
+
+    /// <summary>The "payments" table — one row per payment attempt against a booking.</summary>
+    public DbSet<Payment> Payments => Set<Payment>();
+
+    /// <summary>The "wallet_transactions" table — the append-only money ledger.</summary>
+    public DbSet<WalletTransaction> WalletTransactions => Set<WalletTransaction>();
+
+    /// <summary>The "tracking_sessions" table — one row per artisan trip (live tracking).</summary>
+    public DbSet<TrackingSession> TrackingSessions => Set<TrackingSession>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -139,6 +154,111 @@ public sealed class ServikaDbContext : DbContext
             artisan.Property(a => a.Services).Metadata.SetValueComparer(stringListComparer);
             artisan.Property(a => a.GalleryKeys).Metadata.SetValueComparer(stringListComparer);
             artisan.HasIndex(a => a.CategorySlugs).HasMethod("gin");
+
+            // Optional link to the artisan's login account. Looked up when matching
+            // a signed-in artisan to their jobs, so index it. If the user is ever
+            // deleted the profile survives (the link just goes null).
+            artisan.HasIndex(a => a.UserId);
+            artisan.HasOne<User>()
+                   .WithMany()
+                   .HasForeignKey(a => a.UserId)
+                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Booking>(booking =>
+        {
+            booking.ToTable("bookings");
+
+            booking.HasKey(b => b.Id);
+
+            // A customer's history is listed by customer id + creation time.
+            booking.HasIndex(b => b.CustomerId);
+
+            booking.Property(b => b.CategorySlug).IsRequired().HasMaxLength(60);
+            booking.Property(b => b.ServiceName).IsRequired().HasMaxLength(80);
+            booking.Property(b => b.ArtisanName).HasMaxLength(120);
+            booking.Property(b => b.Description).IsRequired().HasMaxLength(2000);
+            booking.Property(b => b.AddressText).IsRequired().HasMaxLength(300);
+            booking.Property(b => b.LocationInstructions).HasMaxLength(300);
+            booking.Property(b => b.PreferredTimeSlot).HasMaxLength(60);
+
+            // Money: commission rate is a fraction (0–1); store with enough scale.
+            booking.Property(b => b.CommissionRate).HasPrecision(5, 4);
+
+            // Enums kept as readable strings, matching users/catalogue.
+            booking.Property(b => b.Status).HasConversion<string>().HasMaxLength(20);
+            booking.Property(b => b.Urgency).HasConversion<string>().HasMaxLength(20);
+            booking.Property(b => b.PricingModel).HasConversion<string>().HasMaxLength(20);
+            booking.Property(b => b.PaymentState).HasConversion<string>().HasMaxLength(20);
+
+            // The customer is a User; bookings die with the user (cascade). The
+            // optional artisan points at catalogue reference data (not yet a User
+            // account), so it is a plain nullable column with no FK for now.
+            booking.HasOne<User>()
+                   .WithMany()
+                   .HasForeignKey(b => b.CustomerId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Payment>(payment =>
+        {
+            payment.ToTable("payments");
+
+            payment.HasKey(p => p.Id);
+
+            // The webhook finds the payment by our reference — unique + indexed.
+            payment.Property(p => p.Reference).IsRequired().HasMaxLength(80);
+            payment.HasIndex(p => p.Reference).IsUnique();
+            payment.HasIndex(p => p.BookingId);
+
+            payment.Property(p => p.Provider).IsRequired().HasMaxLength(30);
+            payment.Property(p => p.AuthorizationUrl).HasMaxLength(500);
+            payment.Property(p => p.CommissionRate).HasPrecision(5, 4);
+            payment.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
+
+            payment.HasOne<Booking>()
+                   .WithMany()
+                   .HasForeignKey(p => p.BookingId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WalletTransaction>(txn =>
+        {
+            txn.ToTable("wallet_transactions");
+
+            txn.HasKey(t => t.Id);
+
+            // Balances are summed per (owner type, owner id) — index that.
+            txn.HasIndex(t => new { t.OwnerType, t.OwnerId });
+
+            txn.Property(t => t.OwnerType).HasConversion<string>().HasMaxLength(20);
+            txn.Property(t => t.Type).HasConversion<string>().HasMaxLength(30);
+            txn.Property(t => t.Description).IsRequired().HasMaxLength(200);
+            // No FK to bookings/payments: the ledger is an immutable record that must
+            // survive even if a related row is ever removed.
+        });
+
+        modelBuilder.Entity<TrackingSession>(session =>
+        {
+            session.ToTable("tracking_sessions");
+
+            session.HasKey(s => s.Id);
+
+            session.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+
+            // The hub looks up the active session for a booking. A filtered unique
+            // index both serves that query and enforces one active session per
+            // booking (an ended session never blocks a new trip).
+            session.HasIndex(s => s.BookingId)
+                   .IsUnique()
+                   .HasFilter("\"Status\" = 'Active'")
+                   .HasDatabaseName("UX_tracking_active_per_booking");
+
+            // The session belongs to a booking; it dies with the booking (cascade).
+            session.HasOne<Booking>()
+                   .WithMany()
+                   .HasForeignKey(s => s.BookingId)
+                   .OnDelete(DeleteBehavior.Cascade);
         });
 
         // Reference data: seed the catalogue so the marketplace has content.

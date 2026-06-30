@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Servika.Api.Hubs;
 using Servika.Api.Middleware;
+using Servika.Api.Tracking;
 using Servika.Application;
 using Servika.Infrastructure;
 
@@ -40,8 +42,31 @@ builder.Services
             RoleClaimType = ClaimTypes.Role,
             ClockSkew = TimeSpan.FromSeconds(30),
         };
+
+        // SignalR WebSockets can't send the Authorization header, so the JS client
+        // passes the token as the `access_token` query param. Lift it onto the
+        // request for the hub paths so [Authorize] on the hub still works.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            },
+        };
     });
 builder.Services.AddAuthorization();
+
+// SignalR — real-time hubs (live tracking).
+builder.Services.AddSignalR();
+
+// Background sweep that ends stale tracking sessions (see TrackingCleanupService).
+builder.Services.AddHostedService<TrackingCleanupService>();
 
 // Register MVC controllers. This makes ASP.NET scan the assembly for classes
 // that derive from ControllerBase and turn their methods into HTTP endpoints.
@@ -136,6 +161,9 @@ app.MapHealthChecks("/health");
 // Connect the controller classes to the routing system. After this call, every
 // [HttpGet]/[HttpPost]/... method on a controller becomes a live endpoint.
 app.MapControllers();
+
+// Real-time live-tracking hub. Clients connect at /hubs/tracking?access_token=…
+app.MapHub<TrackingHub>("/hubs/tracking");
 
 app.Run();
 

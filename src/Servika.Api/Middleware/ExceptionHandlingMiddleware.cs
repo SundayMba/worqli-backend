@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Servika.Application.Common;
+using Servika.Domain.Bookings;
 
 namespace Servika.Api.Middleware;
 
@@ -30,6 +31,9 @@ public sealed class ExceptionHandlingMiddleware
             var (status, title) = ex switch
             {
                 EmailAlreadyInUseException => (StatusCodes.Status409Conflict, ex.Message),
+                ConflictException => (StatusCodes.Status409Conflict, ex.Message),
+                InvalidBookingStateException => (StatusCodes.Status409Conflict, ex.Message),
+                InvalidWebhookSignatureException => (StatusCodes.Status401Unauthorized, ex.Message),
                 InvalidCredentialsException => (StatusCodes.Status401Unauthorized, ex.Message),
                 InvalidRefreshTokenException => (StatusCodes.Status401Unauthorized, ex.Message),
                 InvalidOtpException => (StatusCodes.Status400BadRequest, ex.Message),

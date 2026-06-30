@@ -10,6 +10,11 @@ public sealed class ArtisanProfile
 {
     public Guid Id { get; private set; }
 
+    /// <summary>The artisan's login account, once linked. Null for catalogue
+    /// reference profiles that don't yet have a <c>User</c> behind them. This is
+    /// what lets a signed-in artisan be matched to the jobs assigned to them.</summary>
+    public Guid? UserId { get; private set; }
+
     /// <summary>Stable key the client uses to resolve the bundled avatar/cover
     /// artwork (e.g. "emeka-okafor"). Decouples images from the database id.</summary>
     public string ImageKey { get; private set; } = string.Empty;
@@ -78,10 +83,12 @@ public sealed class ArtisanProfile
         string about,
         List<string> categorySlugs,
         List<string> services,
-        List<string> galleryKeys) =>
+        List<string> galleryKeys,
+        Guid? userId = null) =>
         new()
         {
             Id = id,
+            UserId = userId,
             ImageKey = imageKey,
             FullName = fullName,
             Specialty = specialty,

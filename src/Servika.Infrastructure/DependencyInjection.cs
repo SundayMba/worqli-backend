@@ -1,11 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Servika.Application.Abstractions.Directions;
 using Servika.Application.Abstractions.Notifications;
+using Servika.Application.Abstractions.Payments;
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Security;
 using Servika.Application.Abstractions.Time;
+using Servika.Infrastructure.Directions;
 using Servika.Infrastructure.Notifications;
+using Servika.Infrastructure.Payments;
 using Servika.Infrastructure.Persistence;
 using Servika.Infrastructure.Security;
 using Servika.Infrastructure.Time;
@@ -47,6 +51,49 @@ public static class DependencyInjection
 
         // Marketplace catalogue (read-only reference data), Scoped (EF).
         services.AddScoped<ICatalogueRepository, CatalogueRepository>();
+
+        // Bookings (read + write), Scoped (EF).
+        services.AddScoped<IBookingRepository, BookingRepository>();
+
+        // Live-tracking sessions (read + write), Scoped (EF).
+        services.AddScoped<ITrackingRepository, TrackingRepository>();
+
+        // Payments + wallet ledger (Scoped, EF).
+        services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IWalletRepository, WalletRepository>();
+
+        // Payment gateway: real Paystack when a key is configured, else the stub
+        // (so local dev / tests run the full escrow flow without credentials).
+        // Same port (IPaymentGateway) — no use-case changes either way.
+        var paystackOptions = configuration.GetSection(PaystackOptions.SectionName).Get<PaystackOptions>()
+            ?? new PaystackOptions();
+        services.AddSingleton(paystackOptions);
+        if (paystackOptions.IsConfigured)
+        {
+            services.AddHttpClient("paystack");
+            services.AddSingleton<IPaymentGateway, PaystackPaymentGateway>();
+        }
+        else
+        {
+            services.AddSingleton<IPaymentGateway, StubPaymentGateway>();
+        }
+
+        // Directions: real Google Directions when a key is configured, else a
+        // straight-line stub (so the tracking map works in local dev without
+        // credentials). Same IDirectionsProvider port — no use-case changes. The
+        // key is server-side only; the mobile app calls our /tracking/route.
+        var googleOptions = configuration.GetSection(GoogleDirectionsOptions.SectionName).Get<GoogleDirectionsOptions>()
+            ?? new GoogleDirectionsOptions();
+        services.AddSingleton(googleOptions);
+        if (googleOptions.IsConfigured)
+        {
+            services.AddHttpClient("google-directions");
+            services.AddSingleton<IDirectionsProvider, GoogleDirectionsProvider>();
+        }
+        else
+        {
+            services.AddSingleton<IDirectionsProvider, StubDirectionsProvider>();
+        }
 
         // OTP / password-reset: code generation+hashing (stateless → Singleton)
         // and the code repository (Scoped, EF).

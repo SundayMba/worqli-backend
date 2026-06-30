@@ -29,6 +29,11 @@ public sealed class CatalogueRepository : ICatalogueRepository
     public Task<bool> CategoryExistsAsync(string slug, CancellationToken ct) =>
         _db.ServiceCategories.AnyAsync(c => c.IsActive && c.Slug == slug, ct);
 
+    public Task<ServiceCategory?> GetCategoryBySlugAsync(string slug, CancellationToken ct) =>
+        _db.ServiceCategories
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.IsActive && c.Slug == slug, ct);
+
     public async Task<IReadOnlyList<ArtisanProfile>> GetArtisansAsync(
         string? categorySlug, CancellationToken ct)
     {
@@ -48,4 +53,7 @@ public sealed class CatalogueRepository : ICatalogueRepository
 
     public Task<ArtisanProfile?> GetArtisanByIdAsync(Guid id, CancellationToken ct) =>
         _db.ArtisanProfiles.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct);
+
+    public Task<ArtisanProfile?> GetArtisanByUserIdAsync(Guid userId, CancellationToken ct) =>
+        _db.ArtisanProfiles.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == userId, ct);
 }

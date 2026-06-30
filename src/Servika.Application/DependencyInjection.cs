@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using Servika.Application.Bookings;
 using Servika.Application.Catalogue;
+using Servika.Application.Payments;
 using Servika.Application.Users.Login;
 using Servika.Application.Users.Logout;
 using Servika.Application.Users.Me;
@@ -32,6 +34,28 @@ public static class DependencyInjection
         services.AddScoped<GetCategoriesHandler>();
         services.AddScoped<GetArtisansHandler>();
         services.AddScoped<GetArtisanByIdHandler>();
+
+        // Booking use-case handlers.
+        services.AddScoped<CreateBookingHandler>();
+        services.AddScoped<GetMyBookingsHandler>();
+        services.AddScoped<GetBookingByIdHandler>();
+        services.AddScoped<CancelBookingHandler>();
+        services.AddScoped<CompleteBookingHandler>();
+
+        // Artisan-side booking handlers (jobs assigned to the signed-in artisan).
+        services.AddScoped<GetArtisanJobsHandler>();
+        services.AddScoped<GetArtisanJobByIdHandler>();
+        services.AddScoped<AdvanceBookingByArtisanHandler>();
+
+        // Live tracking (SignalR hub + stale-cleanup worker both call this).
+        services.AddScoped<Tracking.TrackingService>();
+        services.AddScoped<Tracking.GetRouteHandler>();
+
+        // Payments + wallet handlers.
+        services.AddScoped<InitializePaymentHandler>();
+        services.AddScoped<HandlePaymentWebhookHandler>();
+        services.AddScoped<GetWalletHandler>();
+        services.AddScoped<GetWalletTransactionsHandler>();
         return services;
     }
 }

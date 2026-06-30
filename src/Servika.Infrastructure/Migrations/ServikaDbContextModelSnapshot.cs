@@ -23,6 +23,106 @@ namespace Servika.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Servika.Domain.Bookings.Booking", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("AcceptedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AddressText")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid?>("ArtisanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ArtisanName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset?>("CancelledAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CategorySlug")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<decimal>("CommissionRate")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int?>("InitialQuoteAmountNaira")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LocationInstructions")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<double?>("LocationLat")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LocationLng")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("PaymentState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("PreferredDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PreferredTimeSlot")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("PricingModel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ServiceName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Urgency")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("bookings", (string)null);
+                });
+
             modelBuilder.Entity("Servika.Domain.Catalogue.ArtisanProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -99,11 +199,16 @@ namespace Servika.Infrastructure.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
 
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CategorySlugs");
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("CategorySlugs"), "gin");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("artisan_profiles", (string)null);
 
@@ -127,7 +232,8 @@ namespace Servika.Infrastructure.Migrations
                             ResponseTime = "15 min",
                             ReviewCount = 124,
                             Services = new List<string> { "Installation", "Repair", "Maintenance", "Wiring" },
-                            Specialty = "Electrical Specialist"
+                            Specialty = "Electrical Specialist",
+                            UserId = new Guid("c0000000-0000-0000-0000-000000000001")
                         },
                         new
                         {
@@ -148,7 +254,8 @@ namespace Servika.Infrastructure.Migrations
                             ResponseTime = "10 min",
                             ReviewCount = 98,
                             Services = new List<string> { "Leak Repair", "Installation", "Drainage", "Maintenance" },
-                            Specialty = "Plumbing Expert"
+                            Specialty = "Plumbing Expert",
+                            UserId = new Guid("c0000000-0000-0000-0000-000000000002")
                         },
                         new
                         {
@@ -169,7 +276,8 @@ namespace Servika.Infrastructure.Migrations
                             ResponseTime = "20 min",
                             ReviewCount = 76,
                             Services = new List<string> { "AC Servicing", "Installation", "Gas Refill", "Repair" },
-                            Specialty = "AC Technician"
+                            Specialty = "AC Technician",
+                            UserId = new Guid("c0000000-0000-0000-0000-000000000003")
                         });
                 });
 
@@ -428,6 +536,163 @@ namespace Servika.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Servika.Domain.Payments.Payment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AmountNaira")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ArtisanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AuthorizationUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("CommissionRate")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("FailedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("PaidAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("Reference")
+                        .IsUnique();
+
+                    b.ToTable("payments", (string)null);
+                });
+
+            modelBuilder.Entity("Servika.Domain.Payments.WalletTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AmountNaira")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OwnerType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("PaymentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerType", "OwnerId");
+
+                    b.ToTable("wallet_transactions", (string)null);
+                });
+
+            modelBuilder.Entity("Servika.Domain.Tracking.TrackingSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ArtisanProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("EndedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("LastAccuracy")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LastHeading")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LastLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LastLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LastSpeed")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTimeOffset?>("LastUpdateAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_tracking_active_per_booking")
+                        .HasFilter("\"Status\" = 'Active'");
+
+                    b.ToTable("tracking_sessions", (string)null);
+                });
+
             modelBuilder.Entity("Servika.Domain.Users.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -503,6 +768,41 @@ namespace Servika.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("users", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("c0000000-0000-0000-0000-000000000001"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Email = "emeka.okafor@artisan.servika.test",
+                            EmailVerifiedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            FullName = "Emeka Okafor",
+                            PasswordHash = "$2a$12$nPLo4sZMl89KcvqqJUMcHuUgfVOIeVcVLaBqejV9sQjGqT7X8IriG",
+                            PhoneNumber = "+2348100000001",
+                            Role = "Artisan"
+                        },
+                        new
+                        {
+                            Id = new Guid("c0000000-0000-0000-0000-000000000002"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Email = "ibrahim.yusuf@artisan.servika.test",
+                            EmailVerifiedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            FullName = "Ibrahim Yusuf",
+                            PasswordHash = "$2a$12$nPLo4sZMl89KcvqqJUMcHuUgfVOIeVcVLaBqejV9sQjGqT7X8IriG",
+                            PhoneNumber = "+2348100000002",
+                            Role = "Artisan"
+                        },
+                        new
+                        {
+                            Id = new Guid("c0000000-0000-0000-0000-000000000003"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Email = "chidi.okeke@artisan.servika.test",
+                            EmailVerifiedAtUtc = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            FullName = "Chidi Okeke",
+                            PasswordHash = "$2a$12$nPLo4sZMl89KcvqqJUMcHuUgfVOIeVcVLaBqejV9sQjGqT7X8IriG",
+                            PhoneNumber = "+2348100000003",
+                            Role = "Artisan"
+                        });
                 });
 
             modelBuilder.Entity("Servika.Domain.Users.VerificationCode", b =>
@@ -543,6 +843,41 @@ namespace Servika.Infrastructure.Migrations
                     b.HasIndex("UserId", "Purpose");
 
                     b.ToTable("verification_codes", (string)null);
+                });
+
+            modelBuilder.Entity("Servika.Domain.Bookings.Booking", b =>
+                {
+                    b.HasOne("Servika.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Servika.Domain.Catalogue.ArtisanProfile", b =>
+                {
+                    b.HasOne("Servika.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Servika.Domain.Payments.Payment", b =>
+                {
+                    b.HasOne("Servika.Domain.Bookings.Booking", null)
+                        .WithMany()
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Servika.Domain.Tracking.TrackingSession", b =>
+                {
+                    b.HasOne("Servika.Domain.Bookings.Booking", null)
+                        .WithMany()
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Servika.Domain.Users.RefreshToken", b =>

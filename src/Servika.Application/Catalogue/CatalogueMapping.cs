@@ -20,5 +20,5 @@ internal static class CatalogueMapping
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
             a.DistanceKm, a.IsAvailable, a.Accent, a.ExperienceYears, a.Location,
             a.ResponseTime, a.JobsCount, a.InspectionFeeNaira, a.About,
-            a.Services, a.GalleryKeys);
+            a.Services, a.GalleryKeys, a.CategorySlugs);
 }
