@@ -61,5 +61,22 @@ public sealed class BookingRepository : IBookingRepository
     public Task<Booking?> FindByIdAsync(Guid id, CancellationToken ct) =>
         _db.Bookings.FirstOrDefaultAsync(b => b.Id == id, ct);
 
+    public async Task<IReadOnlyList<Booking>> ListAllAsync(BookingStatus? status, CancellationToken ct)
+    {
+        var query = _db.Bookings.AsNoTracking().AsQueryable();
+        if (status is { } s)
+            query = query.Where(b => b.Status == s);
+        return await query.OrderByDescending(b => b.CreatedAt).ToListAsync(ct);
+    }
+
+    // Tracked so the auto-confirm sweep's ConfirmCompletion persists.
+    public async Task<IReadOnlyList<Booking>> ListAwaitingConfirmationBeforeAsync(
+        DateTimeOffset cutoffUtc, CancellationToken ct) =>
+        await _db.Bookings
+            .Where(b => b.Status == BookingStatus.AwaitingConfirmation
+                        && b.WorkSubmittedAtUtc != null
+                        && b.WorkSubmittedAtUtc < cutoffUtc)
+            .ToListAsync(ct);
+
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }

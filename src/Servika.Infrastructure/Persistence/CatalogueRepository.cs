@@ -37,7 +37,11 @@ public sealed class CatalogueRepository : ICatalogueRepository
     public async Task<IReadOnlyList<ArtisanProfile>> GetArtisansAsync(
         string? categorySlug, CancellationToken ct)
     {
-        var query = _db.ArtisanProfiles.AsNoTracking();
+        // Public catalogue shows only verified artisans (self-onboarded profiles
+        // awaiting KYC review never leak into browse/search).
+        var query = _db.ArtisanProfiles
+            .AsNoTracking()
+            .Where(a => a.VerificationStatus == ArtisanVerificationStatus.Verified);
 
         if (!string.IsNullOrWhiteSpace(categorySlug))
         {
@@ -56,4 +60,30 @@ public sealed class CatalogueRepository : ICatalogueRepository
 
     public Task<ArtisanProfile?> GetArtisanByUserIdAsync(Guid userId, CancellationToken ct) =>
         _db.ArtisanProfiles.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == userId, ct);
+
+    // Tracked (no AsNoTracking) so a rating-aggregate change persists on SaveChanges.
+    public Task<ArtisanProfile?> FindArtisanForUpdateAsync(Guid id, CancellationToken ct) =>
+        _db.ArtisanProfiles.FirstOrDefaultAsync(a => a.Id == id, ct);
+
+    public Task<ArtisanProfile?> GetArtisanByUserIdForUpdateAsync(Guid userId, CancellationToken ct) =>
+        _db.ArtisanProfiles.FirstOrDefaultAsync(a => a.UserId == userId, ct);
+
+    public void AddArtisan(ArtisanProfile profile) => _db.ArtisanProfiles.Add(profile);
+
+    public async Task<IReadOnlyList<ServiceCategory>> GetAllCategoriesAsync(CancellationToken ct) =>
+        await _db.ServiceCategories
+            .AsNoTracking()
+            .OrderBy(c => c.SortOrder)
+            .ToListAsync(ct);
+
+    // Tracked so an admin edit/toggle persists on SaveChanges.
+    public Task<ServiceCategory?> FindCategoryByIdForUpdateAsync(Guid id, CancellationToken ct) =>
+        _db.ServiceCategories.FirstOrDefaultAsync(c => c.Id == id, ct);
+
+    public Task<bool> CategorySlugExistsAsync(string slug, CancellationToken ct) =>
+        _db.ServiceCategories.AnyAsync(c => c.Slug == slug, ct);
+
+    public void AddCategory(ServiceCategory category) => _db.ServiceCategories.Add(category);
+
+    public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }

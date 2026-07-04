@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Servika.Application.Catalogue;
+using Servika.Application.Reviews;
 using Servika.Contracts.Catalogue;
+using Servika.Contracts.Reviews;
 
 namespace Servika.Api.Controllers;
 
@@ -27,7 +29,9 @@ public sealed class CatalogueController : ControllerBase
 
     /// <summary>List artisan summaries, optionally filtered to one category.</summary>
     /// <remarks>Powers the home "Nearby Artisans" carousel (no filter) and
-    /// category browsing (<c>?category={slug}</c>).</remarks>
+    /// category browsing (<c>?category={slug}</c>). When <c>lat</c> and <c>lng</c>
+    /// are supplied, the list is re-sorted by real proximity to the customer and
+    /// each card's distance is computed from those coordinates.</remarks>
     /// <response code="200">Matching artisan summaries.</response>
     /// <response code="404">The supplied category slug does not exist.</response>
     [HttpGet("api/v1/artisans")]
@@ -36,9 +40,11 @@ public sealed class CatalogueController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<ArtisanSummaryDto>>> GetArtisans(
         [FromServices] GetArtisansHandler handler,
         CancellationToken ct,
-        [FromQuery] string? category = null)
+        [FromQuery] string? category = null,
+        [FromQuery] double? lat = null,
+        [FromQuery] double? lng = null)
     {
-        return Ok(await handler.HandleAsync(category, ct));
+        return Ok(await handler.HandleAsync(category, lat, lng, ct));
     }
 
     /// <summary>List artisans that serve a given category (by slug).</summary>
@@ -52,7 +58,7 @@ public sealed class CatalogueController : ControllerBase
         [FromServices] GetArtisansHandler handler,
         CancellationToken ct)
     {
-        return Ok(await handler.HandleAsync(slug, ct));
+        return Ok(await handler.HandleAsync(slug, lat: null, lng: null, ct));
     }
 
     /// <summary>Get a single artisan's full profile.</summary>
@@ -64,6 +70,21 @@ public sealed class CatalogueController : ControllerBase
     public async Task<ActionResult<ArtisanDetailDto>> GetArtisan(
         Guid id,
         [FromServices] GetArtisanByIdHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(id, ct));
+    }
+
+    /// <summary>List an artisan's customer reviews, newest first.</summary>
+    /// <remarks>Powers the reviews section on the artisan profile. Open to guests.</remarks>
+    /// <response code="200">The artisan's reviews (empty if none yet).</response>
+    /// <response code="404">No artisan with this id.</response>
+    [HttpGet("api/v1/artisans/{id:guid}/reviews")]
+    [ProducesResponseType(typeof(IReadOnlyList<ReviewDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<ReviewDto>>> GetArtisanReviews(
+        Guid id,
+        [FromServices] GetArtisanReviewsHandler handler,
         CancellationToken ct)
     {
         return Ok(await handler.HandleAsync(id, ct));

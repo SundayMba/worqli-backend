@@ -4,7 +4,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Servika.Application.Bookings;
 using Servika.Application.Common;
+using Servika.Application.Disputes;
+using Servika.Application.Reviews;
 using Servika.Contracts.Bookings;
+using Servika.Contracts.Disputes;
+using Servika.Contracts.Reviews;
 
 namespace Servika.Api.Controllers;
 
@@ -113,6 +117,107 @@ public sealed class BookingsController : ControllerBase
     public async Task<ActionResult<BookingDetailDto>> Complete(
         Guid id,
         [FromServices] CompleteBookingHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>The artisan's proof-of-work for one of the customer's bookings.</summary>
+    /// <remarks>Note + photos (base64 data URIs) submitted when the artisan marked
+    /// the job done — powers the "review the work & confirm" screen.</remarks>
+    /// <response code="200">The completion proof (empty photos if none submitted).</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="404">No such booking owned by this customer.</response>
+    [HttpGet("{id:guid}/completion")]
+    [ProducesResponseType(typeof(JobCompletionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<JobCompletionDto>> GetCompletion(
+        Guid id,
+        [FromServices] GetJobCompletionHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>Leave a review on one of the current customer's completed bookings.</summary>
+    /// <remarks>
+    /// Rates the booking's artisan (1–5 stars + optional comment). Allowed once,
+    /// only on a <c>Completed</c> booking that had an assigned artisan. The
+    /// artisan's rating is updated as part of the same transaction.
+    /// </remarks>
+    /// <response code="201">Review submitted.</response>
+    /// <response code="400">Rating out of range (must be 1–5).</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="404">No such booking owned by this customer.</response>
+    /// <response code="409">Not completed, no artisan to review, or already reviewed.</response>
+    [HttpPost("{id:guid}/review")]
+    [ProducesResponseType(typeof(ReviewDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReviewDto>> SubmitReview(
+        Guid id,
+        [FromBody] SubmitReviewRequest request,
+        [FromServices] SubmitReviewHandler handler,
+        CancellationToken ct)
+    {
+        var review = await handler.HandleAsync(CurrentUserId(), id, request, ct);
+        return CreatedAtAction(nameof(GetBookingReview), new { id }, review);
+    }
+
+    /// <summary>Get the review the current customer left for a booking, if any.</summary>
+    /// <response code="200">The review.</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="404">This booking hasn't been reviewed by the customer.</response>
+    [HttpGet("{id:guid}/review")]
+    [ProducesResponseType(typeof(ReviewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ReviewDto>> GetBookingReview(
+        Guid id,
+        [FromServices] GetBookingReviewHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>Raise a dispute about a booking (poor work, no-show, payment, …).</summary>
+    /// <remarks>Allowed once work has happened (InProgress / AwaitingConfirmation /
+    /// Completed); freezes the booking in <c>Disputed</c> for an admin to resolve.</remarks>
+    /// <response code="201">Dispute raised; booking is now Disputed.</response>
+    /// <response code="400">Missing category or description.</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="404">Booking not found for this customer.</response>
+    /// <response code="409">Booking can't be disputed, or already has an open dispute.</response>
+    [HttpPost("{id:guid}/dispute")]
+    [ProducesResponseType(typeof(DisputeDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<DisputeDto>> RaiseDispute(
+        Guid id,
+        [FromBody] RaiseDisputeRequest request,
+        [FromServices] RaiseDisputeHandler handler,
+        CancellationToken ct)
+    {
+        var dispute = await handler.HandleAsync(CurrentUserId(), id, request, ct);
+        return CreatedAtAction(nameof(GetBookingDispute), new { id }, dispute);
+    }
+
+    /// <summary>Get the dispute the current customer raised for a booking, if any.</summary>
+    /// <response code="200">The dispute.</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="404">No dispute has been raised for this booking.</response>
+    [HttpGet("{id:guid}/dispute")]
+    [ProducesResponseType(typeof(DisputeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DisputeDto>> GetBookingDispute(
+        Guid id,
+        [FromServices] GetBookingDisputeHandler handler,
         CancellationToken ct)
     {
         return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));

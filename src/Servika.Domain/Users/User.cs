@@ -26,6 +26,17 @@ public sealed class User
     /// <summary>When the user's email/phone was OTP-verified. Null until verified.</summary>
     public DateTimeOffset? EmailVerifiedAtUtc { get; private set; }
 
+    /// <summary>The user's own share code others enter to be referred by them.
+    /// Assigned lazily (on first view / at registration).</summary>
+    public string? ReferralCode { get; private set; }
+
+    /// <summary>When an admin suspended the account. Null = active. A suspended
+    /// account can't sign in.</summary>
+    public DateTimeOffset? SuspendedAtUtc { get; private set; }
+
+    /// <summary>Whether the account is currently suspended (blocked from signing in).</summary>
+    public bool IsSuspended => SuspendedAtUtc is not null;
+
     // EF Core needs a parameterless constructor to rebuild a User from a database
     // row. It's private so normal application code can't use it to skip our rules.
     private User() { }
@@ -89,4 +100,35 @@ public sealed class User
 
     /// <summary>Marks the account as verified after a successful OTP check.</summary>
     public void MarkEmailVerified(DateTimeOffset whenUtc) => EmailVerifiedAtUtc = whenUtc;
+
+    /// <summary>Assigns the user's referral share code (once).</summary>
+    public void SetReferralCode(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+            throw new ArgumentException("Referral code is required.", nameof(code));
+        ReferralCode ??= code.Trim().ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// Converts a customer account into an artisan ("Become a Pro"). Idempotent for
+    /// an existing artisan; admins can't self-convert.
+    /// </summary>
+    public void PromoteToArtisan()
+    {
+        if (Role is Role.Admin or Role.SuperAdmin)
+            throw new InvalidOperationException("Admin accounts cannot become artisans.");
+        Role = Role.Artisan;
+    }
+
+    /// <summary>Admin action: suspend the account (blocks sign-in). Admin/SuperAdmin
+    /// accounts can't be suspended, so the platform can't be locked out of itself.</summary>
+    public void Suspend(DateTimeOffset now)
+    {
+        if (Role is Role.Admin or Role.SuperAdmin)
+            throw new InvalidOperationException("Admin accounts cannot be suspended.");
+        SuspendedAtUtc ??= now;
+    }
+
+    /// <summary>Admin action: lift a suspension.</summary>
+    public void Reactivate() => SuspendedAtUtc = null;
 }

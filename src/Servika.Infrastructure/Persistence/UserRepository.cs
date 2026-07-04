@@ -36,6 +36,17 @@ public sealed class UserRepository : IUserRepository
     public Task<User?> FindByIdAsync(Guid id, CancellationToken ct) =>
         _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
 
+    public async Task<IReadOnlyList<User>> ListAsync(Role? role, CancellationToken ct)
+    {
+        var query = _db.Users.AsQueryable();
+        if (role is { } r)
+            query = query.Where(u => u.Role == r);
+        return await query.OrderByDescending(u => u.CreatedAt).ToListAsync(ct);
+    }
+
+    public Task<User?> FindByReferralCodeAsync(string code, CancellationToken ct) =>
+        _db.Users.FirstOrDefaultAsync(u => u.ReferralCode == code, ct);
+
     public Task<RefreshToken?> FindRefreshTokenAsync(string token, CancellationToken ct) =>
         _db.RefreshTokens.FirstOrDefaultAsync(t => t.Token == token, ct);
 

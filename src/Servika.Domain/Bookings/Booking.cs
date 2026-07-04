@@ -68,6 +68,22 @@ public sealed class Booking
     public DateTimeOffset? CompletedAtUtc { get; private set; }
     public DateTimeOffset? CancelledAtUtc { get; private set; }
 
+    /// <summary>When the artisan submitted proof of completed work (→ AwaitingConfirmation).</summary>
+    public DateTimeOffset? WorkSubmittedAtUtc { get; private set; }
+
+    /// <summary>Optional note the artisan leaves with their completion proof.</summary>
+    public string? CompletionNote { get; private set; }
+
+    /// <summary>Storage keys for the artisan's proof-of-work photos.</summary>
+    public List<string> CompletionPhotoKeys { get; private set; } = new();
+
+    /// <summary>When the customer raised a dispute (→ Disputed), if any.</summary>
+    public DateTimeOffset? DisputedAtUtc { get; private set; }
+
+    /// <summary>The status the booking held just before it was disputed, so an
+    /// admin's resolution can return it to a sensible terminal state.</summary>
+    public BookingStatus? PreDisputeStatus { get; private set; }
+
     // EF Core rebuilds rows through this; private so app code can't skip the rules.
     private Booking() { }
 
@@ -212,18 +228,86 @@ public sealed class Booking
     }
 
     /// <summary>
-    /// The customer confirms the job is done. InProgress → Completed. Only the
-    /// customer (or an admin) closes a booking — the artisan can't mark their own
-    /// work complete — which is why this lives apart from the artisan transitions.
+    /// The artisan submits proof of completed work. InProgress → AwaitingConfirmation.
+    /// At least one photo is required (the safeguard that makes auto-confirming an
+    /// unresponsive customer fair). The customer then confirms, or it auto-confirms
+    /// after the window.
     /// </summary>
-    public void ConfirmCompletion(DateTimeOffset now)
+    public void SubmitCompletion(IReadOnlyList<string> photoKeys, string? note, DateTimeOffset now)
     {
         if (Status is not BookingStatus.InProgress)
             throw new InvalidBookingStateException(
-                $"A booking can only be completed from InProgress (this one is {Status}).");
+                $"Work can only be submitted from InProgress (this one is {Status}).");
+        if (photoKeys is null || photoKeys.Count == 0)
+            throw new InvalidBookingStateException("At least one proof-of-work photo is required.");
+
+        CompletionPhotoKeys = photoKeys.ToList();
+        CompletionNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        WorkSubmittedAtUtc = now;
+        Status = BookingStatus.AwaitingConfirmation;
+    }
+
+    /// <summary>
+    /// Completes the job. Allowed once the artisan has submitted work
+    /// (AwaitingConfirmation) or directly from InProgress (customer/admin closing a
+    /// job the artisan didn't formally submit). Used by the customer's confirm and
+    /// by the auto-confirm sweep.
+    /// </summary>
+    public void ConfirmCompletion(DateTimeOffset now)
+    {
+        if (Status is not (BookingStatus.AwaitingConfirmation or BookingStatus.InProgress))
+            throw new InvalidBookingStateException(
+                $"A booking can only be completed from InProgress or AwaitingConfirmation (this one is {Status}).");
 
         Status = BookingStatus.Completed;
         CompletedAtUtc = now;
+    }
+
+    // ── Disputes ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The customer raises a dispute. Only allowed once work has actually happened
+    /// — the job is <see cref="BookingStatus.InProgress"/>,
+    /// <see cref="BookingStatus.AwaitingConfirmation"/>, or already
+    /// <see cref="BookingStatus.Completed"/> (within the app's dispute window,
+    /// enforced by the caller). Records the pre-dispute status so resolution can
+    /// restore a terminal state, then freezes the booking in Disputed.
+    /// </summary>
+    public void RaiseDispute(DateTimeOffset now)
+    {
+        if (Status is not (BookingStatus.InProgress
+            or BookingStatus.AwaitingConfirmation
+            or BookingStatus.Completed))
+        {
+            throw new InvalidBookingStateException(
+                $"A {Status} booking can't be disputed — only an in-progress or completed job can.");
+        }
+
+        PreDisputeStatus = Status;
+        Status = BookingStatus.Disputed;
+        DisputedAtUtc = now;
+    }
+
+    /// <summary>
+    /// Admin closes a dispute: favouring the customer cancels the job (a refund
+    /// would follow in a later payments slice); favouring the artisan completes it.
+    /// </summary>
+    public void ResolveDispute(bool favourCustomer, DateTimeOffset now)
+    {
+        if (Status is not BookingStatus.Disputed)
+            throw new InvalidBookingStateException(
+                $"Only a disputed booking can have its dispute resolved (this one is {Status}).");
+
+        if (favourCustomer)
+        {
+            Status = BookingStatus.Cancelled;
+            CancelledAtUtc = now;
+        }
+        else
+        {
+            Status = BookingStatus.Completed;
+            CompletedAtUtc ??= now;
+        }
     }
 
     /// <summary>Payment has been initialized and is awaiting the gateway result.</summary>
@@ -231,4 +315,7 @@ public sealed class Booking
 
     /// <summary>Funds received and held in escrow.</summary>
     public void MarkPaid() => PaymentState = BookingPaymentState.Paid;
+
+    /// <summary>Escrow returned to the customer (e.g. a dispute resolved in their favour).</summary>
+    public void MarkRefunded() => PaymentState = BookingPaymentState.Refunded;
 }

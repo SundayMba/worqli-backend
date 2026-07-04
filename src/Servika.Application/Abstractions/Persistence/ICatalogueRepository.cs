@@ -29,4 +29,33 @@ public interface ICatalogueRepository
     /// user has no artisan profile. Used to resolve a signed-in artisan to the
     /// jobs assigned to their profile.</summary>
     Task<ArtisanProfile?> GetArtisanByUserIdAsync(Guid userId, CancellationToken ct);
+
+    /// <summary>A <b>tracked</b> artisan profile by id, or null — used when a
+    /// review needs to fold its rating into the artisan's aggregate (the change
+    /// must persist on SaveChanges). The read-only <see cref="GetArtisanByIdAsync"/>
+    /// is no-tracking and can't.</summary>
+    Task<ArtisanProfile?> FindArtisanForUpdateAsync(Guid id, CancellationToken ct);
+
+    /// <summary>The <b>tracked</b> profile linked to a login account (for onboarding
+    /// edits), or null if this user has no profile yet.</summary>
+    Task<ArtisanProfile?> GetArtisanByUserIdForUpdateAsync(Guid userId, CancellationToken ct);
+
+    /// <summary>Stages a new artisan profile (self-onboarding). Persisted on SaveChanges.</summary>
+    void AddArtisan(ArtisanProfile profile);
+
+    // ── Admin category management ──────────────────────────────────────────
+
+    /// <summary>All categories incl. inactive, in display order (admin view).</summary>
+    Task<IReadOnlyList<ServiceCategory>> GetAllCategoriesAsync(CancellationToken ct);
+
+    /// <summary>A category by id (tracked, so an admin edit/toggle persists), or null.</summary>
+    Task<ServiceCategory?> FindCategoryByIdForUpdateAsync(Guid id, CancellationToken ct);
+
+    /// <summary>True if any category (active or not) already uses this slug.</summary>
+    Task<bool> CategorySlugExistsAsync(string slug, CancellationToken ct);
+
+    /// <summary>Stages a new category. Persisted on SaveChanges.</summary>
+    void AddCategory(ServiceCategory category);
+
+    Task<int> SaveChangesAsync(CancellationToken ct);
 }

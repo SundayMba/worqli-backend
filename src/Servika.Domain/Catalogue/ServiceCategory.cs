@@ -42,16 +42,40 @@ public sealed class ServiceCategory
         int sortOrder,
         bool isPopular = false,
         string? iconKey = null,
-        bool isActive = true) =>
-        new()
+        bool isActive = true)
+    {
+        if (string.IsNullOrWhiteSpace(slug))
+            throw new ArgumentException("A slug is required.", nameof(slug));
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("A name is required.", nameof(name));
+
+        return new()
         {
             Id = id,
-            Slug = slug,
-            Name = name,
-            Tint = tint,
+            Slug = slug.Trim().ToLowerInvariant(),
+            Name = name.Trim(),
+            Tint = tint?.Trim() ?? string.Empty,
             SortOrder = sortOrder,
             IsPopular = isPopular,
-            IconKey = iconKey,
+            IconKey = string.IsNullOrWhiteSpace(iconKey) ? null : iconKey.Trim(),
             IsActive = isActive,
         };
+    }
+
+    /// <summary>Admin edit of the display fields. The <see cref="Slug"/> is a stable
+    /// key (used in routes and to resolve client artwork) and never changes.</summary>
+    public void Update(string name, string tint, int sortOrder, bool isPopular, string? iconKey)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("A name is required.", nameof(name));
+
+        Name = name.Trim();
+        Tint = tint?.Trim() ?? string.Empty;
+        SortOrder = sortOrder;
+        IsPopular = isPopular;
+        IconKey = string.IsNullOrWhiteSpace(iconKey) ? null : iconKey.Trim();
+    }
+
+    /// <summary>Soft on/off — hide a category from the marketplace without deleting it.</summary>
+    public void SetActive(bool isActive) => IsActive = isActive;
 }

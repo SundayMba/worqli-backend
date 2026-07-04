@@ -8,6 +8,11 @@ namespace Servika.Application.Catalogue;
 /// Lists artisan summaries for the home carousel (no filter) or for a single
 /// category (when <paramref name="categorySlug"/> is supplied). An unknown
 /// category slug is a 404 rather than a silent empty list.
+///
+/// When the customer's coordinates are supplied, each artisan's distance is
+/// computed from those coordinates and the list is re-sorted by proximity
+/// (available artisans first, then nearest). Without coordinates it falls back
+/// to the artisans' seeded baseline distance and order.
 /// </summary>
 public sealed class GetArtisansHandler
 {
@@ -19,7 +24,7 @@ public sealed class GetArtisansHandler
     }
 
     public async Task<IReadOnlyList<ArtisanSummaryDto>> HandleAsync(
-        string? categorySlug, CancellationToken ct)
+        string? categorySlug, double? lat, double? lng, CancellationToken ct)
     {
         if (!string.IsNullOrWhiteSpace(categorySlug) &&
             !await _catalogue.CategoryExistsAsync(categorySlug, ct))
@@ -28,6 +33,26 @@ public sealed class GetArtisansHandler
         }
 
         var artisans = await _catalogue.GetArtisansAsync(categorySlug, ct);
-        return artisans.Select(a => a.ToSummaryDto()).ToList();
+
+        // No customer location → keep the repository's default order + baseline distance.
+        if (lat is not { } customerLat || lng is not { } customerLng)
+        {
+            return artisans.Select(a => a.ToSummaryDto()).ToList();
+        }
+
+        // Compute real distance for artisans that have coordinates; fall back to
+        // the seeded baseline for any that don't, so none silently disappears.
+        return artisans
+            .Select(a =>
+            {
+                var distance = a.Latitude is { } aLat && a.Longitude is { } aLng
+                    ? Math.Round(GeoDistance.Km(customerLat, customerLng, aLat, aLng), 1)
+                    : a.DistanceKm;
+                return (Artisan: a, Distance: distance);
+            })
+            .OrderByDescending(x => x.Artisan.IsAvailable)
+            .ThenBy(x => x.Distance)
+            .Select(x => x.Artisan.ToSummaryDto(x.Distance))
+            .ToList();
     }
 }

@@ -6,13 +6,17 @@ using Servika.Application.Abstractions.Notifications;
 using Servika.Application.Abstractions.Payments;
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Security;
+using Servika.Application.Abstractions.Storage;
 using Servika.Application.Abstractions.Time;
+using Servika.Application.Abstractions.Verification;
 using Servika.Infrastructure.Directions;
 using Servika.Infrastructure.Notifications;
 using Servika.Infrastructure.Payments;
 using Servika.Infrastructure.Persistence;
 using Servika.Infrastructure.Security;
+using Servika.Infrastructure.Storage;
 using Servika.Infrastructure.Time;
+using Servika.Infrastructure.Verification;
 
 namespace Servika.Infrastructure;
 
@@ -55,12 +59,47 @@ public static class DependencyInjection
         // Bookings (read + write), Scoped (EF).
         services.AddScoped<IBookingRepository, BookingRepository>();
 
+        // Reviews (customer ratings on completed bookings), Scoped (EF).
+        services.AddScoped<IReviewRepository, ReviewRepository>();
+
+        // In-app notifications feed, Scoped (EF).
+        services.AddScoped<INotificationRepository, NotificationRepository>();
+
+        // Push notifications: device tokens (Scoped EF) + Expo sender + fire-and-forget
+        // dispatcher (Singletons — they use IHttpClientFactory / IServiceScopeFactory).
+        services.AddScoped<IPushTokenRepository, PushTokenRepository>();
+        services.AddHttpClient("expo-push");
+        services.AddSingleton<IPushSender, ExpoPushSender>();
+        services.AddSingleton<INotificationPushDispatcher, NotificationPushDispatcher>();
+
+        // Referrals (attribution + reward pool), Scoped (EF).
+        services.AddScoped<IReferralRepository, ReferralRepository>();
+
+        // Disputes (customer complaints + admin resolution), Scoped (EF).
+        services.AddScoped<IDisputeRepository, DisputeRepository>();
+
+        // Chat (per-booking customer↔artisan conversations), Scoped (EF).
+        services.AddScoped<IChatRepository, ChatRepository>();
+
+        // Platform settings (single admin-controlled row), Scoped (EF).
+        services.AddScoped<IPlatformSettingsRepository, PlatformSettingsRepository>();
+
+        // Artisan KYC (submission store + file storage + verification provider).
+        services.AddScoped<IArtisanKycRepository, ArtisanKycRepository>();
+        services.AddSingleton<IFileStorage, LocalFileStorage>();
+        services.AddSingleton<IKycVerificationProvider, ManualKycProvider>();
+
         // Live-tracking sessions (read + write), Scoped (EF).
         services.AddScoped<ITrackingRepository, TrackingRepository>();
 
         // Payments + wallet ledger (Scoped, EF).
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IWalletRepository, WalletRepository>();
+
+        // Artisan payouts (Scoped, EF). Disbursement uses the stub gateway until
+        // Paystack Transfers is wired (same IPayoutGateway port either way).
+        services.AddScoped<IWithdrawalRepository, WithdrawalRepository>();
+        services.AddSingleton<IPayoutGateway, StubPayoutGateway>();
 
         // Payment gateway: real Paystack when a key is configured, else the stub
         // (so local dev / tests run the full escrow flow without credentials).

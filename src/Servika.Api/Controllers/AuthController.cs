@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Servika.Application.Common;
+using Servika.Application.Users.BecomeArtisan;
 using Servika.Application.Users.Login;
 using Servika.Application.Users.Logout;
 using Servika.Application.Users.Me;
@@ -167,6 +168,28 @@ public sealed class AuthController : ControllerBase
     /// <remarks>Requires a valid access token. Called on app boot to restore the session.</remarks>
     /// <response code="200">The current user's session profile.</response>
     /// <response code="401">Missing, invalid, or expired access token.</response>
+    /// <summary>Upgrade the current account to an artisan ("Become a Pro").</summary>
+    /// <remarks>Returns a fresh session — the app must store it so the artisan
+    /// endpoints authorize with the new role. Idempotent if already an artisan.</remarks>
+    /// <response code="200">The new session (tokens + updated user).</response>
+    /// <response code="401">Not signed in.</response>
+    [Authorize]
+    [HttpPost("become-artisan")]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AuthResponse>> BecomeArtisan(
+        [FromServices] BecomeArtisanHandler handler,
+        CancellationToken ct)
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(sub, out var userId))
+            throw new InvalidCredentialsException();
+
+        return Ok(await handler.HandleAsync(userId, ct));
+    }
+
+    /// <summary>The current user's session profile.</summary>
     [Authorize]
     [HttpGet("me")]
     [ProducesResponseType(typeof(MeResponse), StatusCodes.Status200OK)]

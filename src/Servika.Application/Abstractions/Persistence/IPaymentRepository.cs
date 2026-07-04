@@ -14,5 +14,9 @@ public interface IPaymentRepository
     /// avoid double-charging an already-paid booking.</summary>
     Task<Payment?> FindActiveForBookingAsync(Guid bookingId, CancellationToken ct);
 
+    /// <summary>The settled (Succeeded) payment for a booking, if any — the one a
+    /// refund reverses. Tracked, so <c>MarkRefunded</c> persists.</summary>
+    Task<Payment?> FindSucceededForBookingAsync(Guid bookingId, CancellationToken ct);
+
     Task<int> SaveChangesAsync(CancellationToken ct);
 }

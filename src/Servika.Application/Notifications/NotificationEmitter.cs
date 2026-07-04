@@ -1,0 +1,166 @@
+using Servika.Application.Abstractions.Notifications;
+using Servika.Application.Abstractions.Persistence;
+using Servika.Application.Abstractions.Time;
+using Servika.Application.Bookings;
+using Servika.Domain.Bookings;
+using Servika.Domain.Notifications;
+
+namespace Servika.Application.Notifications;
+
+/// <summary>
+/// Central place that turns domain events (a booking transition, a settled
+/// payment) into in-app notifications for the affected customer. It only
+/// <c>Add</c>s to the shared DbContext — the calling handler's
+/// <c>SaveChangesAsync</c> flushes the notification in the same transaction as the
+/// change that caused it, so the two can never drift apart.
+///
+/// <para>Copy lives here (not in the entity or handlers) so wording stays
+/// consistent and easy to tune. Recipients are all the booking's customer, so no
+/// artisan-profile → user lookup is needed.</para>
+/// </summary>
+public sealed class NotificationEmitter
+{
+    private readonly INotificationRepository _notifications;
+    private readonly INotificationPushDispatcher _push;
+    private readonly ICatalogueRepository _catalogue;
+    private readonly IClock _clock;
+
+    public NotificationEmitter(
+        INotificationRepository notifications,
+        INotificationPushDispatcher push,
+        ICatalogueRepository catalogue,
+        IClock clock)
+    {
+        _notifications = notifications;
+        _push = push;
+        _catalogue = catalogue;
+        _clock = clock;
+    }
+
+    /// <summary>Notify the customer of an artisan-driven booking transition.</summary>
+    public void BookingAdvancedByArtisan(Booking booking, ArtisanBookingAction action)
+    {
+        var who = string.IsNullOrWhiteSpace(booking.ArtisanName) ? "Your artisan" : booking.ArtisanName!;
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "your" : booking.ServiceName;
+
+        var (title, body) = action switch
+        {
+            ArtisanBookingAction.Accept =>
+                ("Booking accepted", $"{who} accepted your {service} booking."),
+            ArtisanBookingAction.Reject =>
+                ("Booking declined", $"{who} can't take this {service} booking — try another artisan."),
+            ArtisanBookingAction.StartTrip =>
+                ("Artisan on the way", $"{who} is heading to your location."),
+            ArtisanBookingAction.Arrive =>
+                ("Artisan arrived", $"{who} has arrived at your location."),
+            ArtisanBookingAction.StartWork =>
+                ("Work started", $"{who} has started your {service} job."),
+            _ => (string.Empty, string.Empty),
+        };
+
+        if (title.Length == 0) return; // nothing to announce for this action
+        Add(booking.CustomerId, NotificationType.Booking, title, body, booking.Id);
+    }
+
+    /// <summary>Tell the customer their artisan submitted completed work to review.</summary>
+    public void WorkSubmitted(Booking booking)
+    {
+        var who = string.IsNullOrWhiteSpace(booking.ArtisanName) ? "Your artisan" : booking.ArtisanName!;
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
+        Add(booking.CustomerId, NotificationType.Booking,
+            "Work completed", $"{who} finished your {service}. Review the photos and confirm.", booking.Id);
+    }
+
+    /// <summary>Tell the customer a job auto-confirmed because they didn't respond in time.</summary>
+    public void BookingAutoConfirmed(Booking booking)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
+        Add(booking.CustomerId, NotificationType.Booking,
+            "Job auto-confirmed", $"Your {service} was auto-confirmed as complete. Tap to leave a review.", booking.Id);
+    }
+
+    /// <summary>Nudge the customer to review a job they just confirmed complete.</summary>
+    public void BookingCompleted(Booking booking)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
+        Add(booking.CustomerId, NotificationType.Booking,
+            "Job completed", $"Your {service} is done. Tap to leave a review.", booking.Id);
+    }
+
+    /// <summary>Tell the customer their dispute was resolved.</summary>
+    public void DisputeResolved(Booking booking, bool favourCustomer)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "booking" : $"{booking.ServiceName} booking";
+        var body = favourCustomer
+            ? $"Your dispute on the {service} was resolved in your favour."
+            : $"Your dispute on the {service} was reviewed and the job stands.";
+        Add(booking.CustomerId, NotificationType.Booking, "Dispute resolved", body, booking.Id);
+    }
+
+    /// <summary>Tell the customer a refund was issued to them.</summary>
+    public void RefundIssued(Booking booking, int amountNaira)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "booking" : $"{booking.ServiceName} booking";
+        Add(booking.CustomerId, NotificationType.Payment,
+            "Refund issued", $"₦{amountNaira:N0} for your {service} has been refunded.", booking.Id);
+    }
+
+    /// <summary>Confirm to the customer that their payment settled.</summary>
+    public void PaymentReceived(Guid customerId, Guid bookingId, string serviceName)
+    {
+        var service = string.IsNullOrWhiteSpace(serviceName) ? "your booking" : serviceName;
+        Add(customerId, NotificationType.Payment,
+            "Payment received", $"We received your payment for {service}.", bookingId);
+    }
+
+    // ── Artisan-facing notifications ────────────────────────────────────────
+    // Recipient is the assigned artisan's login account, resolved from the
+    // booking's ArtisanId (a catalogue profile id) → its linked UserId. A no-op if
+    // the booking has no artisan or the profile isn't linked to a user account.
+
+    /// <summary>Tell the assigned artisan a new job was booked with them.</summary>
+    public Task ArtisanNewBooking(Booking booking, CancellationToken ct)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
+        return NotifyArtisanAsync(booking,
+            "New job request", $"You have a new {service} request. Review and accept it.", ct);
+    }
+
+    /// <summary>Tell the assigned artisan the customer cancelled the booking.</summary>
+    public Task ArtisanBookingCancelled(Booking booking, CancellationToken ct)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
+        return NotifyArtisanAsync(booking,
+            "Booking cancelled", $"The customer cancelled the {service}.", ct);
+    }
+
+    /// <summary>Tell the artisan the customer confirmed the completed work.</summary>
+    public Task ArtisanJobConfirmed(Booking booking, CancellationToken ct)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
+        return NotifyArtisanAsync(booking,
+            "Job confirmed", $"The customer confirmed your {service}. Your earnings are available to withdraw.", ct);
+    }
+
+    /// <summary>Tell the artisan a customer left them a review.</summary>
+    public Task ArtisanNewReview(Booking booking, int rating, CancellationToken ct)
+    {
+        return NotifyArtisanAsync(booking,
+            "New review", $"A customer rated your work {rating}★. Tap to view.", ct);
+    }
+
+    private async Task NotifyArtisanAsync(Booking booking, string title, string body, CancellationToken ct)
+    {
+        if (booking.ArtisanId is not { } profileId) return;
+        var profile = await _catalogue.GetArtisanByIdAsync(profileId, ct);
+        if (profile?.UserId is not { } artisanUserId) return; // unlinked catalogue artisan
+        Add(artisanUserId, NotificationType.Booking, title, body, booking.Id);
+    }
+
+    private void Add(Guid userId, NotificationType type, string title, string body, Guid? bookingId)
+    {
+        _notifications.Add(Notification.Create(userId, type, title, body, bookingId, _clock.UtcNow));
+        // Best-effort device push (fire-and-forget; independent of this transaction).
+        _push.Dispatch(userId, title, body, bookingId);
+    }
+}

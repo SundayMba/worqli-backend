@@ -11,6 +11,9 @@ public interface IWalletRepository
     Task<IReadOnlyList<WalletTransaction>> ListForOwnerAsync(
         WalletOwnerType ownerType, Guid ownerId, CancellationToken ct);
 
+    /// <summary>Every ledger entry, newest first — admin payments analytics (unscoped).</summary>
+    Task<IReadOnlyList<WalletTransaction>> ListAllAsync(CancellationToken ct);
+
     /// <summary>Signed sum of an owner's ledger entries = their current balance.</summary>
     Task<int> GetBalanceAsync(
         WalletOwnerType ownerType, Guid ownerId, CancellationToken ct);

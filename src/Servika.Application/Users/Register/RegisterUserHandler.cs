@@ -3,8 +3,10 @@ using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Security;
 using Servika.Application.Abstractions.Time;
 using Servika.Application.Common;
+using Servika.Application.Referrals;
 using Servika.Application.Users.Otp;
 using Servika.Contracts.Auth;
+using Servika.Domain.Referrals;
 using Servika.Domain.Users;
 
 namespace Servika.Application.Users.Register;
@@ -22,6 +24,8 @@ public sealed class RegisterUserHandler
 {
     private readonly IUserRepository _users;
     private readonly IVerificationCodeRepository _codes;
+    private readonly IReferralRepository _referrals;
+    private readonly IPlatformSettingsRepository _settings;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IOtpService _otp;
     private readonly IOtpSender _sender;
@@ -30,6 +34,8 @@ public sealed class RegisterUserHandler
     public RegisterUserHandler(
         IUserRepository users,
         IVerificationCodeRepository codes,
+        IReferralRepository referrals,
+        IPlatformSettingsRepository settings,
         IPasswordHasher passwordHasher,
         IOtpService otp,
         IOtpSender sender,
@@ -37,6 +43,8 @@ public sealed class RegisterUserHandler
     {
         _users = users;
         _codes = codes;
+        _referrals = referrals;
+        _settings = settings;
         _passwordHasher = passwordHasher;
         _otp = otp;
         _sender = sender;
@@ -68,7 +76,26 @@ public sealed class RegisterUserHandler
             passwordHash: passwordHash,
             role: ResolveRole(request.Role),
             createdAt: now);
+
+        // Assign this user their own share code (unique).
+        string ownCode;
+        do { ownCode = ReferralCodeGenerator.Generate(user.FullName); }
+        while (await _users.FindByReferralCodeAsync(ownCode, ct) is not null);
+        user.SetReferralCode(ownCode);
         _users.AddUser(user);
+
+        // Attribution: if they entered someone's code, link the referral (a bad
+        // code is simply ignored — it never blocks signup).
+        if (!string.IsNullOrWhiteSpace(request.ReferralCode))
+        {
+            var referrer = await _users.FindByReferralCodeAsync(
+                request.ReferralCode.Trim().ToUpperInvariant(), ct);
+            if (referrer is not null && referrer.Id != user.Id)
+            {
+                var reward = (await _settings.GetOrCreateAsync(ct)).ReferralRewardNaira;
+                _referrals.Add(Referral.Create(referrer.Id, user.Id, reward, now));
+            }
+        }
 
         // 3. Issue an email verification code and stage it alongside the user.
         var ttl = OtpPolicy.TtlSecondsFor(OtpPurpose.AccountVerification);

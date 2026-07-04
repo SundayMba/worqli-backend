@@ -21,4 +21,7 @@ public enum WalletTransactionType
     Adjustment = 4,
     PayoutRequest = 5,
     PayoutCompleted = 6,
+
+    /// <summary>₦ credited to a referrer when their referred artisan completes a first job.</summary>
+    ReferralBonus = 7,
 }

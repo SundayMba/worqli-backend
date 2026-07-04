@@ -14,4 +14,9 @@ public enum WalletOwnerType
 
     /// <summary>Servika's own account (commission). Uses a fixed owner id.</summary>
     Platform = 2,
+
+    /// <summary>A user's referral-reward pool (owner id = referrer's user id). Kept
+    /// separate from their Customer wallet so referral cash is withdrawable on its
+    /// own, independent of any booking-payment debits.</summary>
+    Referrer = 3,
 }

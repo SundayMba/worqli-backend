@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Servika.Application.Common;
 using Servika.Domain.Bookings;
+using Servika.Domain.Disputes;
 
 namespace Servika.Api.Middleware;
 
@@ -33,8 +34,10 @@ public sealed class ExceptionHandlingMiddleware
                 EmailAlreadyInUseException => (StatusCodes.Status409Conflict, ex.Message),
                 ConflictException => (StatusCodes.Status409Conflict, ex.Message),
                 InvalidBookingStateException => (StatusCodes.Status409Conflict, ex.Message),
+                InvalidDisputeStateException => (StatusCodes.Status409Conflict, ex.Message),
                 InvalidWebhookSignatureException => (StatusCodes.Status401Unauthorized, ex.Message),
                 InvalidCredentialsException => (StatusCodes.Status401Unauthorized, ex.Message),
+                AccountSuspendedException => (StatusCodes.Status403Forbidden, ex.Message),
                 InvalidRefreshTokenException => (StatusCodes.Status401Unauthorized, ex.Message),
                 InvalidOtpException => (StatusCodes.Status400BadRequest, ex.Message),
                 NotFoundException => (StatusCodes.Status404NotFound, ex.Message),

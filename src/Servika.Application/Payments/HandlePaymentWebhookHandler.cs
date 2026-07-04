@@ -2,6 +2,7 @@ using Servika.Application.Abstractions.Payments;
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Time;
 using Servika.Application.Common;
+using Servika.Application.Notifications;
 using Servika.Domain.Payments;
 
 namespace Servika.Application.Payments;
@@ -20,6 +21,7 @@ public sealed class HandlePaymentWebhookHandler
     private readonly IWalletRepository _wallet;
     private readonly IBookingRepository _bookings;
     private readonly IPaymentGateway _gateway;
+    private readonly NotificationEmitter _notifications;
     private readonly IClock _clock;
 
     public HandlePaymentWebhookHandler(
@@ -27,12 +29,14 @@ public sealed class HandlePaymentWebhookHandler
         IWalletRepository wallet,
         IBookingRepository bookings,
         IPaymentGateway gateway,
+        NotificationEmitter notifications,
         IClock clock)
     {
         _payments = payments;
         _wallet = wallet;
         _bookings = bookings;
         _gateway = gateway;
+        _notifications = notifications;
         _clock = clock;
     }
 
@@ -83,6 +87,9 @@ public sealed class HandlePaymentWebhookHandler
 
         var booking = await _bookings.FindByIdAsync(payment.BookingId, ct);
         booking?.MarkPaid();
+
+        _notifications.PaymentReceived(
+            payment.CustomerId, payment.BookingId, booking?.ServiceName ?? string.Empty);
 
         await _payments.SaveChangesAsync(ct);
     }

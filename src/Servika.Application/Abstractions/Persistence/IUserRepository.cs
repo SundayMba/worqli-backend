@@ -18,6 +18,13 @@ public interface IUserRepository
 
     Task<User?> FindByIdAsync(Guid id, CancellationToken ct);
 
+    /// <summary>All users for the admin directory, newest first, optionally one role
+    /// only. Tracked (an admin suspend/reactivate persists on SaveChanges).</summary>
+    Task<IReadOnlyList<User>> ListAsync(Role? role, CancellationToken ct);
+
+    /// <summary>Finds the owner of a referral share code, or null if unknown.</summary>
+    Task<User?> FindByReferralCodeAsync(string code, CancellationToken ct);
+
     /// <summary>Finds a refresh token by its raw value, or null if unknown.</summary>
     Task<RefreshToken?> FindRefreshTokenAsync(string token, CancellationToken ct);
 

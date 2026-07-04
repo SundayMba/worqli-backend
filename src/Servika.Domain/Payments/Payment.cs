@@ -39,6 +39,7 @@ public sealed class Payment
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? PaidAtUtc { get; private set; }
     public DateTimeOffset? FailedAtUtc { get; private set; }
+    public DateTimeOffset? RefundedAtUtc { get; private set; }
 
     /// <summary>Servika's cut, rounded to whole Naira.</summary>
     public int CommissionNaira =>
@@ -103,5 +104,16 @@ public sealed class Payment
                 $"Payment {Id} is {Status}; only a Pending payment can fail.");
         Status = PaymentStatus.Failed;
         FailedAtUtc = now;
+    }
+
+    /// <summary>Reverses a settled payment (e.g. a dispute resolved for the customer).
+    /// Only a Succeeded payment can be refunded, and only once.</summary>
+    public void MarkRefunded(DateTimeOffset now)
+    {
+        if (Status != PaymentStatus.Succeeded)
+            throw new InvalidOperationException(
+                $"Payment {Id} is {Status}; only a Succeeded payment can be refunded.");
+        Status = PaymentStatus.Refunded;
+        RefundedAtUtc = now;
     }
 }

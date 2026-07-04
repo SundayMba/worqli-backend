@@ -20,6 +20,9 @@ internal static class CatalogueSeed
     private static Guid ArtisanId(int n) => new($"b0000000-0000-0000-0000-{n:000000000000}");
     private static Guid ArtisanUserId(int n) => new($"c0000000-0000-0000-0000-{n:000000000000}");
 
+    /// <summary>The seeded platform admin (resolves disputes; dev/test only).</summary>
+    private static readonly Guid AdminUserId = new("e0000000-0000-0000-0000-000000000001");
+
     /// <summary>Shared password for all seeded artisan accounts (dev/test only).</summary>
     public const string ArtisanLoginPassword = "Servika123!";
 
@@ -36,9 +39,27 @@ internal static class CatalogueSeed
     public static void Apply(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<User>().HasData(ArtisanUsers());
+        modelBuilder.Entity<User>().HasData(AdminUsers());
         modelBuilder.Entity<ServiceCategory>().HasData(Categories());
         modelBuilder.Entity<ArtisanProfile>().HasData(Artisans());
     }
+
+    // The platform admin account that resolves disputes. Role stored as a string
+    // by the value converter; shares the deterministic seed password hash.
+    private static object[] AdminUsers() =>
+    [
+        new
+        {
+            Id = AdminUserId,
+            FullName = "Servika Admin",
+            Email = "admin@servika.test",
+            PhoneNumber = "+2348100000009",
+            PasswordHash = ArtisanPasswordHash,
+            Role = Role.Admin,
+            CreatedAt = SeedTime,
+            EmailVerifiedAtUtc = (DateTimeOffset?)SeedTime,
+        },
+    ];
 
     // The login accounts behind the three seeded artisan profiles. Anonymous
     // objects (matched by property name) keep User's setters private; Role is
@@ -141,7 +162,9 @@ internal static class CatalogueSeed
             about: "Professional electrician specializing in installations, repairs and maintenance. Committed to quality work and customer safety.",
             categorySlugs: ["electrical"],
             services: ["Installation", "Repair", "Maintenance", "Wiring"],
-            galleryKeys: ["electrician", "hvac", "fridge", "carpenter"]),
+            galleryKeys: ["electrician", "hvac", "fridge", "carpenter"],
+            latitude: 6.4478,   // Lekki, Lagos
+            longitude: 3.4723),
 
         ArtisanProfile.Create(
             id: ArtisanId(2),
@@ -162,7 +185,9 @@ internal static class CatalogueSeed
             about: "Experienced plumber handling installations, leak repairs and pipe maintenance. Reliable, neat and available for emergencies.",
             categorySlugs: ["plumbing"],
             services: ["Leak Repair", "Installation", "Drainage", "Maintenance"],
-            galleryKeys: ["plumber", "fridge", "electrician", "carpenter"]),
+            galleryKeys: ["plumber", "fridge", "electrician", "carpenter"],
+            latitude: 6.5095,   // Yaba, Lagos
+            longitude: 3.3711),
 
         ArtisanProfile.Create(
             id: ArtisanId(3),
@@ -176,13 +201,15 @@ internal static class CatalogueSeed
             isAvailable: false,
             accent: "#10B981",
             experienceYears: 5,
-            location: "Abuja, Nigeria",
+            location: "Lagos, Nigeria",
             responseTime: "20 min",
             jobsCount: "90+",
             inspectionFeeNaira: 6000,
             about: "Certified HVAC technician for AC servicing, installation and gas refill. Focused on efficient cooling and long-term reliability.",
             categorySlugs: ["ac", "fridge"],
             services: ["AC Servicing", "Installation", "Gas Refill", "Repair"],
-            galleryKeys: ["hvac", "fridge", "electrician", "plumber"]),
+            galleryKeys: ["hvac", "fridge", "electrician", "plumber"],
+            latitude: 6.6018,   // Ikeja, Lagos
+            longitude: 3.3515),
     ];
 }

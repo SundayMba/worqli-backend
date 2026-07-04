@@ -1,6 +1,7 @@
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Time;
 using Servika.Application.Common;
+using Servika.Application.Notifications;
 using Servika.Contracts.Bookings;
 
 namespace Servika.Application.Bookings;
@@ -18,13 +19,16 @@ public sealed class AdvanceBookingByArtisanHandler
 {
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
+    private readonly NotificationEmitter _notifications;
     private readonly IClock _clock;
 
     public AdvanceBookingByArtisanHandler(
-        IBookingRepository bookings, ICatalogueRepository catalogue, IClock clock)
+        IBookingRepository bookings, ICatalogueRepository catalogue,
+        NotificationEmitter notifications, IClock clock)
     {
         _bookings = bookings;
         _catalogue = catalogue;
+        _notifications = notifications;
         _clock = clock;
     }
 
@@ -47,6 +51,9 @@ public sealed class AdvanceBookingByArtisanHandler
             case ArtisanBookingAction.StartWork: booking.StartWork(); break;
             default: throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown artisan action.");
         }
+
+        // Notify the customer of the transition; flushed with the booking below.
+        _notifications.BookingAdvancedByArtisan(booking, action);
 
         await _bookings.SaveChangesAsync(ct);
         return booking.ToDetailDto();

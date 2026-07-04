@@ -25,6 +25,12 @@ public sealed class WalletRepository : IWalletRepository
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<WalletTransaction>> ListAllAsync(CancellationToken ct) =>
+        await _db.WalletTransactions
+            .AsNoTracking()
+            .OrderByDescending(t => t.CreatedAt)
+            .ToListAsync(ct);
+
     public async Task<int> GetBalanceAsync(
         WalletOwnerType ownerType, Guid ownerId, CancellationToken ct) =>
         await _db.WalletTransactions

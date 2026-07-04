@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Servika.Api.Bookings;
 using Servika.Api.Hubs;
 using Servika.Api.Middleware;
 using Servika.Api.Tracking;
@@ -11,6 +12,11 @@ using Servika.Application;
 using Servika.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// KYC submissions carry base64 images in the JSON body. The client compresses
+// them, but raise Kestrel's ~30MB default so an uncompressed-fallback upload from
+// a high-megapixel phone camera isn't rejected/reset.
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 60 * 1024 * 1024);
 
 // --- Services (the "DI container": register everything the app can use) -----
 
@@ -67,6 +73,8 @@ builder.Services.AddSignalR();
 
 // Background sweep that ends stale tracking sessions (see TrackingCleanupService).
 builder.Services.AddHostedService<TrackingCleanupService>();
+// Background sweep that auto-confirms jobs the customer never confirmed.
+builder.Services.AddHostedService<CompletionAutoConfirmService>();
 
 // Register MVC controllers. This makes ASP.NET scan the assembly for classes
 // that derive from ControllerBase and turn their methods into HTTP endpoints.
@@ -164,6 +172,9 @@ app.MapControllers();
 
 // Real-time live-tracking hub. Clients connect at /hubs/tracking?access_token=…
 app.MapHub<TrackingHub>("/hubs/tracking");
+
+// Real-time chat delivery hub. Clients connect at /hubs/chat?access_token=…
+app.MapHub<ChatHub>("/hubs/chat");
 
 app.Run();
 

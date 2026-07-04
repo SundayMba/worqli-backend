@@ -55,6 +55,10 @@ public sealed class LoginUserHandler
         if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
             throw new InvalidCredentialsException();
 
+        // An admin-suspended account can't sign in.
+        if (user.IsSuspended)
+            throw new AccountSuspendedException();
+
         var now = _clock.UtcNow;
 
         // Unverified email → resume verification instead of granting a session.

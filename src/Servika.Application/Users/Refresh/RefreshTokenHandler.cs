@@ -43,6 +43,16 @@ public sealed class RefreshTokenHandler
         var user = await _users.FindByIdAsync(existing.UserId, ct)
             ?? throw new InvalidRefreshTokenException();
 
+        // A suspended account can't refresh — its session dies when the current
+        // access token expires (so suspension takes hold within ~15 min, not just
+        // at the next login). Spend the presented token so it can't be reused.
+        if (user.IsSuspended)
+        {
+            existing.Revoke(now);
+            await _users.SaveChangesAsync(ct);
+            throw new AccountSuspendedException();
+        }
+
         // Rotate: the presented token is spent, a new pair takes its place.
         existing.Revoke(now);
 

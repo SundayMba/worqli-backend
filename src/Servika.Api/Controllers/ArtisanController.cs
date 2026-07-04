@@ -89,6 +89,27 @@ public sealed class ArtisanController : ControllerBase
         Guid id, [FromServices] AdvanceBookingByArtisanHandler handler, CancellationToken ct) =>
         Advance(id, ArtisanBookingAction.StartWork, handler, ct);
 
+    /// <summary>Submit proof of completed work (InProgress → AwaitingConfirmation).</summary>
+    /// <remarks>At least one photo is required. The customer is notified to review &
+    /// confirm; it auto-confirms after the window if they don't.</remarks>
+    /// <response code="200">Submitted; booking now AwaitingConfirmation.</response>
+    /// <response code="400">No photos / invalid image.</response>
+    /// <response code="404">Job not assigned to this artisan.</response>
+    /// <response code="409">Job isn't InProgress.</response>
+    [HttpPost("{id:guid}/submit-completion")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BookingDetailDto>> SubmitCompletion(
+        Guid id,
+        [FromBody] SubmitCompletionRequest request,
+        [FromServices] SubmitJobCompletionHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, request, ct));
+    }
+
     // Shared body for the five transition verbs. A 404 means the job isn't
     // assigned to this artisan; a 409 means the move is illegal in the current
     // state (both produced by the handler/Domain and mapped in middleware).

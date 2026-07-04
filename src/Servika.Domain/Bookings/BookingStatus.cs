@@ -33,4 +33,8 @@ public enum BookingStatus
 
     /// <summary>Auto-expired (no artisan accepted within the window).</summary>
     Expired = 10,
+
+    /// <summary>Artisan submitted proof of completed work; awaiting the customer's
+    /// confirmation (or auto-confirm after the window). InProgress → here → Completed.</summary>
+    AwaitingConfirmation = 11,
 }

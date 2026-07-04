@@ -26,5 +26,11 @@ public sealed class PaymentRepository : IPaymentRepository
             .OrderByDescending(p => p.CreatedAt)
             .FirstOrDefaultAsync(ct);
 
+    public Task<Payment?> FindSucceededForBookingAsync(Guid bookingId, CancellationToken ct) =>
+        _db.Payments
+            .Where(p => p.BookingId == bookingId && p.Status == PaymentStatus.Succeeded)
+            .OrderByDescending(p => p.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }

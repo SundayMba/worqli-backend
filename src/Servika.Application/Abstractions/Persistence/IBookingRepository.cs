@@ -31,5 +31,14 @@ public interface IBookingRepository
     /// already trust the source (e.g. applying a verified payment webhook).</summary>
     Task<Booking?> FindByIdAsync(Guid id, CancellationToken ct);
 
+    /// <summary>Every booking, newest first, optionally one status only — admin
+    /// oversight (unscoped). Read-only.</summary>
+    Task<IReadOnlyList<Booking>> ListAllAsync(BookingStatus? status, CancellationToken ct);
+
+    /// <summary>Bookings stuck AwaitingConfirmation since before <paramref name="cutoffUtc"/>
+    /// — for the auto-confirm sweep. Tracked so the transition persists.</summary>
+    Task<IReadOnlyList<Booking>> ListAwaitingConfirmationBeforeAsync(
+        DateTimeOffset cutoffUtc, CancellationToken ct);
+
     Task<int> SaveChangesAsync(CancellationToken ct);
 }

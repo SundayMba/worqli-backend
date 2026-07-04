@@ -1,6 +1,8 @@
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Time;
 using Servika.Application.Common;
+using Servika.Application.Notifications;
+using Servika.Application.Referrals;
 using Servika.Contracts.Bookings;
 
 namespace Servika.Application.Bookings;
@@ -14,11 +16,19 @@ namespace Servika.Application.Bookings;
 public sealed class CompleteBookingHandler
 {
     private readonly IBookingRepository _bookings;
+    private readonly NotificationEmitter _notifications;
+    private readonly ReferralService _referrals;
     private readonly IClock _clock;
 
-    public CompleteBookingHandler(IBookingRepository bookings, IClock clock)
+    public CompleteBookingHandler(
+        IBookingRepository bookings,
+        NotificationEmitter notifications,
+        ReferralService referrals,
+        IClock clock)
     {
         _bookings = bookings;
+        _notifications = notifications;
+        _referrals = referrals;
         _clock = clock;
     }
 
@@ -28,7 +38,12 @@ public sealed class CompleteBookingHandler
         var booking = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
             ?? throw new NotFoundException($"Booking '{bookingId}' was not found.");
 
-        booking.ConfirmCompletion(_clock.UtcNow);
+        var now = _clock.UtcNow;
+        booking.ConfirmCompletion(now);
+        _notifications.BookingCompleted(booking);
+        await _notifications.ArtisanJobConfirmed(booking, ct);
+        // First completed job for a referred artisan → credit the referrer.
+        await _referrals.AwardIfReferredAsync(booking, now, ct);
         await _bookings.SaveChangesAsync(ct);
 
         return booking.ToDetailDto();
