@@ -130,14 +130,26 @@ builder.Services.AddSwaggerGen(options =>
 // Health checks (DB and other dependencies are added in later slices).
 builder.Services.AddHealthChecks();
 
-// CORS — allow the Expo mobile app (and dev tooling) to call the API.
+// CORS — gate *browser* clients (the admin dashboard + Expo web/dev). Native mobile
+// builds don't send an Origin header, so they aren't subject to CORS and work
+// regardless; this list is what browsers are allowed to call the API from.
+// Origins come from config ("Cors:AllowedOrigins") so they can change without a
+// recompile (override per-env with the Cors__AllowedOrigins__0.. env vars). If none
+// are configured we fall back to AllowAnyOrigin — convenient for local dev only.
 const string MobileCorsPolicy = "MobileApp";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                     ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(MobileCorsPolicy, policy =>
-        policy.AllowAnyOrigin()   // tightened to known origins before production
-              .AllowAnyHeader()
-              .AllowAnyMethod());
+    {
+        if (allowedOrigins.Length > 0)
+            policy.WithOrigins(allowedOrigins);   // production: known origins only
+        else
+            policy.AllowAnyOrigin();              // dev fallback when nothing configured
+
+        policy.AllowAnyHeader().AllowAnyMethod();
+    });
 });
 
 var app = builder.Build();
