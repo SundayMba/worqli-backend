@@ -8,8 +8,11 @@ using Servika.Api.Bookings;
 using Servika.Api.Hubs;
 using Servika.Api.Middleware;
 using Servika.Api.Tracking;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Servika.Application;
 using Servika.Infrastructure;
+using Servika.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -138,6 +141,17 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Apply any pending database migrations on startup, so a fresh database gets its
+// tables created (and an existing one gets new ones) without a manual step. This is
+// idempotent — it only applies what's missing. Safe here because we run a single API
+// instance; with multiple instances you'd move this to a dedicated one-off migration
+// step so two instances don't migrate at once.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ServikaDbContext>();
+    db.Database.Migrate();
+}
 
 // --- HTTP pipeline (the ordered list of middleware each request flows through) ---
 

@@ -9,4 +9,6 @@ obj/
 
 ## Local secrets / env
 *.env
+.env
+!.env.example
 appsettings.*.local.json

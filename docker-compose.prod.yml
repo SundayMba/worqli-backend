@@ -1,0 +1,67 @@
+# Production compose — runs the WHOLE backend (API + Postgres + Redis) together on
+# the server, unattended and auto-restarting. This is different from docker-compose.yml
+# (which only runs Postgres + Redis for local dev, while you run the API by hand).
+#
+# Secrets are read from a `.env` file that lives ONLY on the server (never committed).
+# Start it with:   docker compose -f docker-compose.prod.yml up -d --build
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: servika
+      POSTGRES_USER: servika
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - servika_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U servika -d servika']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # No `ports:` — the database is reachable only by the API over the private
+    # compose network, never exposed to the internet.
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - servika_redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # No `ports:` — internal only.
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # The API reaches Postgres/Redis by their service name on the compose network.
+      ConnectionStrings__Postgres: 'Host=postgres;Port=5432;Database=servika;Username=servika;Password=${POSTGRES_PASSWORD}'
+      ConnectionStrings__Redis: 'redis:6379'
+      # Secrets — all pulled from the server's .env file:
+      Jwt__SigningKey: ${JWT_SIGNING_KEY}
+      Resend__ApiKey: ${RESEND_API_KEY}
+      Resend__FromEmail: ${RESEND_FROM_EMAIL:-onboarding@resend.dev}
+      Resend__FromName: ${RESEND_FROM_NAME:-Servika}
+      Paystack__SecretKey: ${PAYSTACK_SECRET_KEY}
+      Google__DirectionsApiKey: ${GOOGLE_DIRECTIONS_API_KEY}
+      Kyc__AutoApprove: ${KYC_AUTOAPPROVE:-true}
+    # Published to the server's own port 8080 so we can test it (curl localhost:8080).
+    # The firewall still blocks 8080 from the internet; later Caddy will front it on 443.
+    ports:
+      - '8080:8080'
+
+volumes:
+  servika_pgdata:
+  servika_redisdata:
