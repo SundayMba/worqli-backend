@@ -149,6 +149,29 @@ public sealed class NotificationEmitter
             "New review", $"A customer rated your work {rating}★. Tap to view.", ct);
     }
 
+    /// <summary>Broadcast a newly-posted open request to every verified artisan whose
+    /// services include its category. No <c>bookingId</c> deep-link — the tap opens the
+    /// available-jobs list (an artisan can't open a job they haven't claimed).</summary>
+    public async Task OpenJobPosted(Booking booking, CancellationToken ct)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
+        var recipients = await _catalogue.ListArtisanUserIdsInCategoryAsync(booking.CategorySlug, ct);
+        foreach (var artisanUserId in recipients)
+        {
+            Add(artisanUserId, NotificationType.OpenJob,
+                "New job available", $"A new {service} request is open near you. Tap to view and accept.", null);
+        }
+    }
+
+    /// <summary>Tell the customer an artisan claimed their open request.</summary>
+    public void OpenJobClaimed(Booking booking)
+    {
+        var who = string.IsNullOrWhiteSpace(booking.ArtisanName) ? "An artisan" : booking.ArtisanName!;
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "request" : $"{booking.ServiceName} request";
+        Add(booking.CustomerId, NotificationType.Booking,
+            "Artisan found", $"{who} accepted your {service} and will be in touch.", booking.Id);
+    }
+
     private async Task NotifyArtisanAsync(Booking booking, string title, string body, CancellationToken ct)
     {
         if (booking.ArtisanId is not { } profileId) return;
@@ -157,10 +180,34 @@ public sealed class NotificationEmitter
         Add(artisanUserId, NotificationType.Booking, title, body, booking.Id);
     }
 
-    private void Add(Guid userId, NotificationType type, string title, string body, Guid? bookingId)
+    /// <summary>Notify the recipient of a new chat message from the other party.
+    /// The feed is <b>coalesced</b> — only one unread chat notification per
+    /// conversation, so a burst of messages doesn't flood the bell — but a push fires
+    /// for every message (like any chat app). <paramref name="preview"/> is the
+    /// already-redacted message body.</summary>
+    public async Task ChatMessageReceivedAsync(
+        Guid recipientUserId, string senderName, string preview, Guid conversationId, CancellationToken ct)
     {
-        _notifications.Add(Notification.Create(userId, type, title, body, bookingId, _clock.UtcNow));
+        var title = string.IsNullOrWhiteSpace(senderName) ? "New message" : senderName.Trim();
+        var body = string.IsNullOrWhiteSpace(preview) ? "Sent you a message." : preview.Trim();
+        if (body.Length > 140) body = body[..140].TrimEnd() + "…";
+
+        var alreadyPending = await _notifications.HasUnreadChatAsync(recipientUserId, conversationId, ct);
+        if (!alreadyPending)
+        {
+            _notifications.Add(Notification.Create(
+                recipientUserId, NotificationType.Chat, title, body, null, conversationId, _clock.UtcNow));
+        }
+        // Push every message regardless of feed coalescing (best-effort, off-transaction).
+        _push.Dispatch(recipientUserId, title, body, null, conversationId);
+    }
+
+    private void Add(
+        Guid userId, NotificationType type, string title, string body,
+        Guid? bookingId, Guid? conversationId = null)
+    {
+        _notifications.Add(Notification.Create(userId, type, title, body, bookingId, conversationId, _clock.UtcNow));
         // Best-effort device push (fire-and-forget; independent of this transaction).
-        _push.Dispatch(userId, title, body, bookingId);
+        _push.Dispatch(userId, title, body, bookingId, conversationId);
     }
 }

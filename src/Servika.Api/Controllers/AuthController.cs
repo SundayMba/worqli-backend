@@ -9,6 +9,7 @@ using Servika.Application.Users.Logout;
 using Servika.Application.Users.Me;
 using Servika.Application.Users.Otp;
 using Servika.Application.Users.Password;
+using Servika.Application.Users.Profile;
 using Servika.Application.Users.Refresh;
 using Servika.Application.Users.Register;
 using Servika.Contracts.Auth;
@@ -205,5 +206,28 @@ public sealed class AuthController : ControllerBase
             throw new InvalidCredentialsException();
 
         return Ok(await handler.HandleAsync(userId, ct));
+    }
+
+    /// <summary>Update the current user's editable profile (name + phone).</summary>
+    /// <response code="200">The updated profile.</response>
+    /// <response code="400">Missing full name.</response>
+    /// <response code="401">Not signed in.</response>
+    [Authorize]
+    [HttpPatch("me")]
+    [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<UserDto>> UpdateMe(
+        [FromBody] UpdateProfileRequest request,
+        [FromServices] UpdateProfileHandler handler,
+        CancellationToken ct)
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!Guid.TryParse(sub, out var userId))
+            throw new InvalidCredentialsException();
+
+        return Ok(await handler.HandleAsync(userId, request, ct));
     }
 }

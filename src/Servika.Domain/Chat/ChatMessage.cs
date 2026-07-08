@@ -1,10 +1,9 @@
 namespace Servika.Domain.Chat;
 
 /// <summary>
-/// One message in a booking's conversation. A booking has a single two-party thread
-/// between its customer-owner and its assigned artisan; every message is scoped to
-/// the booking. Messages are persisted (unlike ephemeral tracking pings) so history
-/// survives and both parties can catch up.
+/// One message in a <see cref="Conversation"/> — the two-party thread between a
+/// customer and an artisan. Messages are persisted (unlike ephemeral tracking pings)
+/// so history survives and both parties can catch up.
 ///
 /// <para><see cref="IsRead"/> means "seen by the recipient" — set true when the
 /// other party opens the thread, which drives the unread badge on the messages tab.</para>
@@ -13,8 +12,8 @@ public sealed class ChatMessage
 {
     public Guid Id { get; private set; }
 
-    /// <summary>The booking whose conversation this message belongs to.</summary>
-    public Guid BookingId { get; private set; }
+    /// <summary>The conversation this message belongs to.</summary>
+    public Guid ConversationId { get; private set; }
 
     /// <summary>The <c>User</c> who sent it (customer or artisan account).</summary>
     public Guid SenderUserId { get; private set; }
@@ -35,10 +34,10 @@ public sealed class ChatMessage
     public const int MaxLength = 2000;
 
     public static ChatMessage Create(
-        Guid bookingId, Guid senderUserId, ChatSenderRole senderRole, string body, DateTimeOffset now)
+        Guid conversationId, Guid senderUserId, ChatSenderRole senderRole, string body, DateTimeOffset now)
     {
-        if (bookingId == Guid.Empty)
-            throw new ArgumentException("Booking is required.", nameof(bookingId));
+        if (conversationId == Guid.Empty)
+            throw new ArgumentException("Conversation is required.", nameof(conversationId));
         if (senderUserId == Guid.Empty)
             throw new ArgumentException("Sender is required.", nameof(senderUserId));
 
@@ -51,7 +50,7 @@ public sealed class ChatMessage
         return new ChatMessage
         {
             Id = Guid.NewGuid(),
-            BookingId = bookingId,
+            ConversationId = conversationId,
             SenderUserId = senderUserId,
             SenderRole = senderRole,
             Body = trimmed,

@@ -32,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<ForgotPasswordHandler>();
         services.AddScoped<ResetPasswordHandler>();
         services.AddScoped<BecomeArtisanHandler>();
+        services.AddScoped<Users.Profile.UpdateProfileHandler>();
 
         // Catalogue (marketplace) query handlers.
         services.AddScoped<GetCategoriesHandler>();
@@ -60,6 +61,10 @@ public static class DependencyInjection
         services.AddScoped<GetArtisanJobsHandler>();
         services.AddScoped<GetArtisanJobByIdHandler>();
         services.AddScoped<AdvanceBookingByArtisanHandler>();
+
+        // Open (unassigned) requests: the pool a matching artisan can browse + claim.
+        services.AddScoped<GetOpenJobsHandler>();
+        services.AddScoped<ClaimOpenJobHandler>();
 
         // Live tracking (SignalR hub + stale-cleanup worker both call this).
         services.AddScoped<Tracking.TrackingService>();
@@ -90,6 +95,11 @@ public static class DependencyInjection
 
         // Chat (per-booking conversations: send, thread, conversations list, unread).
         services.AddScoped<Chat.ChatService>();
+
+        // Favourites (customer's saved artisans).
+        services.AddScoped<Favorites.AddFavoriteHandler>();
+        services.AddScoped<Favorites.RemoveFavoriteHandler>();
+        services.AddScoped<Favorites.GetFavoritesHandler>();
 
         // Disputes (customer raises + views; admin lists/reviews/resolves).
         services.AddScoped<Disputes.RaiseDisputeHandler>();

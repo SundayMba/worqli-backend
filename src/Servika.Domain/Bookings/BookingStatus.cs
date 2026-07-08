@@ -37,4 +37,9 @@ public enum BookingStatus
     /// <summary>Artisan submitted proof of completed work; awaiting the customer's
     /// confirmation (or auto-confirm after the window). InProgress → here → Completed.</summary>
     AwaitingConfirmation = 11,
+
+    /// <summary>Posted with no artisan chosen — visible to matching artisans, who can
+    /// claim it (Open → Accepted). The open-request path; a pre-selected booking is
+    /// born <see cref="Pending"/> instead.</summary>
+    Open = 12,
 }

@@ -78,6 +78,9 @@ public static class DependencyInjection
         // Disputes (customer complaints + admin resolution), Scoped (EF).
         services.AddScoped<IDisputeRepository, DisputeRepository>();
 
+        // Favourites (customer's saved artisans), Scoped (EF).
+        services.AddScoped<IFavoriteRepository, FavoriteRepository>();
+
         // Chat (per-booking customer↔artisan conversations), Scoped (EF).
         services.AddScoped<IChatRepository, ChatRepository>();
 

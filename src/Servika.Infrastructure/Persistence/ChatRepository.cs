@@ -17,30 +17,46 @@ public sealed class ChatRepository : IChatRepository
         _db = db;
     }
 
-    public void Add(ChatMessage message) => _db.ChatMessages.Add(message);
+    public void AddConversation(Conversation conversation) => _db.Conversations.Add(conversation);
 
-    public async Task<IReadOnlyList<ChatMessage>> ListForBookingAsync(Guid bookingId, CancellationToken ct) =>
+    public Task<Conversation?> FindConversationAsync(Guid customerUserId, Guid artisanId, CancellationToken ct) =>
+        _db.Conversations
+            .FirstOrDefaultAsync(c => c.CustomerUserId == customerUserId && c.ArtisanId == artisanId, ct);
+
+    public Task<Conversation?> FindConversationByIdAsync(Guid conversationId, CancellationToken ct) =>
+        _db.Conversations.FirstOrDefaultAsync(c => c.Id == conversationId, ct);
+
+    public async Task<IReadOnlyList<Conversation>> ListConversationsForUserAsync(Guid userId, CancellationToken ct) =>
+        await _db.Conversations
+            .AsNoTracking()
+            .Where(c => c.CustomerUserId == userId || c.ArtisanUserId == userId)
+            .OrderByDescending(c => c.LastMessageAtUtc)
+            .ToListAsync(ct);
+
+    public void AddMessage(ChatMessage message) => _db.ChatMessages.Add(message);
+
+    public async Task<IReadOnlyList<ChatMessage>> ListForConversationAsync(Guid conversationId, CancellationToken ct) =>
         await _db.ChatMessages
             .AsNoTracking()
-            .Where(m => m.BookingId == bookingId)
+            .Where(m => m.ConversationId == conversationId)
             .OrderBy(m => m.CreatedAt)
             .ToListAsync(ct);
 
-    public async Task<IReadOnlyList<ChatMessage>> ListForBookingsAsync(
-        IReadOnlyCollection<Guid> bookingIds, CancellationToken ct)
+    public async Task<IReadOnlyList<ChatMessage>> ListForConversationsAsync(
+        IReadOnlyCollection<Guid> conversationIds, CancellationToken ct)
     {
-        if (bookingIds.Count == 0) return Array.Empty<ChatMessage>();
+        if (conversationIds.Count == 0) return Array.Empty<ChatMessage>();
 
         return await _db.ChatMessages
             .AsNoTracking()
-            .Where(m => bookingIds.Contains(m.BookingId))
+            .Where(m => conversationIds.Contains(m.ConversationId))
             .OrderBy(m => m.CreatedAt)
             .ToListAsync(ct);
     }
 
-    public Task<int> MarkReadAsync(Guid bookingId, Guid readerUserId, CancellationToken ct) =>
+    public Task<int> MarkReadAsync(Guid conversationId, Guid readerUserId, CancellationToken ct) =>
         _db.ChatMessages
-            .Where(m => m.BookingId == bookingId && m.SenderUserId != readerUserId && !m.IsRead)
+            .Where(m => m.ConversationId == conversationId && m.SenderUserId != readerUserId && !m.IsRead)
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.IsRead, true), ct);
 
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);

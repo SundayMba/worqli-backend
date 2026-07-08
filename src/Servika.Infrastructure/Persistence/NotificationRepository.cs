@@ -31,6 +31,14 @@ public sealed class NotificationRepository : INotificationRepository
     public Task<int> CountUnreadAsync(Guid userId, CancellationToken ct) =>
         _db.Notifications.CountAsync(n => n.UserId == userId && !n.IsRead, ct);
 
+    public Task<bool> HasUnreadChatAsync(Guid userId, Guid conversationId, CancellationToken ct) =>
+        _db.Notifications.AnyAsync(
+            n => n.UserId == userId
+                 && n.Type == NotificationType.Chat
+                 && n.ConversationId == conversationId
+                 && !n.IsRead,
+            ct);
+
     // Tracked (no AsNoTracking) so MarkRead persists on SaveChanges.
     public Task<Notification?> FindForUserAsync(Guid id, Guid userId, CancellationToken ct) =>
         _db.Notifications.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId, ct);

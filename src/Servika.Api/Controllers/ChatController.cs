@@ -11,11 +11,13 @@ using Servika.Contracts.Chat;
 namespace Servika.Api.Controllers;
 
 /// <summary>
-/// Booking conversations (PRD §Chat). Used by <b>both</b> the customer and the
-/// assigned artisan — every action is scoped by <see cref="ChatService"/> to the
-/// two participants of the booking. Messages are sent + read over REST (reliable,
-/// persisted); real-time delivery is a broadcast to the booking's
-/// <see cref="ChatHub"/> group right after a send.
+/// Conversations (PRD §Chat). A conversation is the two-party thread between a
+/// customer and an artisan, keyed by that pair — so a customer can start one from an
+/// artisan's profile before any booking exists, and every booking between them
+/// resolves to the same thread. Used by <b>both</b> sides; every action is scoped by
+/// <see cref="ChatService"/> to the two participants. Messages are sent + read over
+/// REST (reliable, persisted); real-time delivery is a broadcast to the
+/// conversation's <see cref="ChatHub"/> group right after a send.
 /// </summary>
 [Authorize]
 [ApiController]
@@ -31,46 +33,80 @@ public sealed class ChatController : ControllerBase
         _hub = hub;
     }
 
-    /// <summary>The booking's conversation thread (oldest first). Marks the other
-    /// party's messages read.</summary>
-    /// <response code="200">The messages.</response>
+    /// <summary>Resolve-or-create the caller's conversation with an artisan (browse →
+    /// "Chat"). Returns a pointer the app opens the thread with.</summary>
+    /// <response code="200">The conversation.</response>
     /// <response code="401">Not signed in.</response>
-    /// <response code="404">Not a participant in this conversation.</response>
-    [HttpGet("bookings/{bookingId:guid}/messages")]
-    [ProducesResponseType(typeof(IReadOnlyList<ChatMessageDto>), StatusCodes.Status200OK)]
+    /// <response code="404">No such artisan.</response>
+    [HttpPost("conversations/with-artisan/{artisanId:guid}")]
+    [ProducesResponseType(typeof(ConversationRef), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<IReadOnlyList<ChatMessageDto>>> GetMessages(
+    public async Task<ActionResult<ConversationRef>> StartWithArtisan(
+        Guid artisanId,
+        [FromServices] ChatService chat,
+        CancellationToken ct)
+    {
+        return Ok(await chat.StartWithArtisanAsync(CurrentUserId(), artisanId, ct));
+    }
+
+    /// <summary>Resolve-or-create the conversation attached to a booking's pair
+    /// (either participant may call it).</summary>
+    /// <response code="200">The conversation.</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="404">Not a participant, or the booking has no artisan.</response>
+    [HttpPost("conversations/for-booking/{bookingId:guid}")]
+    [ProducesResponseType(typeof(ConversationRef), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ConversationRef>> StartForBooking(
         Guid bookingId,
         [FromServices] ChatService chat,
         CancellationToken ct)
     {
-        return Ok(await chat.GetMessagesAsync(CurrentUserId(), bookingId, ct));
+        return Ok(await chat.StartForBookingAsync(CurrentUserId(), bookingId, ct));
     }
 
-    /// <summary>Send a message to the booking's conversation.</summary>
+    /// <summary>The conversation thread (oldest first). Marks the other party's
+    /// messages read.</summary>
+    /// <response code="200">The messages.</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="404">Not a participant in this conversation.</response>
+    [HttpGet("conversations/{conversationId:guid}/messages")]
+    [ProducesResponseType(typeof(IReadOnlyList<ChatMessageDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<ChatMessageDto>>> GetMessages(
+        Guid conversationId,
+        [FromServices] ChatService chat,
+        CancellationToken ct)
+    {
+        return Ok(await chat.GetMessagesAsync(CurrentUserId(), conversationId, ct));
+    }
+
+    /// <summary>Send a message to the conversation.</summary>
     /// <response code="201">Message sent.</response>
     /// <response code="400">Empty or too-long message.</response>
     /// <response code="401">Not signed in.</response>
     /// <response code="404">Not a participant in this conversation.</response>
-    [HttpPost("bookings/{bookingId:guid}/messages")]
+    [HttpPost("conversations/{conversationId:guid}/messages")]
     [ProducesResponseType(typeof(ChatMessageDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ChatMessageDto>> SendMessage(
-        Guid bookingId,
+        Guid conversationId,
         [FromBody] SendMessageRequest request,
         [FromServices] ChatService chat,
         CancellationToken ct)
     {
-        var message = await chat.SendMessageAsync(CurrentUserId(), bookingId, request.Body, ct);
+        var message = await chat.SendMessageAsync(CurrentUserId(), conversationId, request.Body, ct);
 
-        // Push to everyone watching this booking's thread (incl. the sender, who
+        // Push to everyone watching this conversation's thread (incl. the sender, who
         // dedupes by id). Best-effort — the message is already persisted.
-        await _hub.Clients.Group(ChatHub.GroupName(bookingId)).SendAsync("MessageReceived", message, ct);
+        await _hub.Clients.Group(ChatHub.GroupName(conversationId)).SendAsync("MessageReceived", message, ct);
 
-        return CreatedAtAction(nameof(GetMessages), new { bookingId }, message);
+        return CreatedAtAction(nameof(GetMessages), new { conversationId }, message);
     }
 
     /// <summary>The caller's conversations for the messages tab.</summary>

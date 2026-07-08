@@ -4,6 +4,7 @@ using Servika.Domain.Bookings;
 using Servika.Domain.Catalogue;
 using Servika.Domain.Chat;
 using Servika.Domain.Disputes;
+using Servika.Domain.Favorites;
 using Servika.Domain.Notifications;
 using Servika.Domain.Payments;
 using Servika.Domain.Referrals;
@@ -72,7 +73,10 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "disputes" table — customer complaints about bookings.</summary>
     public DbSet<Dispute> Disputes => Set<Dispute>();
 
-    /// <summary>The "chat_messages" table — per-booking customer↔artisan conversations.</summary>
+    /// <summary>The "conversations" table — one customer↔artisan thread per pair.</summary>
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+
+    /// <summary>The "chat_messages" table — messages within a conversation.</summary>
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     /// <summary>The "platform_settings" table — the single admin-controlled settings row.</summary>
@@ -80,6 +84,9 @@ public sealed class ServikaDbContext : DbContext
 
     /// <summary>The "push_tokens" table — registered device tokens for push delivery.</summary>
     public DbSet<PushToken> PushTokens => Set<PushToken>();
+
+    /// <summary>The "favorites" table — a customer's saved artisans.</summary>
+    public DbSet<Favorite> Favorites => Set<Favorite>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -447,22 +454,39 @@ public sealed class ServikaDbContext : DbContext
                    .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<Conversation>(conversation =>
+        {
+            conversation.ToTable("conversations");
+
+            conversation.HasKey(c => c.Id);
+
+            // At most one thread per (customer, artisan) pair; looked up by that pair.
+            conversation.HasIndex(c => new { c.CustomerUserId, c.ArtisanId }).IsUnique();
+            // The artisan's inbox scans by their user id.
+            conversation.HasIndex(c => c.ArtisanUserId);
+
+            conversation.HasOne<User>()
+                        .WithMany()
+                        .HasForeignKey(c => c.CustomerUserId)
+                        .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<ChatMessage>(message =>
         {
             message.ToTable("chat_messages");
 
             message.HasKey(m => m.Id);
 
-            // A booking's thread is read in creation order; unread scans by booking.
-            message.HasIndex(m => new { m.BookingId, m.CreatedAt });
+            // A conversation's thread is read in creation order.
+            message.HasIndex(m => new { m.ConversationId, m.CreatedAt });
 
             message.Property(m => m.Body).IsRequired().HasMaxLength(ChatMessage.MaxLength);
             message.Property(m => m.SenderRole).HasConversion<string>().HasMaxLength(20);
 
-            // A message belongs to a booking and dies with it.
-            message.HasOne<Booking>()
+            // A message belongs to a conversation and dies with it.
+            message.HasOne<Conversation>()
                    .WithMany()
-                   .HasForeignKey(m => m.BookingId)
+                   .HasForeignKey(m => m.ConversationId)
                    .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -483,6 +507,16 @@ public sealed class ServikaDbContext : DbContext
             pt.Property(t => t.Token).IsRequired().HasMaxLength(200);
             pt.Property(t => t.Platform).HasMaxLength(20);
             pt.HasOne<User>().WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Favorite>(fav =>
+        {
+            fav.ToTable("favorites");
+            fav.HasKey(f => f.Id);
+            // One save per (user, artisan); a user's list is by user id.
+            fav.HasIndex(f => new { f.UserId, f.ArtisanId }).IsUnique();
+            // ArtisanId points at catalogue reference data (like Booking.ArtisanId) — no FK.
+            fav.HasOne<User>().WithMany().HasForeignKey(f => f.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Reference data: seed the catalogue so the marketplace has content.

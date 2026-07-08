@@ -28,7 +28,7 @@ public sealed class NotificationPushDispatcher : INotificationPushDispatcher
         _logger = logger;
     }
 
-    public void Dispatch(Guid userId, string title, string body, Guid? bookingId)
+    public void Dispatch(Guid userId, string title, string body, Guid? bookingId, Guid? conversationId = null)
     {
         _ = Task.Run(async () =>
         {
@@ -39,12 +39,13 @@ public sealed class NotificationPushDispatcher : INotificationPushDispatcher
                 var registered = await tokens.ListForUserAsync(userId, CancellationToken.None);
                 if (registered.Count == 0) return;
 
-                var data = bookingId is { } b
-                    ? new Dictionary<string, string> { ["bookingId"] = b.ToString() }
-                    : null;
+                var data = new Dictionary<string, string>();
+                if (bookingId is { } b) data["bookingId"] = b.ToString();
+                if (conversationId is { } c) data["conversationId"] = c.ToString();
 
                 await _sender.SendAsync(
-                    registered.Select(t => t.Token).ToList(), title, body, data, CancellationToken.None);
+                    registered.Select(t => t.Token).ToList(), title, body,
+                    data.Count > 0 ? data : null, CancellationToken.None);
             }
             catch (Exception ex)
             {

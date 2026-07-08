@@ -28,16 +28,16 @@ public sealed class ChatHub : Hub
         _chat = chat;
     }
 
-    /// <summary>The SignalR group carrying a booking's conversation.</summary>
-    public static string GroupName(Guid bookingId) => $"chat:{bookingId}";
+    /// <summary>The SignalR group carrying a conversation's thread.</summary>
+    public static string GroupName(Guid conversationId) => $"chat:{conversationId}";
 
-    /// <summary>Join a booking's conversation group (participants only).</summary>
-    public async Task JoinConversation(Guid bookingId)
+    /// <summary>Join a conversation group (participants only).</summary>
+    public async Task JoinConversation(Guid conversationId)
     {
         try
         {
-            await _chat.AuthorizeAccessAsync(CurrentUserId(), bookingId, Context.ConnectionAborted);
-            await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(bookingId));
+            await _chat.AuthorizeAccessAsync(CurrentUserId(), conversationId, Context.ConnectionAborted);
+            await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(conversationId));
         }
         catch (Exception ex)
         {
@@ -45,9 +45,9 @@ public sealed class ChatHub : Hub
         }
     }
 
-    /// <summary>Leave a booking's conversation group.</summary>
-    public Task LeaveConversation(Guid bookingId) =>
-        Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(bookingId));
+    /// <summary>Leave a conversation group.</summary>
+    public Task LeaveConversation(Guid conversationId) =>
+        Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(conversationId));
 
     private static string SafeMessage(Exception ex) =>
         ex is NotFoundException or ArgumentException ? ex.Message : "Chat error.";

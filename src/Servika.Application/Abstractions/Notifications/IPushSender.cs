@@ -24,5 +24,5 @@ public interface IPushSender
 /// </summary>
 public interface INotificationPushDispatcher
 {
-    void Dispatch(Guid userId, string title, string body, Guid? bookingId);
+    void Dispatch(Guid userId, string title, string body, Guid? bookingId, Guid? conversationId = null);
 }

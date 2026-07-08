@@ -61,6 +61,16 @@ public sealed class CatalogueRepository : ICatalogueRepository
     public Task<ArtisanProfile?> GetArtisanByUserIdAsync(Guid userId, CancellationToken ct) =>
         _db.ArtisanProfiles.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == userId, ct);
 
+    public async Task<IReadOnlyList<Guid>> ListArtisanUserIdsInCategoryAsync(
+        string categorySlug, CancellationToken ct) =>
+        await _db.ArtisanProfiles
+            .AsNoTracking()
+            .Where(a => a.VerificationStatus == ArtisanVerificationStatus.Verified
+                        && a.UserId != null
+                        && a.CategorySlugs.Contains(categorySlug))
+            .Select(a => a.UserId!.Value)
+            .ToListAsync(ct);
+
     // Tracked (no AsNoTracking) so a rating-aggregate change persists on SaveChanges.
     public Task<ArtisanProfile?> FindArtisanForUpdateAsync(Guid id, CancellationToken ct) =>
         _db.ArtisanProfiles.FirstOrDefaultAsync(a => a.Id == id, ct);

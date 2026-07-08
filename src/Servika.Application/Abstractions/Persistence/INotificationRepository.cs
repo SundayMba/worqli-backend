@@ -19,6 +19,10 @@ public interface INotificationRepository
     /// <summary>How many of the user's notifications are unread (badge count).</summary>
     Task<int> CountUnreadAsync(Guid userId, CancellationToken ct);
 
+    /// <summary>Whether the user already has an unread chat notification for this
+    /// conversation — used to coalesce a burst of messages into one feed entry.</summary>
+    Task<bool> HasUnreadChatAsync(Guid userId, Guid conversationId, CancellationToken ct);
+
     /// <summary>A single notification owned by this user, tracked so it can be
     /// marked read, or null if not found.</summary>
     Task<Notification?> FindForUserAsync(Guid id, Guid userId, CancellationToken ct);

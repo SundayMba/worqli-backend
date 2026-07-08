@@ -7,5 +7,5 @@ namespace Servika.Application.Chat;
 internal static class ChatMapping
 {
     public static ChatMessageDto ToDto(this ChatMessage m) =>
-        new(m.Id, m.BookingId, m.SenderUserId, m.SenderRole.ToString(), m.Body, m.IsRead, m.CreatedAt);
+        new(m.Id, m.ConversationId, m.SenderUserId, m.SenderRole.ToString(), m.Body, m.IsRead, m.CreatedAt);
 }

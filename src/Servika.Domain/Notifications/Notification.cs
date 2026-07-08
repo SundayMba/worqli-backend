@@ -26,6 +26,9 @@ public sealed class Notification
     /// <summary>Booking to open when the notification is tapped, if any.</summary>
     public Guid? BookingId { get; private set; }
 
+    /// <summary>Conversation to open when the notification is tapped, if any (chat).</summary>
+    public Guid? ConversationId { get; private set; }
+
     public bool IsRead { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -41,6 +44,7 @@ public sealed class Notification
         string title,
         string body,
         Guid? bookingId,
+        Guid? conversationId,
         DateTimeOffset now)
     {
         if (userId == Guid.Empty)
@@ -56,6 +60,7 @@ public sealed class Notification
             Title = title.Trim(),
             Body = body?.Trim() ?? string.Empty,
             BookingId = bookingId,
+            ConversationId = conversationId,
             IsRead = false,
             CreatedAt = now,
         };

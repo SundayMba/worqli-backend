@@ -147,10 +147,19 @@ public sealed class Booking
             PricingModel = pricingModel,
             InitialQuoteAmountNaira = initialQuoteAmountNaira,
             CommissionRate = commissionRate,
-            Status = BookingStatus.Pending,
+            // With a chosen artisan the request goes straight to them (Pending);
+            // with none it's an Open request any matching artisan can claim.
+            Status = artisanId is null ? BookingStatus.Open : BookingStatus.Pending,
             CreatedAt = now,
         };
     }
+
+    // NOTE: claiming an open request (Open → Accepted, assigning the artisan) is done
+    // as a single atomic guarded UPDATE in the repository (IBookingRepository.
+    // TryClaimAsync) rather than a load-mutate-save here. That's deliberate: it's the
+    // one transition many artisans can attempt at once, so the single-winner guarantee
+    // has to live in the write itself (WHERE Status = Open) — an in-memory guard can't
+    // prevent two callers who both loaded it Open from both saving.
 
     /// <summary>
     /// Cancels the booking. The customer may only cancel while it is still
@@ -161,7 +170,7 @@ public sealed class Booking
     /// </summary>
     public void Cancel(DateTimeOffset now)
     {
-        if (Status is not (BookingStatus.Pending or BookingStatus.Accepted))
+        if (Status is not (BookingStatus.Open or BookingStatus.Pending or BookingStatus.Accepted))
             throw new InvalidBookingStateException(
                 $"A booking that is {Status} can no longer be cancelled.");
 

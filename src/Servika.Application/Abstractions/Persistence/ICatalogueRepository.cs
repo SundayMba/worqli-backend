@@ -30,6 +30,10 @@ public interface ICatalogueRepository
     /// jobs assigned to their profile.</summary>
     Task<ArtisanProfile?> GetArtisanByUserIdAsync(Guid userId, CancellationToken ct);
 
+    /// <summary>Login ids of <b>verified</b> artisans (with a linked account) whose
+    /// services include the given category — recipients of an open-job broadcast.</summary>
+    Task<IReadOnlyList<Guid>> ListArtisanUserIdsInCategoryAsync(string categorySlug, CancellationToken ct);
+
     /// <summary>A <b>tracked</b> artisan profile by id, or null — used when a
     /// review needs to fold its rating into the artisan's aggregate (the change
     /// must persist on SaveChanges). The read-only <see cref="GetArtisanByIdAsync"/>

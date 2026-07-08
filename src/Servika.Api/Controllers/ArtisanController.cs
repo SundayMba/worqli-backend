@@ -41,6 +41,43 @@ public sealed class ArtisanController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), status, ct));
     }
 
+    /// <summary>List open (unassigned) requests the current artisan can claim — the
+    /// ones in their service categories, newest first.</summary>
+    /// <response code="200">Open jobs (empty if the account has no verified profile).</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="403">Signed in but not an artisan.</response>
+    [HttpGet("open")]
+    [ProducesResponseType(typeof(IReadOnlyList<BookingSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<BookingSummaryDto>>> GetOpenJobs(
+        [FromServices] GetOpenJobsHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), ct));
+    }
+
+    /// <summary>Claim an open request (Open → Accepted, assigned to you).
+    /// First-come-first-served — only one artisan wins.</summary>
+    /// <response code="200">Claimed; the job is now yours (Accepted).</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="403">Signed in but not an artisan.</response>
+    /// <response code="404">No such job.</response>
+    /// <response code="409">Already taken, not in your categories, or your profile isn't verified.</response>
+    [HttpPost("{id:guid}/claim")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BookingDetailDto>> ClaimJob(
+        Guid id,
+        [FromServices] ClaimOpenJobHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
     /// <summary>Get one of the current artisan's assigned jobs in full.</summary>
     /// <response code="200">The job.</response>
     /// <response code="401">Not signed in.</response>

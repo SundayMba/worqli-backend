@@ -84,8 +84,12 @@ public sealed class CreateBookingHandler
             now: _clock.UtcNow);
 
         _bookings.Add(booking);
-        // Let the assigned artisan know a job came in (no-op for an open booking).
-        await _notifications.ArtisanNewBooking(booking, ct);
+        if (booking.ArtisanId is null)
+            // Open request — broadcast to every matching artisan so one can claim it.
+            await _notifications.OpenJobPosted(booking, ct);
+        else
+            // Pre-selected — let the assigned artisan know a job came in.
+            await _notifications.ArtisanNewBooking(booking, ct);
         await _bookings.SaveChangesAsync(ct);
 
         return booking.ToDetailDto();

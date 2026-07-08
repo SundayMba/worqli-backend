@@ -7,5 +7,5 @@ namespace Servika.Application.Notifications;
 internal static class NotificationMapping
 {
     public static NotificationDto ToDto(this Notification n) =>
-        new(n.Id, n.Type.ToString(), n.Title, n.Body, n.BookingId, n.IsRead, n.CreatedAt);
+        new(n.Id, n.Type.ToString(), n.Title, n.Body, n.BookingId, n.ConversationId, n.IsRead, n.CreatedAt);
 }

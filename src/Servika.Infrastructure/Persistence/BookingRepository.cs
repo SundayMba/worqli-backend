@@ -58,8 +58,39 @@ public sealed class BookingRepository : IBookingRepository
     public Task<Booking?> FindForArtisanAsync(Guid id, Guid artisanProfileId, CancellationToken ct) =>
         _db.Bookings.FirstOrDefaultAsync(b => b.Id == id && b.ArtisanId == artisanProfileId, ct);
 
+    public async Task<IReadOnlyList<Booking>> ListOpenInCategoriesAsync(
+        IReadOnlyCollection<string> categorySlugs, CancellationToken ct)
+    {
+        if (categorySlugs.Count == 0) return Array.Empty<Booking>();
+
+        return await _db.Bookings
+            .AsNoTracking()
+            .Where(b => b.Status == BookingStatus.Open && categorySlugs.Contains(b.CategorySlug))
+            .OrderByDescending(b => b.CreatedAt)
+            .ToListAsync(ct);
+    }
+
+    // Single guarded UPDATE: only rows still Open are touched, so exactly one of many
+    // racing artisans updates a row (rows > 0); the losers see 0 and get a 409. Runs
+    // immediately against the DB — no reliance on the change tracker / SaveChanges.
+    public async Task<bool> TryClaimAsync(
+        Guid bookingId, Guid artisanProfileId, string artisanName, DateTimeOffset now, CancellationToken ct)
+    {
+        var rows = await _db.Bookings
+            .Where(b => b.Id == bookingId && b.Status == BookingStatus.Open)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(b => b.ArtisanId, artisanProfileId)
+                .SetProperty(b => b.ArtisanName, artisanName)
+                .SetProperty(b => b.Status, BookingStatus.Accepted)
+                .SetProperty(b => b.AcceptedAtUtc, now), ct);
+        return rows > 0;
+    }
+
     public Task<Booking?> FindByIdAsync(Guid id, CancellationToken ct) =>
         _db.Bookings.FirstOrDefaultAsync(b => b.Id == id, ct);
+
+    public Task<Booking?> FindByIdReadOnlyAsync(Guid id, CancellationToken ct) =>
+        _db.Bookings.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id, ct);
 
     public async Task<IReadOnlyList<Booking>> ListAllAsync(BookingStatus? status, CancellationToken ct)
     {

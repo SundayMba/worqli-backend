@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Servika.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using Servika.Infrastructure.Persistence;
 namespace Servika.Infrastructure.Migrations
 {
     [DbContext(typeof(ServikaDbContext))]
-    partial class ServikaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260704211140_AddFavorites")]
+    partial class AddFavorites
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -636,7 +639,7 @@ namespace Servika.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
-                    b.Property<Guid>("ConversationId")
+                    b.Property<Guid>("BookingId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -655,40 +658,9 @@ namespace Servika.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ConversationId", "CreatedAt");
+                    b.HasIndex("BookingId", "CreatedAt");
 
                     b.ToTable("chat_messages", (string)null);
-                });
-
-            modelBuilder.Entity("Servika.Domain.Chat.Conversation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ArtisanId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ArtisanUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CustomerUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("LastMessageAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ArtisanUserId");
-
-                    b.HasIndex("CustomerUserId", "ArtisanId")
-                        .IsUnique();
-
-                    b.ToTable("conversations", (string)null);
                 });
 
             modelBuilder.Entity("Servika.Domain.Disputes.Dispute", b =>
@@ -793,9 +765,6 @@ namespace Servika.Infrastructure.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<Guid?>("BookingId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ConversationId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -1408,18 +1377,9 @@ namespace Servika.Infrastructure.Migrations
 
             modelBuilder.Entity("Servika.Domain.Chat.ChatMessage", b =>
                 {
-                    b.HasOne("Servika.Domain.Chat.Conversation", null)
+                    b.HasOne("Servika.Domain.Bookings.Booking", null)
                         .WithMany()
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Servika.Domain.Chat.Conversation", b =>
-                {
-                    b.HasOne("Servika.Domain.Users.User", null)
-                        .WithMany()
-                        .HasForeignKey("CustomerUserId")
+                        .HasForeignKey("BookingId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

@@ -2,8 +2,9 @@ namespace Servika.Contracts.Notifications;
 
 /// <summary>
 /// One item in the in-app notification feed (GET /api/v1/notifications).
-/// <see cref="Type"/> is a string ("Booking" / "Payment" / "System") the client
-/// maps to an icon; <see cref="BookingId"/> deep-links the tap when present.
+/// <see cref="Type"/> is a string ("Booking" / "Payment" / "System" / "Chat") the
+/// client maps to an icon; <see cref="BookingId"/> or <see cref="ConversationId"/>
+/// deep-links the tap when present.
 /// </summary>
 public sealed record NotificationDto(
     Guid Id,
@@ -11,6 +12,7 @@ public sealed record NotificationDto(
     string Title,
     string Body,
     Guid? BookingId,
+    Guid? ConversationId,
     bool IsRead,
     DateTimeOffset CreatedAt);
 

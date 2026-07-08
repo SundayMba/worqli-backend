@@ -101,6 +101,16 @@ public sealed class User
     /// <summary>Marks the account as verified after a successful OTP check.</summary>
     public void MarkEmailVerified(DateTimeOffset whenUtc) => EmailVerifiedAtUtc = whenUtc;
 
+    /// <summary>Updates the editable profile fields (name + phone). Email is
+    /// immutable here — changing it would need re-verification (a later slice).</summary>
+    public void UpdateProfile(string fullName, string phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            throw new ArgumentException("Full name is required.", nameof(fullName));
+        FullName = fullName.Trim();
+        PhoneNumber = phoneNumber?.Trim() ?? string.Empty;
+    }
+
     /// <summary>Assigns the user's referral share code (once).</summary>
     public void SetReferralCode(string code)
     {
