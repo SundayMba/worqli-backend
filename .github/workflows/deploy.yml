@@ -1,0 +1,98 @@
+name: Deploy backend
+
+# Runs on every push to main (and can be triggered by hand from the Actions tab).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two deploys run at once; queue them instead.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+# Least-privilege permissions for the whole workflow:
+permissions:
+  contents: read       # check out the code
+  packages: write      # push the image to GHCR
+  id-token: write      # mint the OIDC token AWS trusts (keyless auth)
+
+env:
+  IMAGE: ghcr.io/sundaymba/worqli-backend
+  AWS_REGION: eu-west-1
+  INSTANCE_ID: i-057abe4f3e2ae565f
+
+jobs:
+  # ---------- CI: build the image and push it to GHCR ----------
+  build:
+    name: Build & push image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------- CD: tell the VM (via AWS SSM) to pull & restart ----------
+  deploy:
+    name: Deploy to server (SSM)
+    needs: build            # only deploy if the image built + pushed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials (OIDC, keyless)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::177467935393:role/servika-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Trigger deploy on the instance
+        run: |
+          # Build the SSM parameters as a file to avoid quoting headaches.
+          # Runs as the `ubuntu` user so it reuses that user's GHCR login + repo.
+          cat > params.json <<'JSON'
+          {
+            "commands": [
+              "sudo -iu ubuntu bash -lc 'cd /home/ubuntu/worqli-backend && git pull --ff-only && docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d && docker image prune -f'"
+            ]
+          }
+          JSON
+
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy ${GITHUB_SHA::7}" \
+            --parameters file://params.json \
+            --query "Command.CommandId" --output text)
+          echo "SSM command id: $CMD_ID"
+
+          # Wait for it to finish, then surface the server-side output in the logs.
+          sleep 5
+          aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" || true
+
+          echo "===== server stdout ====="
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query StandardOutputContent --output text
+          echo "===== server stderr ====="
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query StandardErrorContent --output text
+
+          STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query Status --output text)
+          echo "Deploy status: $STATUS"
+          [ "$STATUS" = "Success" ]

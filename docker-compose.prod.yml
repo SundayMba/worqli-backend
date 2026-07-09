@@ -3,7 +3,9 @@
 # (which only runs Postgres + Redis for local dev, while you run the API by hand).
 #
 # Secrets are read from a `.env` file that lives ONLY on the server (never committed).
-# Start it with:   docker compose -f docker-compose.prod.yml up -d --build
+# Deploys are automatic: GitHub Actions builds + pushes the API image to GHCR, then
+# AWS SSM runs `docker compose -f docker-compose.prod.yml pull && up -d` on the server.
+# (Postgres + Redis still use public images and are built by nobody.)
 services:
   postgres:
     image: postgres:16-alpine
@@ -35,9 +37,11 @@ services:
     # No `ports:` — internal only.
 
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Prebuilt image from GHCR, built + pushed by GitHub Actions on every push to main.
+    # The VM only PULLS and runs it — no build load on the server. IMAGE_TAG lets you
+    # pin/roll back to a specific commit's image; it defaults to the newest push.
+    image: ghcr.io/sundaymba/worqli-backend:${IMAGE_TAG:-latest}
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       postgres:
