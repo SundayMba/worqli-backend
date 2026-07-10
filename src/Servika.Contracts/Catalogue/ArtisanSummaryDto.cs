@@ -14,4 +14,6 @@ public sealed record ArtisanSummaryDto(
     int ReviewCount,
     double DistanceKm,
     bool IsAvailable,
-    string Accent);
+    string Accent,
+    double? Latitude,
+    double? Longitude);

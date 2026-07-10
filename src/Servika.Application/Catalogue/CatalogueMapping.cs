@@ -16,7 +16,8 @@ internal static class CatalogueMapping
     /// location, when supplied; otherwise the artisan's seeded baseline distance.</param>
     public static ArtisanSummaryDto ToSummaryDto(this ArtisanProfile a, double? distanceKmOverride = null) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
-            distanceKmOverride ?? a.DistanceKm, a.IsAvailable, a.Accent);
+            distanceKmOverride ?? a.DistanceKm, a.IsAvailable, a.Accent,
+            a.Latitude, a.Longitude);
 
     public static ArtisanDetailDto ToDetailDto(this ArtisanProfile a) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
