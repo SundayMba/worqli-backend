@@ -60,6 +60,9 @@ services:
       Resend__FromName: ${RESEND_FROM_NAME:-Servika}
       Paystack__SecretKey: ${PAYSTACK_SECRET_KEY}
       Google__DirectionsApiKey: ${GOOGLE_DIRECTIONS_API_KEY}
+      # Google Sign-In: WEB OAuth client id(s), comma-separated (the ID-token
+      # audience the API accepts). Empty = the /auth/google endpoint rejects all.
+      Google__OAuthClientIds: ${GOOGLE_OAUTH_CLIENT_IDS:-}
       Kyc__AutoApprove: ${KYC_AUTOAPPROVE:-true}
     # Published to the server's own port 8080 so we can test it (curl localhost:8080).
     # The firewall still blocks 8080 from the internet; later Caddy will front it on 443.

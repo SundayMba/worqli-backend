@@ -69,6 +69,29 @@ public sealed class AuthController : ControllerBase
         return Ok(await handler.HandleAsync(request, ct));
     }
 
+    /// <summary>Sign in (or sign up) with Google.</summary>
+    /// <remarks>
+    /// The app runs the native Google sign-in flow and posts the resulting ID
+    /// token. The server verifies it with Google (signature, expiry, audience =
+    /// our OAuth client), then logs in the matching account — or creates a fresh
+    /// Customer account. Google already verified the email, so no OTP step: a
+    /// full session is returned immediately.
+    /// </remarks>
+    /// <response code="200">Session issued (tokens + profile).</response>
+    /// <response code="401">Token invalid/expired/for another app, or Google sign-in not configured.</response>
+    /// <response code="403">Account suspended.</response>
+    [HttpPost("google")]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<AuthResponse>> Google(
+        [FromBody] GoogleLoginRequest request,
+        [FromServices] Servika.Application.Users.Google.GoogleLoginHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(request, ct));
+    }
+
     /// <summary>Exchange a refresh token for a new token pair (with rotation).</summary>
     /// <remarks>
     /// The presented refresh token is revoked and a brand-new pair is issued.

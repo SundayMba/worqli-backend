@@ -16,4 +16,8 @@ public sealed record ArtisanSummaryDto(
     bool IsAvailable,
     string Accent,
     double? Latitude,
-    double? Longitude);
+    double? Longitude,
+    /// <summary>API path of the artisan's uploaded photo (e.g.
+    /// "/api/v1/artisans/{id}/photo"), or null if they haven't uploaded one —
+    /// the client then falls back to the bundled <see cref="ImageKey"/> art.</summary>
+    string? PhotoUrl);

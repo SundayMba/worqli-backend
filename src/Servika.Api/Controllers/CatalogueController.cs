@@ -75,6 +75,39 @@ public sealed class CatalogueController : ControllerBase
         return Ok(await handler.HandleAsync(id, ct));
     }
 
+    /// <summary>The artisan's uploaded profile photo (image bytes).</summary>
+    /// <remarks>The <c>photoUrl</c> field on the catalogue DTOs points here.
+    /// Clients fall back to bundled art when it's null / this 404s.</remarks>
+    /// <response code="200">The photo.</response>
+    /// <response code="404">Unknown artisan, or no photo uploaded.</response>
+    [HttpGet("api/v1/artisans/{id:guid}/photo")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetArtisanPhoto(
+        Guid id,
+        [FromServices] GetArtisanPhotoHandler handler,
+        CancellationToken ct)
+    {
+        var file = await handler.HandleAsync(id, cover: false, ct);
+        return File(file.Content, file.ContentType);
+    }
+
+    /// <summary>The artisan's uploaded cover photo (them at work).</summary>
+    /// <remarks>The <c>coverPhotoUrl</c> field on the detail DTOs points here.</remarks>
+    /// <response code="200">The cover photo.</response>
+    /// <response code="404">Unknown artisan, or no cover uploaded.</response>
+    [HttpGet("api/v1/artisans/{id:guid}/cover")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetArtisanCover(
+        Guid id,
+        [FromServices] GetArtisanPhotoHandler handler,
+        CancellationToken ct)
+    {
+        var file = await handler.HandleAsync(id, cover: true, ct);
+        return File(file.Content, file.ContentType);
+    }
+
     /// <summary>List an artisan's customer reviews, newest first.</summary>
     /// <remarks>Powers the reviews section on the artisan profile. Open to guests.</remarks>
     /// <response code="200">The artisan's reviews (empty if none yet).</response>

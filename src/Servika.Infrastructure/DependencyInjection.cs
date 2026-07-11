@@ -53,6 +53,15 @@ public static class DependencyInjection
         services.AddSingleton<IClock, SystemClock>();
         services.AddScoped<IUserRepository, UserRepository>();
 
+        // Google sign-in: ID-token verification via Google's tokeninfo endpoint.
+        // Always registered — with no Google:OAuthClientIds configured it rejects
+        // every token, so the endpoint is safely inert until the ids are set.
+        var googleOAuthOptions = configuration.GetSection(GoogleOAuthOptions.SectionName).Get<GoogleOAuthOptions>()
+            ?? new GoogleOAuthOptions();
+        services.AddSingleton(googleOAuthOptions);
+        services.AddHttpClient("google-tokeninfo");
+        services.AddSingleton<IGoogleTokenVerifier, GoogleTokenVerifier>();
+
         // Marketplace catalogue (read-only reference data), Scoped (EF).
         services.AddScoped<ICatalogueRepository, CatalogueRepository>();
 

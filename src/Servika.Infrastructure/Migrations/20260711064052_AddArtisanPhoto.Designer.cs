@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Servika.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using Servika.Infrastructure.Persistence;
 namespace Servika.Infrastructure.Migrations
 {
     [DbContext(typeof(ServikaDbContext))]
-    partial class ServikaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260711064052_AddArtisanPhoto")]
+    partial class AddArtisanPhoto
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -211,9 +214,6 @@ namespace Servika.Infrastructure.Migrations
                     b.PrimitiveCollection<List<string>>("CategorySlugs")
                         .IsRequired()
                         .HasColumnType("text[]");
-
-                    b.Property<string>("CoverPhotoKey")
-                        .HasColumnType("text");
 
                     b.Property<double>("DistanceKm")
                         .HasColumnType("double precision");

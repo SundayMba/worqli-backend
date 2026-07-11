@@ -33,11 +33,13 @@ public static class DependencyInjection
         services.AddScoped<ResetPasswordHandler>();
         services.AddScoped<BecomeArtisanHandler>();
         services.AddScoped<Users.Profile.UpdateProfileHandler>();
+        services.AddScoped<Users.Google.GoogleLoginHandler>();
 
         // Catalogue (marketplace) query handlers.
         services.AddScoped<GetCategoriesHandler>();
         services.AddScoped<GetArtisansHandler>();
         services.AddScoped<GetArtisanByIdHandler>();
+        services.AddScoped<GetArtisanPhotoHandler>();
 
         // Artisan self-onboarding (create/read their own marketplace profile).
         services.AddScoped<GetMyArtisanProfileHandler>();

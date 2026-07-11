@@ -71,8 +71,14 @@ builder.Services
     });
 builder.Services.AddAuthorization();
 
-// SignalR — real-time hubs (live tracking).
+// SignalR — real-time hubs (live tracking, chat, notifications).
 builder.Services.AddSignalR();
+
+// Real-time notification broadcast (the push dispatcher publishes through this
+// port; the implementation needs the hub, so it lives in the Api host).
+builder.Services.AddSingleton<
+    Servika.Application.Abstractions.Notifications.INotificationRealtimePublisher,
+    Servika.Api.Realtime.SignalRNotificationPublisher>();
 
 // Background sweep that ends stale tracking sessions (see TrackingCleanupService).
 builder.Services.AddHostedService<TrackingCleanupService>();
@@ -201,6 +207,9 @@ app.MapHub<TrackingHub>("/hubs/tracking");
 
 // Real-time chat delivery hub. Clients connect at /hubs/chat?access_token=…
 app.MapHub<ChatHub>("/hubs/chat");
+
+// Real-time in-app notification hub (per-user groups; receive-only).
+app.MapHub<NotificationsHub>("/hubs/notifications");
 
 app.Run();
 

@@ -32,6 +32,25 @@ public sealed class NotificationPushDispatcher : INotificationPushDispatcher
     {
         _ = Task.Run(async () =>
         {
+            // Dispatch is called just before the producing transaction commits;
+            // give it a beat so a client that refetches on the real-time event
+            // actually sees the new row.
+            await Task.Delay(500);
+
+            // Real-time (SignalR) first — a signed-in app updates instantly.
+            // Registered by the Api host; absent in other hosts (e.g. the Worker).
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var realtime = scope.ServiceProvider.GetService<INotificationRealtimePublisher>();
+                if (realtime is not null)
+                    await realtime.PublishAsync(userId, title, body, bookingId, conversationId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Realtime notification publish failed for user {UserId}.", userId);
+            }
+
             try
             {
                 using var scope = _scopeFactory.CreateScope();

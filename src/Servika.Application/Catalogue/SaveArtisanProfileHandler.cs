@@ -1,4 +1,5 @@
 using Servika.Application.Abstractions.Persistence;
+using Servika.Application.Abstractions.Storage;
 using Servika.Application.Common;
 using Servika.Contracts.Catalogue;
 using Servika.Domain.Catalogue;
@@ -18,13 +19,16 @@ public sealed class SaveArtisanProfileHandler
     private readonly ICatalogueRepository _catalogue;
     private readonly IUserRepository _users;
     private readonly IArtisanKycRepository _kyc;
+    private readonly IFileStorage _files;
 
     public SaveArtisanProfileHandler(
-        ICatalogueRepository catalogue, IUserRepository users, IArtisanKycRepository kyc)
+        ICatalogueRepository catalogue, IUserRepository users, IArtisanKycRepository kyc,
+        IFileStorage files)
     {
         _catalogue = catalogue;
         _users = users;
         _kyc = kyc;
+        _files = files;
     }
 
     public async Task<MyArtisanProfileDto> HandleAsync(
@@ -48,6 +52,11 @@ public sealed class SaveArtisanProfileHandler
             .Where(s => s.Length > 0)
             .ToList();
 
+        // Store the uploaded photos (if any) before touching the row, so a
+        // bad image fails the request without a half-updated profile.
+        var photoKey = await StorePhotoAsync(request.PhotoBase64, "profile photo", ct);
+        var coverKey = await StorePhotoAsync(request.CoverPhotoBase64, "cover photo", ct);
+
         var existing = await _catalogue.GetArtisanByUserIdForUpdateAsync(artisanUserId, ct);
         if (existing is not null)
         {
@@ -55,6 +64,8 @@ public sealed class SaveArtisanProfileHandler
                 request.Specialty, slugs, services, request.About,
                 request.ExperienceYears, request.Location, request.InspectionFeeNaira,
                 request.Latitude, request.Longitude);
+            if (photoKey is not null) existing.SetPhoto(photoKey);
+            if (coverKey is not null) existing.SetCoverPhoto(coverKey);
             await _catalogue.SaveChangesAsync(ct);
             return existing.ToMyProfileDto();
         }
@@ -76,6 +87,9 @@ public sealed class SaveArtisanProfileHandler
             longitude: request.Longitude,
             imageKey: request.ImageKey ?? string.Empty);
 
+        if (photoKey is not null) profile.SetPhoto(photoKey);
+        if (coverKey is not null) profile.SetCoverPhoto(coverKey);
+
         // If they already passed KYC before creating the profile, reflect it now.
         var kyc = await _kyc.GetForUserAsync(artisanUserId, ct);
         if (kyc?.Status == ArtisanVerificationStatus.Verified)
@@ -84,5 +98,31 @@ public sealed class SaveArtisanProfileHandler
         _catalogue.AddArtisan(profile);
         await _catalogue.SaveChangesAsync(ct);
         return profile.ToMyProfileDto();
+    }
+
+    /// <summary>Decodes and stores an optional uploaded image, returning its
+    /// storage key — or null when none was sent. Accepts raw base64 or a
+    /// data: URI, same as the KYC upload.</summary>
+    private async Task<string?> StorePhotoAsync(string? base64, string label, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(base64)) return null;
+
+        var comma = base64.IndexOf(',');
+        var payload = base64.StartsWith("data:") && comma >= 0
+            ? base64[(comma + 1)..]
+            : base64;
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(payload);
+        }
+        catch (FormatException)
+        {
+            throw new ArgumentException($"The {label} is not valid base64.");
+        }
+        if (bytes.Length == 0)
+            throw new ArgumentException($"The {label} is empty.");
+
+        return await _files.SaveAsync(bytes, "image/jpeg", ct);
     }
 }

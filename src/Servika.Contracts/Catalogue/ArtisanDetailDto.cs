@@ -27,4 +27,10 @@ public sealed record ArtisanDetailDto(
     IReadOnlyList<string> GalleryKeys,
     /// <summary>Category slugs this artisan serves; the first is treated as
     /// primary when pre-filling a booking's service category.</summary>
-    IReadOnlyList<string> CategorySlugs);
+    IReadOnlyList<string> CategorySlugs,
+    /// <summary>API path of the artisan's uploaded profile photo, or null
+    /// (client falls back to the bundled <see cref="ImageKey"/> art).</summary>
+    string? PhotoUrl,
+    /// <summary>API path of the artisan's uploaded cover photo (them at work),
+    /// or null — the client then covers with the profile photo / bundled art.</summary>
+    string? CoverPhotoUrl);

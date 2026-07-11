@@ -16,8 +16,20 @@ public sealed class ArtisanProfile
     public Guid? UserId { get; private set; }
 
     /// <summary>Stable key the client uses to resolve the bundled avatar/cover
-    /// artwork (e.g. "emeka-okafor"). Decouples images from the database id.</summary>
+    /// artwork (e.g. "emeka-okafor"). Decouples images from the database id.
+    /// Seed-era mechanism; self-onboarded artisans upload a real photo instead
+    /// (see <see cref="PhotoKey"/>).</summary>
     public string ImageKey { get; private set; } = string.Empty;
+
+    /// <summary>Storage key of the artisan's uploaded profile photo (served via
+    /// GET /artisans/{id}/photo), or null if they haven't uploaded one. Takes
+    /// precedence over <see cref="ImageKey"/> on the clients.</summary>
+    public string? PhotoKey { get; private set; }
+
+    /// <summary>Storage key of the artisan's uploaded cover photo — typically a
+    /// shot of them at work — served via GET /artisans/{id}/cover. Null when not
+    /// uploaded; clients then fall back to the profile photo, then bundled art.</summary>
+    public string? CoverPhotoKey { get; private set; }
 
     public string FullName { get; private set; } = string.Empty;
 
@@ -213,6 +225,22 @@ public sealed class ArtisanProfile
         InspectionFeeNaira = inspectionFeeNaira;
         if (latitude.HasValue) Latitude = latitude;
         if (longitude.HasValue) Longitude = longitude;
+    }
+
+    /// <summary>Points the profile at a newly uploaded photo (storage key).</summary>
+    public void SetPhoto(string photoKey)
+    {
+        if (string.IsNullOrWhiteSpace(photoKey))
+            throw new ArgumentException("Photo key is required.", nameof(photoKey));
+        PhotoKey = photoKey;
+    }
+
+    /// <summary>Points the profile at a newly uploaded cover photo (storage key).</summary>
+    public void SetCoverPhoto(string coverPhotoKey)
+    {
+        if (string.IsNullOrWhiteSpace(coverPhotoKey))
+            throw new ArgumentException("Cover photo key is required.", nameof(coverPhotoKey));
+        CoverPhotoKey = coverPhotoKey;
     }
 
     /// <summary>Toggles the artisan's availability (online/offline).</summary>
