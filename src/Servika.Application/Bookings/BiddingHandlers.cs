@@ -1,0 +1,240 @@
+using Servika.Application.Abstractions.Persistence;
+using Servika.Application.Abstractions.Storage;
+using Servika.Application.Abstractions.Time;
+using Servika.Application.Common;
+using Servika.Application.Notifications;
+using Servika.Contracts.Bookings;
+using Servika.Domain.Bookings;
+using Servika.Domain.Catalogue;
+
+namespace Servika.Application.Bookings;
+
+/// <summary>
+/// An artisan places (or revises) a price offer on an open RemoteQuote request.
+/// Same eligibility rules as claiming: verified profile, category match, request
+/// still Open — plus the request must actually be in bidding mode.
+/// </summary>
+public sealed class SubmitBidHandler
+{
+    private readonly IBookingRepository _bookings;
+    private readonly IBidRepository _bids;
+    private readonly ICatalogueRepository _catalogue;
+    private readonly NotificationEmitter _notifications;
+    private readonly IClock _clock;
+
+    public SubmitBidHandler(
+        IBookingRepository bookings, IBidRepository bids, ICatalogueRepository catalogue,
+        NotificationEmitter notifications, IClock clock)
+    {
+        _bookings = bookings;
+        _bids = bids;
+        _catalogue = catalogue;
+        _notifications = notifications;
+        _clock = clock;
+    }
+
+    public async Task<BidDto> HandleAsync(
+        Guid artisanUserId, Guid bookingId, SubmitBidRequest request, CancellationToken ct)
+    {
+        var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct)
+            ?? throw new ConflictException("Set up and verify your Pro profile to bid.");
+        if (profile.VerificationStatus != ArtisanVerificationStatus.Verified)
+            throw new ConflictException("Your profile must be verified before you can bid.");
+
+        var booking = await _bookings.FindByIdReadOnlyAsync(bookingId, ct)
+            ?? throw new NotFoundException("This request was not found.");
+        if (booking.Status != BookingStatus.Open)
+            throw new ConflictException("This request is no longer open.");
+        if (booking.Assessment != AssessmentMode.RemoteQuote)
+            throw new ConflictException(
+                "This request is inspect-first — accept it directly instead of bidding.");
+        if (!profile.CategorySlugs.Contains(booking.CategorySlug))
+            throw new ConflictException("This job is not in your service categories.");
+
+        var now = _clock.UtcNow;
+        var existing = await _bids.FindForArtisanAsync(bookingId, profile.Id, ct);
+        Bid bid;
+        if (existing is not null)
+        {
+            existing.Revise(request.AmountNaira, request.MaterialsNote, now);
+            bid = existing;
+        }
+        else
+        {
+            bid = Bid.Place(
+                bookingId, profile.Id, artisanUserId, profile.FullName,
+                request.AmountNaira, request.MaterialsNote, now);
+            _bids.Add(bid);
+            // Only a fresh bid notifies — a price tweak shouldn't ping the customer again.
+            _notifications.BidPlaced(booking, bid);
+        }
+
+        await _bids.SaveChangesAsync(ct);
+        return bid.ToDto(profile);
+    }
+}
+
+/// <summary>The artisan's own bid on a request (404 = not bid yet).</summary>
+public sealed class GetMyBidHandler
+{
+    private readonly IBidRepository _bids;
+    private readonly ICatalogueRepository _catalogue;
+
+    public GetMyBidHandler(IBidRepository bids, ICatalogueRepository catalogue)
+    {
+        _bids = bids;
+        _catalogue = catalogue;
+    }
+
+    public async Task<BidDto> HandleAsync(Guid artisanUserId, Guid bookingId, CancellationToken ct)
+    {
+        var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct)
+            ?? throw new NotFoundException("No Pro profile.");
+        var bid = await _bids.FindForArtisanAsync(bookingId, profile.Id, ct)
+            ?? throw new NotFoundException("You haven't bid on this request.");
+        return bid.ToDto(profile);
+    }
+}
+
+/// <summary>The customer reviews the bids on their open request.</summary>
+public sealed class GetBookingBidsHandler
+{
+    private readonly IBookingRepository _bookings;
+    private readonly IBidRepository _bids;
+    private readonly ICatalogueRepository _catalogue;
+
+    public GetBookingBidsHandler(
+        IBookingRepository bookings, IBidRepository bids, ICatalogueRepository catalogue)
+    {
+        _bookings = bookings;
+        _bids = bids;
+        _catalogue = catalogue;
+    }
+
+    public async Task<IReadOnlyList<BidDto>> HandleAsync(
+        Guid customerId, Guid bookingId, CancellationToken ct)
+    {
+        _ = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
+            ?? throw new NotFoundException("Booking was not found.");
+
+        var bids = await _bids.ListForBookingAsync(bookingId, ct);
+        var result = new List<BidDto>(bids.Count);
+        foreach (var bid in bids)
+        {
+            // Bids are few per request — per-bid profile lookups are fine and keep
+            // the reputation data (rating, certificate, photo) live, not stale.
+            var profile = await _catalogue.GetArtisanByIdAsync(bid.ArtisanId, ct);
+            result.Add(bid.ToDto(profile));
+        }
+        return result;
+    }
+}
+
+/// <summary>
+/// The customer accepts one bid: the booking is assigned to that artisan at the
+/// offered price (Open → Accepted), every other bid closes, the winner is told.
+/// </summary>
+public sealed class AcceptBidHandler
+{
+    private readonly IBookingRepository _bookings;
+    private readonly IBidRepository _bids;
+    private readonly NotificationEmitter _notifications;
+    private readonly IClock _clock;
+
+    public AcceptBidHandler(
+        IBookingRepository bookings, IBidRepository bids,
+        NotificationEmitter notifications, IClock clock)
+    {
+        _bookings = bookings;
+        _bids = bids;
+        _notifications = notifications;
+        _clock = clock;
+    }
+
+    public async Task<BookingDetailDto> HandleAsync(
+        Guid customerId, Guid bookingId, Guid bidId, CancellationToken ct)
+    {
+        var booking = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
+            ?? throw new NotFoundException("Booking was not found.");
+
+        var bids = await _bids.ListForBookingAsync(bookingId, ct);
+        var winner = bids.FirstOrDefault(b => b.Id == bidId)
+            ?? throw new NotFoundException("That bid was not found.");
+
+        var now = _clock.UtcNow;
+        booking.AcceptBid(winner.ArtisanId, winner.ArtisanName, winner.AmountNaira, now);
+        winner.MarkAccepted(now);
+        foreach (var other in bids.Where(b => b.Id != bidId))
+            other.MarkClosed(now);
+
+        _notifications.BidAccepted(booking, winner);
+        await _bookings.SaveChangesAsync(ct);
+
+        return booking.ToDetailDto(bidCount: 0);
+    }
+}
+
+/// <summary>
+/// Serves the customer's job photos / video clip. Visible to the booking's
+/// owner, the assigned artisan, and — while the request is open — any verified
+/// artisan in its category (they need the context to bid). Everyone else: 404.
+/// </summary>
+public sealed class GetBookingMediaHandler
+{
+    private readonly IBookingRepository _bookings;
+    private readonly ICatalogueRepository _catalogue;
+    private readonly IFileStorage _files;
+
+    public GetBookingMediaHandler(
+        IBookingRepository bookings, ICatalogueRepository catalogue, IFileStorage files)
+    {
+        _bookings = bookings;
+        _catalogue = catalogue;
+        _files = files;
+    }
+
+    public async Task<StoredFile> HandleAsync(
+        Guid callerUserId, Guid bookingId, string mediaKey, CancellationToken ct)
+    {
+        var booking = await _bookings.FindByIdReadOnlyAsync(bookingId, ct)
+            ?? throw new NotFoundException("Booking was not found.");
+        if (!booking.MediaKeys.Contains(mediaKey) && booking.VideoKey != mediaKey)
+            throw new NotFoundException("No such media on this booking.");
+
+        if (booking.CustomerId != callerUserId)
+        {
+            var profile = await _catalogue.GetArtisanByUserIdAsync(callerUserId, ct);
+            var isAssigned = profile is not null && booking.ArtisanId == profile.Id;
+            var isEligibleBidder =
+                profile is not null &&
+                profile.VerificationStatus == ArtisanVerificationStatus.Verified &&
+                booking.Status == BookingStatus.Open &&
+                profile.CategorySlugs.Contains(booking.CategorySlug);
+            if (!isAssigned && !isEligibleBidder)
+                throw new NotFoundException("Booking was not found.");
+        }
+
+        return await _files.GetAsync(mediaKey, ct)
+            ?? throw new NotFoundException("The media file was not found.");
+    }
+}
+
+internal static class BidMapping
+{
+    public static BidDto ToDto(this Bid bid, ArtisanProfile? profile) =>
+        new(
+            bid.Id,
+            bid.BookingId,
+            bid.ArtisanId,
+            bid.ArtisanName,
+            profile?.Rating ?? 0,
+            profile?.ReviewCount ?? 0,
+            profile?.HasCertificate ?? false,
+            profile is { PhotoKey: not null and not "" }
+                ? $"/api/v1/artisans/{profile.Id}/photo"
+                : null,
+            bid.AmountNaira,
+            bid.MaterialsNote,
+            bid.Status.ToString(),
+            bid.CreatedAt);
+}

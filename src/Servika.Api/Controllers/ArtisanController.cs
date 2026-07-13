@@ -64,6 +64,37 @@ public sealed class ArtisanController : ControllerBase
     /// <response code="403">Signed in but not an artisan.</response>
     /// <response code="404">No such job.</response>
     /// <response code="409">Already taken, not in your categories, or your profile isn't verified.</response>
+    /// <summary>Place (or revise) a price offer on an open bidding request.</summary>
+    /// <response code="200">Your current bid.</response>
+    /// <response code="400">Invalid amount.</response>
+    /// <response code="404">Unknown request.</response>
+    /// <response code="409">Not open / not bidding-mode / not your category / unverified.</response>
+    [HttpPost("{id:guid}/bid")]
+    [ProducesResponseType(typeof(Contracts.Bookings.BidDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<Contracts.Bookings.BidDto>> SubmitBid(
+        Guid id,
+        [FromBody] Contracts.Bookings.SubmitBidRequest request,
+        [FromServices] SubmitBidHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, request, ct));
+    }
+
+    /// <summary>The caller's own bid on a request (404 = not bid yet).</summary>
+    [HttpGet("{id:guid}/bid")]
+    [ProducesResponseType(typeof(Contracts.Bookings.BidDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<Contracts.Bookings.BidDto>> GetMyBid(
+        Guid id,
+        [FromServices] GetMyBidHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
     [HttpPost("{id:guid}/claim")]
     [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

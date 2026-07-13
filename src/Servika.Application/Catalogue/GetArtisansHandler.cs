@@ -34,10 +34,15 @@ public sealed class GetArtisansHandler
 
         var artisans = await _catalogue.GetArtisansAsync(categorySlug, ct);
 
-        // No customer location → keep the repository's default order + baseline distance.
+        // No customer location → rank by score (rating + certificate boost),
+        // available artisans first.
         if (lat is not { } customerLat || lng is not { } customerLng)
         {
-            return artisans.Select(a => a.ToSummaryDto()).ToList();
+            return artisans
+                .OrderByDescending(a => a.IsAvailable)
+                .ThenByDescending(a => a.RankScore)
+                .Select(a => a.ToSummaryDto())
+                .ToList();
         }
 
         // Compute real distance for artisans that have coordinates; fall back to
@@ -50,7 +55,11 @@ public sealed class GetArtisansHandler
                     : a.DistanceKm;
                 return (Artisan: a, Distance: distance);
             })
+            // Available first, then the ranking score (rating + certificate
+            // boost), then proximity breaks ties — quality leads, distance
+            // still matters.
             .OrderByDescending(x => x.Artisan.IsAvailable)
+            .ThenByDescending(x => x.Artisan.RankScore)
             .ThenBy(x => x.Distance)
             .Select(x => x.Artisan.ToSummaryDto(x.Distance))
             .ToList();

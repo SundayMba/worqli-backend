@@ -108,6 +108,23 @@ public sealed class CatalogueController : ControllerBase
         return File(file.Content, file.ContentType);
     }
 
+    /// <summary>One of the artisan's work-gallery photos (image bytes).</summary>
+    /// <remarks>The <c>galleryUrls</c> entries on the detail DTO point here.</remarks>
+    /// <response code="200">The photo.</response>
+    /// <response code="404">Unknown artisan or photo (incl. deleted ones).</response>
+    [HttpGet("api/v1/artisans/{id:guid}/gallery/{photoKey}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetArtisanGalleryPhoto(
+        Guid id,
+        string photoKey,
+        [FromServices] GetArtisanGalleryPhotoHandler handler,
+        CancellationToken ct)
+    {
+        var file = await handler.HandleAsync(id, photoKey, ct);
+        return File(file.Content, file.ContentType);
+    }
+
     /// <summary>List an artisan's customer reviews, newest first.</summary>
     /// <remarks>Powers the reviews section on the artisan profile. Open to guests.</remarks>
     /// <response code="200">The artisan's reviews (empty if none yet).</response>

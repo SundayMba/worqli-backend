@@ -67,6 +67,7 @@ public static class DependencyInjection
 
         // Bookings (read + write), Scoped (EF).
         services.AddScoped<IBookingRepository, BookingRepository>();
+        services.AddScoped<IBidRepository, BidRepository>();
 
         // Reviews (customer ratings on completed bookings), Scoped (EF).
         services.AddScoped<IReviewRepository, ReviewRepository>();
@@ -98,7 +99,12 @@ public static class DependencyInjection
 
         // Artisan KYC (submission store + file storage + verification provider).
         services.AddScoped<IArtisanKycRepository, ArtisanKycRepository>();
-        services.AddSingleton<IFileStorage, LocalFileStorage>();
+        // File storage: S3 when a bucket is configured (production — uploads survive
+        // redeploys), else the local uploads folder (dev). Same IFileStorage port.
+        if (!string.IsNullOrWhiteSpace(configuration["Storage:S3Bucket"]))
+            services.AddSingleton<IFileStorage, S3FileStorage>();
+        else
+            services.AddSingleton<IFileStorage, LocalFileStorage>();
         services.AddSingleton<IKycVerificationProvider, ManualKycProvider>();
 
         // Live-tracking sessions (read + write), Scoped (EF).

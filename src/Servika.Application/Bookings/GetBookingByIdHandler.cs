@@ -11,10 +11,12 @@ namespace Servika.Application.Bookings;
 public sealed class GetBookingByIdHandler
 {
     private readonly IBookingRepository _bookings;
+    private readonly IBidRepository _bids;
 
-    public GetBookingByIdHandler(IBookingRepository bookings)
+    public GetBookingByIdHandler(IBookingRepository bookings, IBidRepository bids)
     {
         _bookings = bookings;
+        _bids = bids;
     }
 
     public async Task<BookingDetailDto> HandleAsync(
@@ -23,6 +25,13 @@ public sealed class GetBookingByIdHandler
         var booking = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
             ?? throw new NotFoundException($"Booking '{bookingId}' was not found.");
 
-        return booking.ToDetailDto();
+        // Bid badge only matters while the request is open for offers.
+        var bidCount =
+            booking.Status == Domain.Bookings.BookingStatus.Open &&
+            booking.Assessment == Domain.Bookings.AssessmentMode.RemoteQuote
+                ? await _bids.CountActiveForBookingAsync(bookingId, ct)
+                : 0;
+
+        return booking.ToDetailDto(bidCount);
     }
 }

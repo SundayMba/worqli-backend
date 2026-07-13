@@ -14,4 +14,11 @@ public sealed record BookingSummaryDto(
     string PreferredTimeSlot,
     string Urgency,
     int? AmountNaira,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    /// <summary>"Inspection" or "RemoteQuote" — RemoteQuote open requests take
+    /// bids instead of first-come claims.</summary>
+    string AssessmentMode,
+    /// <summary>API paths of the customer's job photos (context for artisans).</summary>
+    IReadOnlyList<string> MediaUrls,
+    /// <summary>API path of the customer's short job video, or null.</summary>
+    string? VideoUrl);

@@ -88,6 +88,9 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "favorites" table — a customer's saved artisans.</summary>
     public DbSet<Favorite> Favorites => Set<Favorite>();
 
+    /// <summary>The "bids" table — artisan price offers on open RemoteQuote requests.</summary>
+    public DbSet<Bid> Bids => Set<Bid>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -200,6 +203,7 @@ public sealed class ServikaDbContext : DbContext
             artisan.Property(a => a.CategorySlugs).Metadata.SetValueComparer(stringListComparer);
             artisan.Property(a => a.Services).Metadata.SetValueComparer(stringListComparer);
             artisan.Property(a => a.GalleryKeys).Metadata.SetValueComparer(stringListComparer);
+            artisan.Property(a => a.GalleryPhotoKeys).Metadata.SetValueComparer(stringListComparer);
             artisan.HasIndex(a => a.CategorySlugs).HasMethod("gin");
 
             // Optional link to the artisan's login account. Looked up when matching
@@ -243,6 +247,8 @@ public sealed class ServikaDbContext : DbContext
             // catalogue arrays, needs the structural comparer to avoid phantom diffs).
             booking.Property(b => b.CompletionNote).HasMaxLength(1000);
             booking.Property(b => b.CompletionPhotoKeys).Metadata.SetValueComparer(stringListComparer);
+            booking.Property(b => b.Assessment).HasConversion<string>().HasMaxLength(16);
+            booking.Property(b => b.MediaKeys).Metadata.SetValueComparer(stringListComparer);
 
             // The customer is a User; bookings die with the user (cascade). The
             // optional artisan points at catalogue reference data (not yet a User
@@ -340,6 +346,26 @@ public sealed class ServikaDbContext : DbContext
                    .WithMany()
                    .HasForeignKey(s => s.BookingId)
                    .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Bid>(bid =>
+        {
+            bid.ToTable("bids");
+
+            bid.HasKey(b => b.Id);
+
+            // One bid per (booking, artisan) — re-bidding revises, never duplicates.
+            bid.HasIndex(b => new { b.BookingId, b.ArtisanId }).IsUnique();
+
+            bid.Property(b => b.ArtisanName).IsRequired().HasMaxLength(120);
+            bid.Property(b => b.MaterialsNote).HasMaxLength(500);
+            bid.Property(b => b.Status).HasConversion<string>().HasMaxLength(16);
+
+            // Bids die with their booking.
+            bid.HasOne<Booking>()
+               .WithMany()
+               .HasForeignKey(b => b.BookingId)
+               .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Review>(review =>

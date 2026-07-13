@@ -56,6 +56,7 @@ public sealed class SaveArtisanProfileHandler
         // bad image fails the request without a half-updated profile.
         var photoKey = await StorePhotoAsync(request.PhotoBase64, "profile photo", ct);
         var coverKey = await StorePhotoAsync(request.CoverPhotoBase64, "cover photo", ct);
+        var certificateKey = await StorePhotoAsync(request.CertificateBase64, "certificate", ct);
 
         var existing = await _catalogue.GetArtisanByUserIdForUpdateAsync(artisanUserId, ct);
         if (existing is not null)
@@ -66,6 +67,7 @@ public sealed class SaveArtisanProfileHandler
                 request.Latitude, request.Longitude);
             if (photoKey is not null) existing.SetPhoto(photoKey);
             if (coverKey is not null) existing.SetCoverPhoto(coverKey);
+            if (certificateKey is not null) existing.SetCertificate(certificateKey);
             await _catalogue.SaveChangesAsync(ct);
             return existing.ToMyProfileDto();
         }
@@ -89,6 +91,7 @@ public sealed class SaveArtisanProfileHandler
 
         if (photoKey is not null) profile.SetPhoto(photoKey);
         if (coverKey is not null) profile.SetCoverPhoto(coverKey);
+        if (certificateKey is not null) profile.SetCertificate(certificateKey);
 
         // If they already passed KYC before creating the profile, reflect it now.
         var kyc = await _kyc.GetForUserAsync(artisanUserId, ct);

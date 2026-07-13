@@ -17,4 +17,14 @@ public sealed record CreateBookingRequest(
     string AddressText,
     double? LocationLat,
     double? LocationLng,
-    string? LocationInstructions);
+    string? LocationInstructions,
+    /// <summary>"Inspection" (artisan comes to check &amp; discuss the price —
+    /// default) or "RemoteQuote" (priceable from photos/video → artisans bid).
+    /// Only meaningful on an open request (no pre-selected artisan).</summary>
+    string? AssessmentMode = null,
+    /// <summary>Job photos (base64 / data: URIs, max 4) giving artisans context.
+    /// Required context when bidding.</summary>
+    List<string>? MediaBase64 = null,
+    /// <summary>A short video clip of the job (base64), so bidding artisans can
+    /// assess the work properly. Optional.</summary>
+    string? VideoBase64 = null);

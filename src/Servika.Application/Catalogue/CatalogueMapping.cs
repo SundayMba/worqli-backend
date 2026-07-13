@@ -17,19 +17,20 @@ internal static class CatalogueMapping
     public static ArtisanSummaryDto ToSummaryDto(this ArtisanProfile a, double? distanceKmOverride = null) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
             distanceKmOverride ?? a.DistanceKm, a.IsAvailable, a.Accent,
-            a.Latitude, a.Longitude, a.PhotoUrl());
+            a.Latitude, a.Longitude, a.PhotoUrl(), a.HasCertificate);
 
     public static ArtisanDetailDto ToDetailDto(this ArtisanProfile a) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
             a.DistanceKm, a.IsAvailable, a.Accent, a.ExperienceYears, a.Location,
             a.ResponseTime, a.JobsCount, a.InspectionFeeNaira, a.About,
-            a.Services, a.GalleryKeys, a.CategorySlugs, a.PhotoUrl(), a.CoverPhotoUrl());
+            a.Services, a.GalleryKeys, a.CategorySlugs, a.PhotoUrl(), a.CoverPhotoUrl(),
+            a.GalleryUrls(), a.HasCertificate);
 
     public static MyArtisanProfileDto ToMyProfileDto(this ArtisanProfile a) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
             a.IsAvailable, a.VerificationStatus.ToString(), a.ExperienceYears,
             a.Location, a.InspectionFeeNaira, a.About, a.CategorySlugs, a.Services,
-            a.PhotoUrl(), a.CoverPhotoUrl());
+            a.PhotoUrl(), a.CoverPhotoUrl(), a.GalleryUrls(), a.HasCertificate);
 
     /// <summary>API path the clients load the uploaded photo from, or null if
     /// none was uploaded (clients fall back to the bundled ImageKey art).</summary>
@@ -38,4 +39,10 @@ internal static class CatalogueMapping
 
     private static string? CoverPhotoUrl(this ArtisanProfile a) =>
         string.IsNullOrEmpty(a.CoverPhotoKey) ? null : $"/api/v1/artisans/{a.Id}/cover";
+
+    /// <summary>API paths of the uploaded work-gallery photos, newest first.</summary>
+    internal static IReadOnlyList<string> GalleryUrls(this ArtisanProfile a) =>
+        a.GalleryPhotoKeys
+            .Select(k => $"/api/v1/artisans/{a.Id}/gallery/{k}")
+            .ToList();
 }

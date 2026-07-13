@@ -63,6 +63,9 @@ services:
       # Google Sign-In: WEB OAuth client id(s), comma-separated (the ID-token
       # audience the API accepts). Empty = the /auth/google endpoint rejects all.
       Google__OAuthClientIds: ${GOOGLE_OAUTH_CLIENT_IDS:-}
+      # S3 uploads (KYC docs, photos, booking media). Empty => local disk (ephemeral!).
+      Storage__S3Bucket: ${STORAGE_S3_BUCKET:-}
+      Storage__S3Region: ${STORAGE_S3_REGION:-}
       Kyc__AutoApprove: ${KYC_AUTOAPPROVE:-true}
     # Published to the server's own port 8080 so we can test it (curl localhost:8080).
     # The firewall still blocks 8080 from the internet; later Caddy will front it on 443.

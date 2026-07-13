@@ -84,6 +84,18 @@ public sealed class Booking
     /// admin's resolution can return it to a sensible terminal state.</summary>
     public BookingStatus? PreDisputeStatus { get; private set; }
 
+    /// <summary>How the price gets determined (customer's choice at request
+    /// time): the artisan inspects in person, or the job is priced remotely
+    /// from the customer's photos/video via bidding.</summary>
+    public AssessmentMode Assessment { get; private set; } = AssessmentMode.Inspection;
+
+    /// <summary>Storage keys of the customer's job photos (context for the
+    /// artisan; required context for RemoteQuote bidding).</summary>
+    public List<string> MediaKeys { get; private set; } = new();
+
+    /// <summary>Storage key of the customer's short job video clip, if any.</summary>
+    public string? VideoKey { get; private set; }
+
     // EF Core rebuilds rows through this; private so app code can't skip the rules.
     private Booking() { }
 
@@ -111,7 +123,10 @@ public sealed class Booking
         PricingModel pricingModel,
         int? initialQuoteAmountNaira,
         decimal commissionRate,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        AssessmentMode assessment = AssessmentMode.Inspection,
+        List<string>? mediaKeys = null,
+        string? videoKey = null)
     {
         if (customerId == Guid.Empty)
             throw new ArgumentException("Customer is required.", nameof(customerId));
@@ -151,7 +166,33 @@ public sealed class Booking
             // with none it's an Open request any matching artisan can claim.
             Status = artisanId is null ? BookingStatus.Open : BookingStatus.Pending,
             CreatedAt = now,
+            // Remote pricing only makes sense on an open request that artisans
+            // will assess from media; a direct booking keeps the normal flow.
+            Assessment = artisanId is null ? assessment : AssessmentMode.Inspection,
+            MediaKeys = mediaKeys ?? new(),
+            VideoKey = string.IsNullOrWhiteSpace(videoKey) ? null : videoKey,
         };
+    }
+
+    /// <summary>
+    /// The customer accepts an artisan's bid on an open RemoteQuote request:
+    /// the booking is assigned to that artisan at the offered price and moves
+    /// Open → Accepted (the bid IS the acceptance — no second confirmation).
+    /// </summary>
+    public void AcceptBid(Guid artisanId, string artisanName, int amountNaira, DateTimeOffset now)
+    {
+        if (Status is not BookingStatus.Open)
+            throw new InvalidBookingStateException(
+                $"Only an Open request can accept a bid (this one is {Status}).");
+        if (Assessment is not AssessmentMode.RemoteQuote)
+            throw new InvalidBookingStateException(
+                "This request is inspect-first — artisans accept it directly instead of bidding.");
+
+        ArtisanId = artisanId;
+        ArtisanName = artisanName;
+        InitialQuoteAmountNaira = amountNaira;
+        Status = BookingStatus.Accepted;
+        AcceptedAtUtc = now;
     }
 
     // NOTE: claiming an open request (Open → Accepted, assigning the artisan) is done

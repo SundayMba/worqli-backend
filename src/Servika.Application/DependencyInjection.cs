@@ -40,6 +40,9 @@ public static class DependencyInjection
         services.AddScoped<GetArtisansHandler>();
         services.AddScoped<GetArtisanByIdHandler>();
         services.AddScoped<GetArtisanPhotoHandler>();
+        services.AddScoped<AddGalleryPhotoHandler>();
+        services.AddScoped<RemoveGalleryPhotoHandler>();
+        services.AddScoped<GetArtisanGalleryPhotoHandler>();
 
         // Artisan self-onboarding (create/read their own marketplace profile).
         services.AddScoped<GetMyArtisanProfileHandler>();
@@ -53,6 +56,11 @@ public static class DependencyInjection
         services.AddScoped<CreateBookingHandler>();
         services.AddScoped<GetMyBookingsHandler>();
         services.AddScoped<GetBookingByIdHandler>();
+        services.AddScoped<SubmitBidHandler>();
+        services.AddScoped<GetMyBidHandler>();
+        services.AddScoped<GetBookingBidsHandler>();
+        services.AddScoped<AcceptBidHandler>();
+        services.AddScoped<GetBookingMediaHandler>();
         services.AddScoped<CancelBookingHandler>();
         services.AddScoped<CompleteBookingHandler>();
         services.AddScoped<SubmitJobCompletionHandler>();

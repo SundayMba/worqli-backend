@@ -87,6 +87,55 @@ public sealed class BookingsController : ControllerBase
     /// <response code="401">Not signed in.</response>
     /// <response code="404">No such booking owned by this customer.</response>
     /// <response code="409">The booking can no longer be cancelled in its state.</response>
+    /// <summary>The price offers artisans placed on this open request.</summary>
+    /// <response code="200">Bids, cheapest first (empty if none yet).</response>
+    /// <response code="404">Not the caller's booking.</response>
+    [HttpGet("{id:guid}/bids")]
+    [ProducesResponseType(typeof(IReadOnlyList<Contracts.Bookings.BidDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<Contracts.Bookings.BidDto>>> GetBids(
+        Guid id,
+        [FromServices] GetBookingBidsHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>Accept one bid — assigns that artisan at their offered price.</summary>
+    /// <response code="200">The booking, now Accepted with the winning artisan.</response>
+    /// <response code="404">Not the caller's booking / unknown bid.</response>
+    /// <response code="409">The request is no longer open.</response>
+    [HttpPost("{id:guid}/bids/{bidId:guid}/accept")]
+    [ProducesResponseType(typeof(Contracts.Bookings.BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<Contracts.Bookings.BookingDetailDto>> AcceptBid(
+        Guid id,
+        Guid bidId,
+        [FromServices] AcceptBidHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, bidId, ct));
+    }
+
+    /// <summary>A job photo / the job video (image or video bytes).</summary>
+    /// <remarks>Visible to the booking's owner, the assigned artisan, and — while
+    /// the request is open — verified artisans in its category (bidding context).</remarks>
+    /// <response code="200">The media file.</response>
+    /// <response code="404">Unknown media, or the caller may not see it.</response>
+    [HttpGet("{id:guid}/media/{mediaKey}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMedia(
+        Guid id,
+        string mediaKey,
+        [FromServices] GetBookingMediaHandler handler,
+        CancellationToken ct)
+    {
+        var file = await handler.HandleAsync(CurrentUserId(), id, mediaKey, ct);
+        return File(file.Content, file.ContentType);
+    }
+
     [HttpPost("{id:guid}/cancel")]
     [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

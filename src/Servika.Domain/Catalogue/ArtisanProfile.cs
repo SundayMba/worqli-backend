@@ -84,8 +84,20 @@ public sealed class ArtisanProfile
     /// <summary>Service chips shown on the profile, e.g. ["Installation","Repair"].</summary>
     public List<string> Services { get; private set; } = new();
 
-    /// <summary>Work-gallery image keys the client resolves to bundled photos.</summary>
+    /// <summary>Work-gallery image keys the client resolves to bundled photos.
+    /// Seed-era mechanism; self-onboarded artisans upload real work-evidence
+    /// photos instead (see <see cref="GalleryPhotoKeys"/>).</summary>
     public List<string> GalleryKeys { get; private set; } = new();
+
+    /// <summary>Storage keys of the artisan's uploaded work-evidence photos,
+    /// newest first — served via GET /artisans/{id}/gallery/{key}. The artisan
+    /// manages these from the Pro app (add after a job / delete).</summary>
+    public List<string> GalleryPhotoKeys { get; private set; } = new();
+
+    /// <summary>Storage key of an uploaded work certificate (optional — many
+    /// excellent artisans have none). Having one boosts the ranking score while
+    /// real ratings accumulate; it is never shown to customers as a document.</summary>
+    public string? CertificateKey { get; private set; }
 
     private ArtisanProfile() { }
 
@@ -242,6 +254,47 @@ public sealed class ArtisanProfile
             throw new ArgumentException("Cover photo key is required.", nameof(coverPhotoKey));
         CoverPhotoKey = coverPhotoKey;
     }
+
+    /// <summary>Max work-evidence photos an artisan can showcase.</summary>
+    public const int MaxGalleryPhotos = 12;
+
+    /// <summary>Adds an uploaded work-evidence photo (newest first).</summary>
+    public void AddGalleryPhoto(string photoKey)
+    {
+        if (string.IsNullOrWhiteSpace(photoKey))
+            throw new ArgumentException("Photo key is required.", nameof(photoKey));
+        if (GalleryPhotoKeys.Count >= MaxGalleryPhotos)
+            throw new InvalidOperationException(
+                $"The gallery is full ({MaxGalleryPhotos} photos). Delete one to add another.");
+        // Re-assign so EF's change tracking sees a new list instance.
+        GalleryPhotoKeys = GalleryPhotoKeys.Prepend(photoKey).ToList();
+    }
+
+    /// <summary>Removes a gallery photo by key. False when the key isn't ours.</summary>
+    public bool RemoveGalleryPhoto(string photoKey)
+    {
+        if (!GalleryPhotoKeys.Contains(photoKey)) return false;
+        GalleryPhotoKeys = GalleryPhotoKeys.Where(k => k != photoKey).ToList();
+        return true;
+    }
+
+    /// <summary>Attaches an uploaded work certificate (optional trust signal).</summary>
+    public void SetCertificate(string certificateKey)
+    {
+        if (string.IsNullOrWhiteSpace(certificateKey))
+            throw new ArgumentException("Certificate key is required.", nameof(certificateKey));
+        CertificateKey = certificateKey;
+    }
+
+    /// <summary>True when the artisan uploaded a work certificate.</summary>
+    public bool HasCertificate => !string.IsNullOrEmpty(CertificateKey);
+
+    /// <summary>
+    /// Composite ranking score for catalogue ordering: the rating average leads,
+    /// and a certificate adds a small boost — so a certified newcomer starts
+    /// above an uncertified one, while real customer ratings dominate over time.
+    /// </summary>
+    public double RankScore => Rating + (HasCertificate ? 0.5 : 0);
 
     /// <summary>Toggles the artisan's availability (online/offline).</summary>
     public void SetAvailability(bool available) => IsAvailable = available;

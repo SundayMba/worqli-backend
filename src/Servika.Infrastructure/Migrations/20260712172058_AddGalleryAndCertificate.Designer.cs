@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Servika.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using Servika.Infrastructure.Persistence;
 namespace Servika.Infrastructure.Migrations
 {
     [DbContext(typeof(ServikaDbContext))]
-    partial class ServikaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260712172058_AddGalleryAndCertificate")]
+    partial class AddGalleryAndCertificate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -22,52 +25,6 @@ namespace Servika.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("Servika.Domain.Bookings.Bid", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("AmountNaira")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("ArtisanId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ArtisanName")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<Guid>("ArtisanUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BookingId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("MaterialsNote")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookingId", "ArtisanId")
-                        .IsUnique();
-
-                    b.ToTable("bids", (string)null);
-                });
 
             modelBuilder.Entity("Servika.Domain.Bookings.Booking", b =>
                 {
@@ -89,11 +46,6 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<string>("ArtisanName")
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
-
-                    b.Property<string>("Assessment")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
 
                     b.Property<DateTimeOffset?>("CancelledAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -145,10 +97,6 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<double?>("LocationLng")
                         .HasColumnType("double precision");
 
-                    b.PrimitiveCollection<List<string>>("MediaKeys")
-                        .IsRequired()
-                        .HasColumnType("text[]");
-
                     b.Property<string>("PaymentState")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -185,9 +133,6 @@ namespace Servika.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
-
-                    b.Property<string>("VideoKey")
-                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset?>("WorkSubmittedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -1452,15 +1397,6 @@ namespace Servika.Infrastructure.Migrations
                     b.HasIndex("UserId", "Purpose");
 
                     b.ToTable("verification_codes", (string)null);
-                });
-
-            modelBuilder.Entity("Servika.Domain.Bookings.Bid", b =>
-                {
-                    b.HasOne("Servika.Domain.Bookings.Booking", null)
-                        .WithMany()
-                        .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Servika.Domain.Bookings.Booking", b =>

@@ -33,4 +33,9 @@ public sealed record ArtisanDetailDto(
     string? PhotoUrl,
     /// <summary>API path of the artisan's uploaded cover photo (them at work),
     /// or null — the client then covers with the profile photo / bundled art.</summary>
-    string? CoverPhotoUrl);
+    string? CoverPhotoUrl,
+    /// <summary>API paths of the artisan's uploaded work-evidence photos,
+    /// newest first. Empty → the client falls back to bundled gallery art.</summary>
+    IReadOnlyList<string> GalleryUrls,
+    /// <summary>True when the artisan uploaded a work certificate.</summary>
+    bool HasCertificate);

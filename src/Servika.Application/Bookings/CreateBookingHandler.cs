@@ -1,4 +1,5 @@
 using Servika.Application.Abstractions.Persistence;
+using Servika.Application.Abstractions.Storage;
 using Servika.Application.Abstractions.Time;
 using Servika.Application.Common;
 using Servika.Contracts.Bookings;
@@ -24,6 +25,7 @@ public sealed class CreateBookingHandler
     private readonly ICatalogueRepository _catalogue;
     private readonly IPlatformSettingsRepository _settings;
     private readonly Notifications.NotificationEmitter _notifications;
+    private readonly IFileStorage _files;
     private readonly IClock _clock;
 
     public CreateBookingHandler(
@@ -31,12 +33,14 @@ public sealed class CreateBookingHandler
         ICatalogueRepository catalogue,
         IPlatformSettingsRepository settings,
         Notifications.NotificationEmitter notifications,
+        IFileStorage files,
         IClock clock)
     {
         _bookings = bookings;
         _catalogue = catalogue;
         _settings = settings;
         _notifications = notifications;
+        _files = files;
         _clock = clock;
     }
 
@@ -64,6 +68,30 @@ public sealed class CreateBookingHandler
             ? settings.EmergencyCommissionRate
             : settings.CommissionRate;
 
+        // Job media: photos (context for any artisan) + an optional short video.
+        // Stored before the row so a bad upload fails clean.
+        var assessment = ParseAssessment(request.AssessmentMode);
+        var mediaKeys = new List<string>();
+        foreach (var photo in (request.MediaBase64 ?? new()).Take(4))
+        {
+            var bytes = DecodeMedia(photo, "job photo");
+            mediaKeys.Add(await _files.SaveAsync(bytes, "image/jpeg", ct));
+        }
+        string? videoKey = null;
+        if (!string.IsNullOrWhiteSpace(request.VideoBase64))
+        {
+            var bytes = DecodeMedia(request.VideoBase64, "job video");
+            videoKey = await _files.SaveAsync(bytes, "video/mp4", ct);
+        }
+        // Bidding needs something to assess — require at least one photo or a video.
+        if (assessment == AssessmentMode.RemoteQuote &&
+            request.ArtisanId is null &&
+            mediaKeys.Count == 0 && videoKey is null)
+        {
+            throw new ArgumentException(
+                "Add at least one photo (or a short video) of the job so artisans can price it.");
+        }
+
         var booking = Booking.Create(
             customerId: customerId,
             artisanId: request.ArtisanId,
@@ -81,7 +109,10 @@ public sealed class CreateBookingHandler
             pricingModel: PricingModel.Variable,
             initialQuoteAmountNaira: initialAmount,
             commissionRate: commissionRate,
-            now: _clock.UtcNow);
+            now: _clock.UtcNow,
+            assessment: assessment,
+            mediaKeys: mediaKeys,
+            videoKey: videoKey);
 
         _bookings.Add(booking);
         if (booking.ArtisanId is null)
@@ -93,6 +124,31 @@ public sealed class CreateBookingHandler
         await _bookings.SaveChangesAsync(ct);
 
         return booking.ToDetailDto();
+    }
+
+    private static AssessmentMode ParseAssessment(string? value) =>
+        value?.Trim().ToLowerInvariant() switch
+        {
+            "remotequote" or "remote" or "bidding" => AssessmentMode.RemoteQuote,
+            "inspection" or null or "" => AssessmentMode.Inspection,
+            _ => throw new ArgumentException(
+                "AssessmentMode must be 'Inspection' or 'RemoteQuote'.", nameof(value)),
+        };
+
+    private static byte[] DecodeMedia(string base64, string label)
+    {
+        var comma = base64.IndexOf(',');
+        var payload = base64.StartsWith("data:") && comma >= 0 ? base64[(comma + 1)..] : base64;
+        try
+        {
+            var bytes = Convert.FromBase64String(payload);
+            if (bytes.Length == 0) throw new ArgumentException($"The {label} is empty.");
+            return bytes;
+        }
+        catch (FormatException)
+        {
+            throw new ArgumentException($"The {label} is not valid base64.");
+        }
     }
 
     private static Urgency ParseUrgency(string? value) =>

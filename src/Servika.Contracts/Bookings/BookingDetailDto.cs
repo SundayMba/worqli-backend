@@ -28,4 +28,12 @@ public sealed record BookingDetailDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? AcceptedAtUtc,
     DateTimeOffset? CompletedAtUtc,
-    DateTimeOffset? CancelledAtUtc);
+    DateTimeOffset? CancelledAtUtc,
+    /// <summary>"Inspection" or "RemoteQuote" (bidding).</summary>
+    string AssessmentMode,
+    /// <summary>API paths of the customer's job photos.</summary>
+    IReadOnlyList<string> MediaUrls,
+    /// <summary>API path of the customer's short job video, or null.</summary>
+    string? VideoUrl,
+    /// <summary>Active bids on this request (RemoteQuote + Open only; 0 otherwise).</summary>
+    int BidCount);

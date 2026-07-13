@@ -156,11 +156,36 @@ public sealed class NotificationEmitter
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
         var recipients = await _catalogue.ListArtisanUserIdsInCategoryAsync(booking.CategorySlug, ct);
+        var bidding = booking.Assessment == Domain.Bookings.AssessmentMode.RemoteQuote;
         foreach (var artisanUserId in recipients)
         {
             Add(artisanUserId, NotificationType.OpenJob,
-                "New job available", $"A new {service} request is open near you. Tap to view and accept.", null);
+                bidding ? "New job — send your price" : "New job available",
+                bidding
+                    ? $"A new {service} request is open for bids. Check the photos and offer your price."
+                    : $"A new {service} request is open near you. Tap to view and accept.",
+                null);
         }
+    }
+
+    /// <summary>Tell the customer an artisan offered a price on their request.</summary>
+    public void BidPlaced(Booking booking, Bid bid)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "request" : $"{booking.ServiceName} request";
+        Add(booking.CustomerId, NotificationType.Booking,
+            "New price offer",
+            $"{bid.ArtisanName} offered ₦{bid.AmountNaira:N0} for your {service}. Compare offers and pick your artisan.",
+            booking.Id);
+    }
+
+    /// <summary>Tell the winning artisan the customer accepted their bid.</summary>
+    public void BidAccepted(Booking booking, Bid bid)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
+        Add(bid.ArtisanUserId, NotificationType.Booking,
+            "Your offer was accepted",
+            $"You won the {service} at ₦{bid.AmountNaira:N0}. Head out when ready!",
+            booking.Id);
     }
 
     /// <summary>Tell the customer an artisan claimed their open request.</summary>

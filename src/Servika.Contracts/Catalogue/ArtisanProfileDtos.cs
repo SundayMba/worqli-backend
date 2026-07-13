@@ -23,7 +23,11 @@ public sealed record MyArtisanProfileDto(
     /// <summary>API path of the artisan's uploaded photo, or null.</summary>
     string? PhotoUrl,
     /// <summary>API path of the artisan's uploaded cover photo, or null.</summary>
-    string? CoverPhotoUrl);
+    string? CoverPhotoUrl,
+    /// <summary>API paths of the uploaded work-gallery photos, newest first.</summary>
+    IReadOnlyList<string> GalleryUrls,
+    /// <summary>True when a work certificate was uploaded.</summary>
+    bool HasCertificate);
 
 /// <summary>
 /// Create or update the signed-in artisan's profile (POST/PUT /api/v1/artisan/profile),
@@ -45,4 +49,13 @@ public sealed record SaveArtisanProfileRequest(
     string? PhotoBase64 = null,
     /// <summary>Optional cover photo — a shot of the artisan at work — shown at
     /// the top of their public profile.</summary>
-    string? CoverPhotoBase64 = null);
+    string? CoverPhotoBase64 = null,
+    /// <summary>Optional work certificate (image). Purely a trust signal —
+    /// artisans without one onboard exactly the same.</summary>
+    string? CertificateBase64 = null);
+
+/// <summary>POST /api/v1/artisan/gallery body — one work-evidence photo.</summary>
+public sealed record AddGalleryPhotoRequest(string PhotoBase64);
+
+/// <summary>The artisan's own gallery after an add/remove.</summary>
+public sealed record GalleryDto(IReadOnlyList<string> GalleryUrls);

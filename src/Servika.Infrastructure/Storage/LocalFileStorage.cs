@@ -45,6 +45,7 @@ public sealed class LocalFileStorage : IFileStorage
     {
         "image/png" => ".png",
         "image/webp" => ".webp",
+        "video/mp4" => ".mp4",
         _ => ".jpg",
     };
 
@@ -52,6 +53,7 @@ public sealed class LocalFileStorage : IFileStorage
     {
         ".png" => "image/png",
         ".webp" => "image/webp",
+        ".mp4" => "video/mp4",
         _ => "image/jpeg",
     };
 }

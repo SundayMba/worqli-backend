@@ -20,4 +20,7 @@ public sealed record ArtisanSummaryDto(
     /// <summary>API path of the artisan's uploaded photo (e.g.
     /// "/api/v1/artisans/{id}/photo"), or null if they haven't uploaded one —
     /// the client then falls back to the bundled <see cref="ImageKey"/> art.</summary>
-    string? PhotoUrl);
+    string? PhotoUrl,
+    /// <summary>True when the artisan uploaded a work certificate (trust badge;
+    /// also boosts their ranking while ratings accumulate).</summary>
+    bool HasCertificate);
