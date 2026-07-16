@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<RefreshTokenHandler>();
         services.AddScoped<LogoutHandler>();
         services.AddScoped<GetMeHandler>();
+        services.AddScoped<Users.Delete.DeleteAccountHandler>();
         services.AddScoped<VerifyOtpHandler>();
         services.AddScoped<ResendOtpHandler>();
         services.AddScoped<ForgotPasswordHandler>();
@@ -46,6 +47,7 @@ public static class DependencyInjection
 
         // Artisan self-onboarding (create/read their own marketplace profile).
         services.AddScoped<GetMyArtisanProfileHandler>();
+        services.AddScoped<SetArtisanAvailabilityHandler>();
         services.AddScoped<SaveArtisanProfileHandler>();
 
         // Artisan KYC (submit documents, read status).

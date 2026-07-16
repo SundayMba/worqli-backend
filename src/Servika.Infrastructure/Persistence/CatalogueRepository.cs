@@ -67,6 +67,8 @@ public sealed class CatalogueRepository : ICatalogueRepository
             .AsNoTracking()
             .Where(a => a.VerificationStatus == ArtisanVerificationStatus.Verified
                         && a.UserId != null
+                        // Offline artisans have paused new requests — no broadcast.
+                        && a.IsAvailable
                         && a.CategorySlugs.Contains(categorySlug))
             .Select(a => a.UserId!.Value)
             .ToListAsync(ct);

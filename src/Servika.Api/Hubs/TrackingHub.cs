@@ -37,7 +37,7 @@ public sealed class TrackingHub : Hub
     {
         try
         {
-            await _tracking.AuthorizeJoinAsync(CurrentUserId(), IsArtisan(), bookingId, Context.ConnectionAborted);
+            await _tracking.AuthorizeJoinAsync(CurrentUserId(), bookingId, Context.ConnectionAborted);
             await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(bookingId));
             await Clients.Caller.SendAsync("TrackingStarted", new { bookingId });
         }
@@ -83,7 +83,6 @@ public sealed class TrackingHub : Hub
         return Clients.Caller.SendAsync("TrackingError", new { message });
     }
 
-    private bool IsArtisan() => Context.User?.IsInRole("Artisan") ?? false;
 
     private Guid CurrentUserId()
     {

@@ -50,6 +50,7 @@ internal static class BookingMapping
             b.AcceptedAtUtc,
             b.CompletedAtUtc,
             b.CancelledAtUtc,
+            b.WorkStartedAtUtc,
             b.Assessment.ToString(),
             b.MediaUrls(),
             b.VideoUrl(),

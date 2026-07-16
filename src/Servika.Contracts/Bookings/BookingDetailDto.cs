@@ -29,6 +29,8 @@ public sealed record BookingDetailDto(
     DateTimeOffset? AcceptedAtUtc,
     DateTimeOffset? CompletedAtUtc,
     DateTimeOffset? CancelledAtUtc,
+    /// <summary>When the artisan started the work (drives the job timer).</summary>
+    DateTimeOffset? WorkStartedAtUtc,
     /// <summary>"Inspection" or "RemoteQuote" (bidding).</summary>
     string AssessmentMode,
     /// <summary>API paths of the customer's job photos.</summary>

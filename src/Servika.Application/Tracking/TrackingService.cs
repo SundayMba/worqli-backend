@@ -37,17 +37,19 @@ public sealed class TrackingService
     /// <summary>
     /// Authorises a caller to join a booking's tracking group. The customer who
     /// owns the booking or the assigned artisan may join; anyone else is rejected.
+    /// Deliberately role-claim-INDEPENDENT (like chat): after "Become a Pro" an
+    /// account carries the Artisan role yet is still the CUSTOMER on its own
+    /// bookings — the booking's own parties decide, never the token's role.
     /// Throws <see cref="TrackingNotAllowedException"/> when not permitted.
     /// </summary>
     public async Task AuthorizeJoinAsync(
-        Guid userId, bool isArtisan, Guid bookingId, CancellationToken ct)
+        Guid userId, Guid bookingId, CancellationToken ct)
     {
         var booking = await _bookings.FindByIdAsync(bookingId, ct)
             ?? throw new TrackingNotAllowedException("Booking not found.");
 
-        var allowed = isArtisan
-            ? await IsAssignedArtisanAsync(userId, booking, ct)
-            : booking.CustomerId == userId;
+        var allowed = booking.CustomerId == userId
+            || await IsAssignedArtisanAsync(userId, booking, ct);
 
         if (!allowed)
             throw new TrackingNotAllowedException("You cannot track this booking.");

@@ -68,6 +68,10 @@ public sealed class Booking
     public DateTimeOffset? CompletedAtUtc { get; private set; }
     public DateTimeOffset? CancelledAtUtc { get; private set; }
 
+    /// <summary>When the artisan actually started the work (→ InProgress) —
+    /// drives the live elapsed-time display on the job screen.</summary>
+    public DateTimeOffset? WorkStartedAtUtc { get; private set; }
+
     /// <summary>When the artisan submitted proof of completed work (→ AwaitingConfirmation).</summary>
     public DateTimeOffset? WorkSubmittedAtUtc { get; private set; }
 
@@ -268,13 +272,14 @@ public sealed class Booking
     }
 
     /// <summary>The artisan begins the work. Arrived → InProgress.</summary>
-    public void StartWork()
+    public void StartWork(DateTimeOffset now)
     {
         if (Status is not BookingStatus.Arrived)
             throw new InvalidBookingStateException(
                 $"Work can only start once the artisan has Arrived (this one is {Status}).");
 
         Status = BookingStatus.InProgress;
+        WorkStartedAtUtc = now;
     }
 
     /// <summary>

@@ -30,6 +30,9 @@ public interface IUserRepository
 
     void AddUser(User user);
 
+    /// <summary>Deletes the account; related rows cascade in the database.</summary>
+    void RemoveUser(User user);
+
     void AddRefreshToken(RefreshToken token);
 
     Task<int> SaveChangesAsync(CancellationToken ct);

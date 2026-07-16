@@ -52,6 +52,8 @@ public sealed class UserRepository : IUserRepository
 
     public void AddUser(User user) => _db.Users.Add(user);
 
+    public void RemoveUser(User user) => _db.Users.Remove(user);
+
     public void AddRefreshToken(RefreshToken token) => _db.RefreshTokens.Add(token);
 
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);

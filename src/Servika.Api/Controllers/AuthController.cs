@@ -6,6 +6,7 @@ using Servika.Application.Common;
 using Servika.Application.Users.BecomeArtisan;
 using Servika.Application.Users.Login;
 using Servika.Application.Users.Logout;
+using Servika.Application.Users.Delete;
 using Servika.Application.Users.Me;
 using Servika.Application.Users.Otp;
 using Servika.Application.Users.Password;
@@ -229,6 +230,32 @@ public sealed class AuthController : ControllerBase
             throw new InvalidCredentialsException();
 
         return Ok(await handler.HandleAsync(userId, ct));
+    }
+
+    /// <summary>Permanently delete the current user's account.</summary>
+    /// <remarks>Required for app-store compliance. Bookings, notifications,
+    /// tokens and chat cascade away; the wallet ledger (financial record) is
+    /// retained by design. Admin accounts cannot self-delete.</remarks>
+    /// <response code="204">Account deleted.</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="409">Admin accounts cannot be deleted.</response>
+    [Authorize]
+    [HttpDelete("me")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeleteMe(
+        [FromServices] DeleteAccountHandler handler,
+        CancellationToken ct)
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!Guid.TryParse(sub, out var userId))
+            throw new InvalidCredentialsException();
+
+        await handler.HandleAsync(userId, ct);
+        return NoContent();
     }
 
     /// <summary>Update the current user's editable profile (name + phone).</summary>

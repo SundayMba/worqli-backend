@@ -48,7 +48,7 @@ public sealed class AdvanceBookingByArtisanHandler
             case ArtisanBookingAction.Reject: booking.Reject(); break;
             case ArtisanBookingAction.StartTrip: booking.StartTrip(); break;
             case ArtisanBookingAction.Arrive: booking.Arrive(); break;
-            case ArtisanBookingAction.StartWork: booking.StartWork(); break;
+            case ArtisanBookingAction.StartWork: booking.StartWork(_clock.UtcNow); break;
             default: throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown artisan action.");
         }
 

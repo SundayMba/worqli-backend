@@ -59,3 +59,6 @@ public sealed record AddGalleryPhotoRequest(string PhotoBase64);
 
 /// <summary>The artisan's own gallery after an add/remove.</summary>
 public sealed record GalleryDto(IReadOnlyList<string> GalleryUrls);
+
+/// <summary>PUT /api/v1/artisan/profile/availability body — the online toggle.</summary>
+public sealed record SetAvailabilityRequest(bool Available);

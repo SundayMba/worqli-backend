@@ -74,6 +74,21 @@ public sealed class ArtisanProfileController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), request, ct));
     }
 
+    /// <summary>The online/offline toggle. Offline = open-job broadcasts pause
+    /// and the profile shows as unavailable; direct bookings stay possible.</summary>
+    /// <response code="200">The updated profile.</response>
+    /// <response code="404">No Pro profile yet.</response>
+    [HttpPut("availability")]
+    [ProducesResponseType(typeof(MyArtisanProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<MyArtisanProfileDto>> SetAvailability(
+        [FromBody] SetAvailabilityRequest request,
+        [FromServices] SetArtisanAvailabilityHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), request.Available, ct));
+    }
+
     private Guid CurrentUserId()
     {
         var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
