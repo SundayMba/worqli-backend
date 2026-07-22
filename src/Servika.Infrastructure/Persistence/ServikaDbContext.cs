@@ -42,6 +42,7 @@ public sealed class ServikaDbContext : DbContext
 
     /// <summary>The "artisan_profiles" table — public marketplace artisan profiles.</summary>
     public DbSet<ArtisanProfile> ArtisanProfiles => Set<ArtisanProfile>();
+    public DbSet<ArtisanService> ArtisanServices => Set<ArtisanService>();
 
     /// <summary>The "bookings" table — one row per customer service request.</summary>
     public DbSet<Booking> Bookings => Set<Booking>();
@@ -182,6 +183,19 @@ public sealed class ServikaDbContext : DbContext
             v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
             v => v.ToList());
 
+        modelBuilder.Entity<ArtisanService>(service =>
+        {
+            service.ToTable("artisan_services");
+            service.HasKey(s => s.Id);
+            service.Property(s => s.Name).IsRequired()
+                .HasMaxLength(ArtisanService.MaxNameLength);
+            service.HasIndex(s => s.ArtisanProfileId);
+            service.HasOne<ArtisanProfile>()
+                   .WithMany()
+                   .HasForeignKey(s => s.ArtisanProfileId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<ArtisanProfile>(artisan =>
         {
             artisan.ToTable("artisan_profiles");
@@ -241,6 +255,9 @@ public sealed class ServikaDbContext : DbContext
             booking.Property(b => b.Urgency).HasConversion<string>().HasMaxLength(20);
             booking.Property(b => b.PricingModel).HasConversion<string>().HasMaxLength(20);
             booking.Property(b => b.PaymentState).HasConversion<string>().HasMaxLength(20);
+            // Default backfills existing rows on migration (Online = the escrow default).
+            booking.Property(b => b.PaymentMethod).HasConversion<string>().HasMaxLength(10)
+                .HasDefaultValue(Domain.Bookings.PaymentMethod.Online);
             booking.Property(b => b.PreDisputeStatus).HasConversion<string>().HasMaxLength(20);
 
             // Proof-of-work completion: note + photo storage keys (text[] like the
@@ -274,7 +291,11 @@ public sealed class ServikaDbContext : DbContext
             payment.Property(p => p.AuthorizationUrl).HasMaxLength(500);
             payment.Property(p => p.CommissionRate).HasPrecision(5, 4);
             payment.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
+            // Default backfills pre-purpose rows (they were all booking escrow).
+            payment.Property(p => p.Purpose).HasConversion<string>().HasMaxLength(24)
+                .HasDefaultValue(PaymentPurpose.BookingEscrow);
 
+            // BookingId is null for commission settlements (no booking involved).
             payment.HasOne<Booking>()
                    .WithMany()
                    .HasForeignKey(p => p.BookingId)

@@ -25,10 +25,18 @@ public sealed class GetBookingByIdHandler
         var booking = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
             ?? throw new NotFoundException($"Booking '{bookingId}' was not found.");
 
-        // Bid badge only matters while the request is open for offers.
+        // Bid badge matters while offers can still arrive: an open RemoteQuote
+        // broadcast, a direct Pending request awaiting its artisan's quote, or
+        // an unpaid inspect-first job whose artisan may quote en-route/on-site.
         var bidCount =
-            booking.Status == Domain.Bookings.BookingStatus.Open &&
-            booking.Assessment == Domain.Bookings.AssessmentMode.RemoteQuote
+            (booking.Status == Domain.Bookings.BookingStatus.Open &&
+             booking.Assessment == Domain.Bookings.AssessmentMode.RemoteQuote)
+            || (booking.ArtisanId is not null &&
+                booking.PaymentState != Domain.Bookings.BookingPaymentState.Paid &&
+                booking.Status is Domain.Bookings.BookingStatus.Pending
+                    or Domain.Bookings.BookingStatus.Accepted
+                    or Domain.Bookings.BookingStatus.OnMyWay
+                    or Domain.Bookings.BookingStatus.Arrived)
                 ? await _bids.CountActiveForBookingAsync(bookingId, ct)
                 : 0;
 

@@ -101,6 +101,41 @@ public sealed class BookingsController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
     }
 
+    /// <summary>Re-broadcast a declined/unanswered direct request to all matching artisans.</summary>
+    /// <response code="200">Now an Open request; artisans notified.</response>
+    /// <response code="404">Not the caller's booking.</response>
+    /// <response code="409">Not a direct request, or past the point of re-broadcasting.</response>
+    [HttpPost("{id:guid}/rebroadcast")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BookingDetailDto>> Rebroadcast(
+        Guid id,
+        [FromServices] RebroadcastBookingHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>Choose how to settle the agreed price: "online" (escrow) or "cash".</summary>
+    /// <response code="200">The updated booking.</response>
+    /// <response code="400">Unknown method value.</response>
+    /// <response code="404">Not the caller's booking.</response>
+    /// <response code="409">Too late to change (work started / already paid).</response>
+    [HttpPost("{id:guid}/payment-method")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BookingDetailDto>> ChoosePaymentMethod(
+        Guid id,
+        [FromBody] Contracts.Bookings.ChoosePaymentMethodRequest request,
+        [FromServices] ChoosePaymentMethodHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, request.Method, ct));
+    }
+
     /// <summary>Accept one bid — assigns that artisan at their offered price.</summary>
     /// <response code="200">The booking, now Accepted with the winning artisan.</response>
     /// <response code="404">Not the caller's booking / unknown bid.</response>

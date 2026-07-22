@@ -25,11 +25,14 @@ public sealed class ChatService
     private readonly Notifications.NotificationEmitter _notifications;
     private readonly IClock _clock;
 
+    private readonly Common.AuthPolicyOptions _authPolicy;
+
     public ChatService(
         IBookingRepository bookings,
         ICatalogueRepository catalogue,
         IChatRepository chat,
         IUserRepository users,
+        Common.AuthPolicyOptions authPolicy,
         Notifications.NotificationEmitter notifications,
         IClock clock)
     {
@@ -37,6 +40,7 @@ public sealed class ChatService
         _catalogue = catalogue;
         _chat = chat;
         _users = users;
+        _authPolicy = authPolicy;
         _notifications = notifications;
         _clock = clock;
     }
@@ -48,6 +52,15 @@ public sealed class ChatService
     {
         var artisan = await _catalogue.GetArtisanByIdAsync(artisanId, ct)
             ?? throw new NotFoundException("Artisan not found.");
+
+        // Phone-verification gate (off by default) — opening a chat is a "first
+        // contact" moment where a reachable number matters.
+        if (_authPolicy.RequirePhoneForBooking)
+        {
+            var customer = await _users.FindByIdAsync(customerUserId, ct);
+            if (customer is { IsPhoneVerified: false })
+                throw new Common.PhoneVerificationRequiredException();
+        }
 
         var conversation = await _chat.FindConversationAsync(customerUserId, artisanId, ct);
         if (conversation is null)

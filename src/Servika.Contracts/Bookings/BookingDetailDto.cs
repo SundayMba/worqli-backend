@@ -23,6 +23,8 @@ public sealed record BookingDetailDto(
     string Urgency,
     string PricingModel,
     string PaymentState,
+    /// <summary>"Online" (escrow, default) or "Cash" (pay after service).</summary>
+    string PaymentMethod,
     int? InitialQuoteAmountNaira,
     decimal CommissionRate,
     DateTimeOffset CreatedAt,

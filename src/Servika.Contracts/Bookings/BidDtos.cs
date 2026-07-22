@@ -17,7 +17,10 @@ public sealed record BidDto(
     int AmountNaira,
     string? MaterialsNote,
     string Status,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    /// <summary>Km from the job to the artisan's base location, when both are
+    /// known — lets the customer sort offers by proximity. Null otherwise.</summary>
+    double? DistanceKm = null);
 
 /// <summary>POST /api/v1/artisan/jobs/{id}/bid body. Re-posting revises the bid.</summary>
 public sealed record SubmitBidRequest(

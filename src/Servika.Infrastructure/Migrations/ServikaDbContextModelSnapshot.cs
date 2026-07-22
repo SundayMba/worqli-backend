@@ -149,6 +149,13 @@ namespace Servika.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text[]");
 
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("Online");
+
                     b.Property<string>("PaymentState")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -445,6 +452,33 @@ namespace Servika.Infrastructure.Migrations
                             UserId = new Guid("c0000000-0000-0000-0000-000000000003"),
                             VerificationStatus = "Verified"
                         });
+                });
+
+            modelBuilder.Entity("Servika.Domain.Catalogue.ArtisanService", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ArtisanProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("PriceNaira")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ArtisanProfileId");
+
+                    b.ToTable("artisan_services", (string)null);
                 });
 
             modelBuilder.Entity("Servika.Domain.Catalogue.ServiceCategory", b =>
@@ -955,7 +989,7 @@ namespace Servika.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<Guid>("BookingId")
+                    b.Property<Guid?>("BookingId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("CommissionRate")
@@ -978,6 +1012,13 @@ namespace Servika.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasDefaultValue("BookingEscrow");
 
                     b.Property<string>("Reference")
                         .IsRequired()
@@ -1215,6 +1256,9 @@ namespace Servika.Infrastructure.Migrations
                         .HasPrecision(5, 4)
                         .HasColumnType("numeric(5,4)");
 
+                    b.Property<int>("MaxCommissionDebtNaira")
+                        .HasColumnType("integer");
+
                     b.Property<int>("MinWithdrawalNaira")
                         .HasColumnType("integer");
 
@@ -1346,6 +1390,9 @@ namespace Servika.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("PhoneVerifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ReferralCode")
                         .HasMaxLength(20)
@@ -1492,6 +1539,15 @@ namespace Servika.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("Servika.Domain.Catalogue.ArtisanService", b =>
+                {
+                    b.HasOne("Servika.Domain.Catalogue.ArtisanProfile", null)
+                        .WithMany()
+                        .HasForeignKey("ArtisanProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Servika.Domain.Chat.ChatMessage", b =>
                 {
                     b.HasOne("Servika.Domain.Chat.Conversation", null)
@@ -1551,8 +1607,7 @@ namespace Servika.Infrastructure.Migrations
                     b.HasOne("Servika.Domain.Bookings.Booking", null)
                         .WithMany()
                         .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("Servika.Domain.Payments.Withdrawal", b =>

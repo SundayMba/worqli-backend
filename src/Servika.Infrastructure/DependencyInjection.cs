@@ -46,6 +46,13 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Missing 'Jwt' configuration section.");
         services.AddSingleton(jwtOptions);
         services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+
+        // Auth/verification policy toggles (e.g. require-phone-before-booking).
+        // Off by default; a config flip turns the gate on once the apps prompt.
+        services.AddSingleton(
+            configuration.GetSection(Servika.Application.Common.AuthPolicyOptions.SectionName)
+                .Get<Servika.Application.Common.AuthPolicyOptions>()
+            ?? new Servika.Application.Common.AuthPolicyOptions());
         services.AddSingleton<IRefreshTokenGenerator, RefreshTokenGenerator>();
 
         // Clock is stateless (Singleton); the repository wraps the per-request
@@ -64,6 +71,7 @@ public static class DependencyInjection
 
         // Marketplace catalogue (read-only reference data), Scoped (EF).
         services.AddScoped<ICatalogueRepository, CatalogueRepository>();
+        services.AddScoped<IArtisanServiceRepository, ArtisanServiceRepository>();
 
         // Bookings (read + write), Scoped (EF).
         services.AddScoped<IBookingRepository, BookingRepository>();
@@ -114,14 +122,13 @@ public static class DependencyInjection
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IWalletRepository, WalletRepository>();
 
-        // Artisan payouts (Scoped, EF). Disbursement uses the stub gateway until
-        // Paystack Transfers is wired (same IPayoutGateway port either way).
+        // Artisan payouts (Scoped, EF).
         services.AddScoped<IWithdrawalRepository, WithdrawalRepository>();
-        services.AddSingleton<IPayoutGateway, StubPayoutGateway>();
 
-        // Payment gateway: real Paystack when a key is configured, else the stub
-        // (so local dev / tests run the full escrow flow without credentials).
-        // Same port (IPaymentGateway) — no use-case changes either way.
+        // Payment + payout gateways: real Paystack when a key is configured, else
+        // stubs (so local dev / tests run the full escrow + payout flow without
+        // credentials). Same ports — no use-case changes either way. The one
+        // Paystack secret key drives charges, transfers and the bank list.
         var paystackOptions = configuration.GetSection(PaystackOptions.SectionName).Get<PaystackOptions>()
             ?? new PaystackOptions();
         services.AddSingleton(paystackOptions);
@@ -129,10 +136,14 @@ public static class DependencyInjection
         {
             services.AddHttpClient("paystack");
             services.AddSingleton<IPaymentGateway, PaystackPaymentGateway>();
+            services.AddSingleton<IPayoutGateway, PaystackPayoutGateway>();
+            services.AddSingleton<IBankDirectory, PaystackBankDirectory>();
         }
         else
         {
             services.AddSingleton<IPaymentGateway, StubPaymentGateway>();
+            services.AddSingleton<IPayoutGateway, StubPayoutGateway>();
+            services.AddSingleton<IBankDirectory, StubBankDirectory>();
         }
 
         // Directions: real Google Directions when a key is configured, else a
@@ -171,6 +182,22 @@ public static class DependencyInjection
         else
         {
             services.AddSingleton<IOtpSender, LoggingOtpSender>();
+        }
+
+        // Phone-OTP delivery (WhatsApp-first + SMS fallback via Termii). Real sender
+        // when `Sms:ApiKey` is set (env `Sms__ApiKey`), else the dev stub that logs
+        // codes — same fallback pattern as Paystack/Resend.
+        var smsOptions = configuration.GetSection(SmsOptions.SectionName).Get<SmsOptions>()
+            ?? new SmsOptions();
+        services.AddSingleton(smsOptions);
+        if (smsOptions.IsConfigured)
+        {
+            services.AddHttpClient("termii");
+            services.AddSingleton<IPhoneOtpSender, TermiiPhoneOtpSender>();
+        }
+        else
+        {
+            services.AddSingleton<IPhoneOtpSender, StubPhoneOtpSender>();
         }
 
         return services;

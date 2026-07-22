@@ -15,11 +15,14 @@ public sealed class GetArtisanWalletHandler
 {
     private readonly ICatalogueRepository _catalogue;
     private readonly IWalletRepository _wallet;
+    private readonly IPlatformSettingsRepository _settings;
 
-    public GetArtisanWalletHandler(ICatalogueRepository catalogue, IWalletRepository wallet)
+    public GetArtisanWalletHandler(
+        ICatalogueRepository catalogue, IWalletRepository wallet, IPlatformSettingsRepository settings)
     {
         _catalogue = catalogue;
         _wallet = wallet;
+        _settings = settings;
     }
 
     public async Task<ArtisanWalletDto> HandleAsync(Guid artisanUserId, CancellationToken ct)
@@ -33,8 +36,21 @@ public sealed class GetArtisanWalletHandler
         var totalEarned = entries
             .Where(e => e.Type == WalletTransactionType.ArtisanEarning)
             .Sum(e => e.AmountNaira);
-        var totalWithdrawn = totalEarned - available;
+        // Net cash-job commission position (negative while fees are outstanding);
+        // fold it back so it doesn't masquerade as a withdrawal.
+        var commissionNet = entries
+            .Where(e => e.Type is WalletTransactionType.CommissionDue
+                or WalletTransactionType.CommissionSettlement)
+            .Sum(e => e.AmountNaira);
+        var totalWithdrawn = totalEarned - available + commissionNet;
 
-        return new ArtisanWalletDto(available, totalEarned, totalWithdrawn, "NGN");
+        // Owed = the part of the debt earnings haven't absorbed (auto-netting):
+        // only a negative overall balance is actually outstanding.
+        var owed = Math.Max(0, -available);
+        var settings = await _settings.GetOrCreateAsync(ct);
+        var restricted = available < -settings.MaxCommissionDebtNaira;
+
+        return new ArtisanWalletDto(
+            Math.Max(0, available), totalEarned, totalWithdrawn, "NGN", owed, restricted);
     }
 }

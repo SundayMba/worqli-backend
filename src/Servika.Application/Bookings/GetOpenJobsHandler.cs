@@ -13,11 +13,16 @@ public sealed class GetOpenJobsHandler
 {
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
+    private readonly Payments.ArtisanStandingService _standing;
 
-    public GetOpenJobsHandler(IBookingRepository bookings, ICatalogueRepository catalogue)
+    public GetOpenJobsHandler(
+        IBookingRepository bookings,
+        ICatalogueRepository catalogue,
+        Payments.ArtisanStandingService standing)
     {
         _bookings = bookings;
         _catalogue = catalogue;
+        _standing = standing;
     }
 
     public async Task<IReadOnlyList<BookingSummaryDto>> HandleAsync(
@@ -25,6 +30,11 @@ public sealed class GetOpenJobsHandler
     {
         var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct);
         if (profile is null || profile.VerificationStatus != ArtisanVerificationStatus.Verified)
+            return Array.Empty<BookingSummaryDto>();
+
+        // Past the commission-debt limit → no new requests until settled (the
+        // app explains why via the wallet's IsRestricted flag).
+        if (await _standing.IsRestrictedAsync(profile.Id, ct))
             return Array.Empty<BookingSummaryDto>();
 
         var open = await _bookings.ListOpenInCategoriesAsync(profile.CategorySlugs, ct);

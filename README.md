@@ -57,10 +57,31 @@ devices on your LAN can reach it).
 
 ## Configuration
 
-`src/Servika.Api/appsettings.json` holds templates for `ConnectionStrings`
-(Postgres, Redis) and `Jwt`. **Replace the JWT signing key and DB password
-with real secrets** (via user-secrets or env vars) before any shared/prod use —
-do not commit real secrets.
+**`.env.example` is the full, grouped checklist** of every setting — what's
+required in Production, what's an optional integration (safe dev fallback when
+blank), and the feature flags. Copy it to `.env` on the server and fill in real
+values; never commit real secrets.
+
+Key rules:
+- **Local dev needs no secrets.** Leave everything blank and the API uses dev
+  stubs (logs OTP codes, stub payments/payouts/SMS, phone gate off). Prefer
+  `dotnet user-secrets` for any keys you do set locally, never `appsettings.json`.
+- **Production fail-closed guard.** The API refuses to boot unless
+  `Jwt__SigningKey` is a real ≥32-char secret, `Paystack__SecretKey` is set (a
+  blank key would select the fail-open stub), and `Cors:AllowedOrigins` is
+  populated (it is, in `appsettings.json`). Swagger is off in Production unless
+  `Swagger__Enabled=true`.
+- **One key, two directions.** `Paystack__SecretKey` drives charges *and* payouts
+  (Transfers) *and* the bank list. Dashboard: turn off "Transfers OTP" + get
+  approved for Transfers with a funded balance.
+- **Phone verification is optional/dormant.** Set `Sms__ApiKey` + `Sms__SenderId`
+  (Termii) then `Auth__RequirePhoneForBooking=true` to enable it (the guard blocks
+  boot if the gate is on while `Sms__ApiKey` is blank). Provision the Termii
+  WhatsApp OTP template + transactional sender id first — that has lead time.
+
+`docker-compose.prod.yml` maps the friendly `.env` names (e.g.
+`PAYSTACK_SECRET_KEY`) to the ASP.NET config keys (`Paystack__SecretKey`).
+`src/Servika.Api/appsettings.json` holds non-secret defaults + the `Cors` origins.
 
 ## Build & test
 

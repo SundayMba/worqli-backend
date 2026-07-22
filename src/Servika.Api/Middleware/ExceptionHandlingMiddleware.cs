@@ -38,6 +38,7 @@ public sealed class ExceptionHandlingMiddleware
                 InvalidWebhookSignatureException => (StatusCodes.Status401Unauthorized, ex.Message),
                 InvalidCredentialsException => (StatusCodes.Status401Unauthorized, ex.Message),
                 AccountSuspendedException => (StatusCodes.Status403Forbidden, ex.Message),
+                PhoneVerificationRequiredException => (StatusCodes.Status403Forbidden, ex.Message),
                 InvalidRefreshTokenException => (StatusCodes.Status401Unauthorized, ex.Message),
                 InvalidOtpException => (StatusCodes.Status400BadRequest, ex.Message),
                 NotFoundException => (StatusCodes.Status404NotFound, ex.Message),
@@ -51,8 +52,12 @@ public sealed class ExceptionHandlingMiddleware
 
             context.Response.StatusCode = status;
             context.Response.ContentType = "application/problem+json";
-            await context.Response.WriteAsJsonAsync(
-                new ProblemDetails { Status = status, Title = title });
+            var problem = new ProblemDetails { Status = status, Title = title };
+            // A distinct machine-readable code so the app can tell this 403 apart
+            // from others (suspended account, RBAC) and launch the phone prompt.
+            if (ex is PhoneVerificationRequiredException)
+                problem.Extensions["code"] = "phone_verification_required";
+            await context.Response.WriteAsJsonAsync(problem);
         }
     }
 }

@@ -24,4 +24,13 @@ public enum WalletTransactionType
 
     /// <summary>₦ credited to a referrer when their referred artisan completes a first job.</summary>
     ReferralBonus = 7,
+
+    /// <summary>Servika's commission on a CASH job, debited from the artisan's
+    /// balance at completion (no money flowed through the platform to deduct
+    /// from). Auto-nets against future online earnings; settled explicitly via
+    /// <see cref="CommissionSettlement"/> when the artisan pays it off.</summary>
+    CommissionDue = 8,
+
+    /// <summary>The artisan paid off owed cash-job commission through the gateway.</summary>
+    CommissionSettlement = 9,
 }

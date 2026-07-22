@@ -13,7 +13,11 @@ public sealed record AdminBookingDto(
     string Urgency,
     string PaymentState,
     int? AmountNaira,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    /// <summary>"Inspection" (quote after visit) or "RemoteQuote" (bidding).</summary>
+    string AssessmentMode,
+    /// <summary>"Online" (escrow) or "Cash" (paid after service).</summary>
+    string PaymentMethod);
 
 /// <summary>The full admin view of one booking — parties, service, money, timeline.</summary>
 public sealed record AdminBookingDetailDto(
@@ -38,6 +42,12 @@ public sealed record AdminBookingDetailDto(
     int CommissionNaira,
     decimal CommissionRate,
     string PaymentState,
+    /// <summary>"Online" (escrow) or "Cash" (paid after service).</summary>
+    string PaymentMethod,
+    /// <summary>"Fixed" (published price) or "Variable" (quoted).</summary>
+    string PricingModel,
+    /// <summary>"Inspection" or "RemoteQuote" (bidding).</summary>
+    string AssessmentMode,
     DateTimeOffset CreatedAt,
     DateTimeOffset? AcceptedAtUtc,
     DateTimeOffset? WorkSubmittedAtUtc,

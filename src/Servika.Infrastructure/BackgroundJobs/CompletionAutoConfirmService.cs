@@ -1,13 +1,20 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Servika.Application.Bookings;
 
-namespace Servika.Api.Bookings;
+namespace Servika.Infrastructure.BackgroundJobs;
 
 /// <summary>
 /// Periodically auto-confirms jobs the customer never confirmed. A job that has sat
 /// AwaitingConfirmation (artisan submitted proof) past the grace window is completed
 /// automatically, so an unresponsive customer can't strand the artisan. Cadence via
-/// <c>Completion:SweepMinutes</c> (default 30). Hosted in the API for now; its
-/// natural home is the <c>Servika.Worker</c> process.
+/// <c>Completion:SweepMinutes</c> (default 30).
+///
+/// Host-agnostic: registered by <c>AddBackgroundSweeps</c> in either the API (single
+/// instance) or the dedicated <c>Servika.Worker</c> (when scaling the API out, so the
+/// sweep runs exactly once).
 /// </summary>
 public sealed class CompletionAutoConfirmService : BackgroundService
 {

@@ -9,6 +9,10 @@ internal static class OtpPolicy
     public const int ResetTokenTtlSeconds = 1800;   // 30 minutes
     public const int ResendCooldownSeconds = 60;    // min gap between sends
 
+    /// <summary>Max phone-OTP sends per user per 24h — cost control against SMS
+    /// pumping (each send costs money on a real provider).</summary>
+    public const int MaxPhoneSendsPerDay = 5;
+
     public static int TtlSecondsFor(OtpPurpose purpose) => purpose == OtpPurpose.PasswordReset
         ? ResetTokenTtlSeconds
         : NumericCodeTtlSeconds;

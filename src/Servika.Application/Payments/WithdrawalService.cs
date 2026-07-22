@@ -77,24 +77,33 @@ public sealed class WithdrawalService
             -request.AmountNaira, null, null,
             $"Payout to {withdrawal.BankName} {withdrawal.AccountNumberMasked}", now));
 
-        // Disburse. The stub succeeds synchronously; a real provider's async result
-        // would arrive via a transfer webhook (a later step) instead.
+        // Disburse. The stub succeeds synchronously; Paystack Transfers accepts the
+        // transfer and returns Pending — the real result then arrives on the transfer
+        // webhook (HandleTransferWebhookHandler), which finalises the ledger.
         var result = await _payouts.DisburseAsync(
             new PayoutInput(withdrawal.Id.ToString(), request.AmountNaira,
-                request.BankName, request.AccountNumber, request.AccountName), ct);
+                request.BankName, request.BankCode, request.AccountNumber, request.AccountName), ct);
 
-        if (result.Outcome == PayoutOutcome.Succeeded)
+        switch (result.Outcome)
         {
-            withdrawal.MarkPaid(_payouts.Provider, result.Reference, now);
-        }
-        else
-        {
-            withdrawal.MarkFailed(_payouts.Provider, result.FailureReason, now);
-            // Reverse the reservation so the balance is made whole.
-            _wallet.Add(WalletTransaction.Create(
-                ownerType, ownerId, WalletTransactionType.Adjustment,
-                request.AmountNaira, null, null,
-                $"Reversal — payout {withdrawal.Id} failed", now));
+            case PayoutOutcome.Succeeded:
+                withdrawal.MarkPaid(_payouts.Provider, result.Reference, now);
+                break;
+
+            case PayoutOutcome.Pending:
+                // Transfer accepted, not yet settled. Keep the reservation and the
+                // Pending status; stamp the provider + transfer code for the webhook.
+                withdrawal.BeginProcessing(_payouts.Provider, result.Reference);
+                break;
+
+            default: // Failed
+                withdrawal.MarkFailed(_payouts.Provider, result.FailureReason, now);
+                // Reverse the reservation so the balance is made whole.
+                _wallet.Add(WalletTransaction.Create(
+                    ownerType, ownerId, WalletTransactionType.Adjustment,
+                    request.AmountNaira, null, null,
+                    $"Reversal — payout {withdrawal.Id} failed", now));
+                break;
         }
 
         await _withdrawals.SaveChangesAsync(ct);

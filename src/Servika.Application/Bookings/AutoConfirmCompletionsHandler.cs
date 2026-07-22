@@ -17,6 +17,7 @@ public sealed class AutoConfirmCompletionsHandler
     private readonly IBookingRepository _bookings;
     private readonly NotificationEmitter _notifications;
     private readonly ReferralService _referrals;
+    private readonly Payments.CashCommissionService _cashCommission;
     private readonly IPlatformSettingsRepository _settings;
     private readonly IClock _clock;
 
@@ -24,12 +25,14 @@ public sealed class AutoConfirmCompletionsHandler
         IBookingRepository bookings,
         NotificationEmitter notifications,
         ReferralService referrals,
+        Payments.CashCommissionService cashCommission,
         IPlatformSettingsRepository settings,
         IClock clock)
     {
         _bookings = bookings;
         _notifications = notifications;
         _referrals = referrals;
+        _cashCommission = cashCommission;
         _settings = settings;
         _clock = clock;
     }
@@ -48,6 +51,7 @@ public sealed class AutoConfirmCompletionsHandler
             booking.ConfirmCompletion(now);
             _notifications.BookingAutoConfirmed(booking);
             await _notifications.ArtisanJobConfirmed(booking, ct);
+            await _cashCommission.RecordIfCashJobAsync(booking, ct);
             await _referrals.AwardIfReferredAsync(booking, now, ct);
         }
 

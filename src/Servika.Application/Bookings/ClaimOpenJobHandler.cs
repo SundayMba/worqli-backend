@@ -19,17 +19,20 @@ public sealed class ClaimOpenJobHandler
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
     private readonly Notifications.NotificationEmitter _notifications;
+    private readonly Payments.ArtisanStandingService _standing;
     private readonly IClock _clock;
 
     public ClaimOpenJobHandler(
         IBookingRepository bookings,
         ICatalogueRepository catalogue,
         Notifications.NotificationEmitter notifications,
+        Payments.ArtisanStandingService standing,
         IClock clock)
     {
         _bookings = bookings;
         _catalogue = catalogue;
         _notifications = notifications;
+        _standing = standing;
         _clock = clock;
     }
 
@@ -40,6 +43,9 @@ public sealed class ClaimOpenJobHandler
             ?? throw new ConflictException("Set up your artisan profile before claiming jobs.");
         if (profile.VerificationStatus != ArtisanVerificationStatus.Verified)
             throw new ConflictException("Your artisan profile must be verified before you can claim jobs.");
+        if (await _standing.IsRestrictedAsync(profile.Id, ct))
+            throw new ConflictException(
+                "Settle your outstanding Servika service fees to take new jobs.");
 
         var booking = await _bookings.FindByIdReadOnlyAsync(bookingId, ct)
             ?? throw new NotFoundException("Job not found.");

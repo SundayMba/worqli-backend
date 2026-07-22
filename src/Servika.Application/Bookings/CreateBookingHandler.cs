@@ -23,7 +23,10 @@ public sealed class CreateBookingHandler
 {
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
+    private readonly IArtisanServiceRepository _artisanServices;
+    private readonly IUserRepository _users;
     private readonly IPlatformSettingsRepository _settings;
+    private readonly AuthPolicyOptions _authPolicy;
     private readonly Notifications.NotificationEmitter _notifications;
     private readonly IFileStorage _files;
     private readonly IClock _clock;
@@ -31,14 +34,20 @@ public sealed class CreateBookingHandler
     public CreateBookingHandler(
         IBookingRepository bookings,
         ICatalogueRepository catalogue,
+        IArtisanServiceRepository artisanServices,
+        IUserRepository users,
         IPlatformSettingsRepository settings,
+        AuthPolicyOptions authPolicy,
         Notifications.NotificationEmitter notifications,
         IFileStorage files,
         IClock clock)
     {
         _bookings = bookings;
         _catalogue = catalogue;
+        _artisanServices = artisanServices;
+        _users = users;
         _settings = settings;
+        _authPolicy = authPolicy;
         _notifications = notifications;
         _files = files;
         _clock = clock;
@@ -47,18 +56,38 @@ public sealed class CreateBookingHandler
     public async Task<BookingDetailDto> HandleAsync(
         Guid customerId, CreateBookingRequest request, CancellationToken ct)
     {
+        // Phone-verification gate (off by default; a config flip turns it on once
+        // the apps prompt). A reachable number matters here — the artisan calls it.
+        if (_authPolicy.RequirePhoneForBooking)
+        {
+            var customer = await _users.FindByIdAsync(customerId, ct);
+            if (customer is { IsPhoneVerified: false })
+                throw new PhoneVerificationRequiredException();
+        }
+
         var slug = request.CategorySlug?.Trim() ?? string.Empty;
         var category = await _catalogue.GetCategoryBySlugAsync(slug, ct)
             ?? throw new NotFoundException($"Category '{slug}' was not found.");
 
         string? artisanName = null;
-        int? initialAmount = null;
         if (request.ArtisanId is { } artisanId)
         {
             var artisan = await _catalogue.GetArtisanByIdAsync(artisanId, ct)
                 ?? throw new NotFoundException($"Artisan '{artisanId}' was not found.");
             artisanName = artisan.FullName;
-            initialAmount = artisan.InspectionFeeNaira;
+        }
+
+        // A published fixed-price service: the price is known before booking —
+        // read from the artisan's own listing, never from the client. The
+        // customer pays the moment the artisan accepts (no quote round-trip).
+        Domain.Catalogue.ArtisanService? fixedService = null;
+        if (request.ArtisanServiceId is { } serviceId)
+        {
+            if (request.ArtisanId is null)
+                throw new ArgumentException("A fixed-price service needs its artisan selected.");
+            fixedService = await _artisanServices.FindAsync(serviceId, ct);
+            if (fixedService is null || fixedService.ArtisanProfileId != request.ArtisanId)
+                throw new NotFoundException("That service was not found on this artisan's profile.");
         }
 
         // Commission comes from admin settings — emergency rate for urgent jobs.
@@ -96,7 +125,9 @@ public sealed class CreateBookingHandler
             customerId: customerId,
             artisanId: request.ArtisanId,
             categorySlug: category.Slug,
-            serviceName: category.Name,
+            // A fixed-price booking is FOR that listed service — its name is the
+            // one that should show everywhere ("Knotless braids", not "Beauty").
+            serviceName: fixedService?.Name ?? category.Name,
             artisanName: artisanName,
             description: request.Description,
             addressText: request.AddressText,
@@ -106,8 +137,11 @@ public sealed class CreateBookingHandler
             preferredDate: request.PreferredDate,
             preferredTimeSlot: request.PreferredTimeSlot,
             urgency: urgency,
-            pricingModel: PricingModel.Variable,
-            initialQuoteAmountNaira: initialAmount,
+            // Fixed = a published price known at booking; Variable = the price is
+            // agreed later via a quote. Booking itself is always free either way —
+            // payment for a fixed booking happens once the artisan accepts.
+            pricingModel: fixedService is null ? PricingModel.Variable : PricingModel.Fixed,
+            initialQuoteAmountNaira: fixedService?.PriceNaira,
             commissionRate: commissionRate,
             now: _clock.UtcNow,
             assessment: assessment,

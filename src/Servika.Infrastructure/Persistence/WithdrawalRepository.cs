@@ -34,5 +34,9 @@ public sealed class WithdrawalRepository : IWithdrawalRepository
             .OrderByDescending(w => w.CreatedAt)
             .ToListAsync(ct);
 
+    // Tracked (no AsNoTracking) so the transfer webhook's MarkPaid/MarkFailed persists.
+    public Task<Withdrawal?> FindByIdAsync(Guid id, CancellationToken ct) =>
+        _db.Withdrawals.FirstOrDefaultAsync(w => w.Id == id, ct);
+
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }

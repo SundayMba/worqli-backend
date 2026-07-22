@@ -65,6 +65,23 @@ public sealed class HandlePaymentWebhookHandler
         // Succeeded → settle + record the ledger split.
         payment.MarkSucceeded(now);
 
+        // A commission settlement has no booking and no split — it simply
+        // credits the artisan's ledger, which clears the debt (and any standing
+        // restriction) the moment it lands.
+        if (payment.Purpose == PaymentPurpose.CommissionSettlement)
+        {
+            if (payment.ArtisanId is { } settledArtisanId)
+                _wallet.Add(WalletTransaction.Create(
+                    WalletOwnerType.Artisan, settledArtisanId,
+                    WalletTransactionType.CommissionSettlement, payment.AmountNaira,
+                    null, payment.Id,
+                    "Service-fee settlement", now));
+            // The payer IS the artisan's login account for settlements.
+            _notifications.ArtisanBalanceSettled(payment.CustomerId, payment.AmountNaira);
+            await _payments.SaveChangesAsync(ct);
+            return;
+        }
+
         _wallet.Add(WalletTransaction.Create(
             WalletOwnerType.Customer, payment.CustomerId,
             WalletTransactionType.BookingPayment, -payment.AmountNaira,
@@ -85,11 +102,14 @@ public sealed class HandlePaymentWebhookHandler
                 payment.BookingId, payment.Id,
                 $"Earning for booking {payment.BookingId}", now));
 
-        var booking = await _bookings.FindByIdAsync(payment.BookingId, ct);
+        var booking = await _bookings.FindByIdAsync(payment.BookingId!.Value, ct);
         booking?.MarkPaid();
 
         _notifications.PaymentReceived(
-            payment.CustomerId, payment.BookingId, booking?.ServiceName ?? string.Empty);
+            payment.CustomerId, payment.BookingId!.Value, booking?.ServiceName ?? string.Empty);
+        // The pay-before-work gate keys off this — tell the artisan they're clear.
+        if (booking is not null)
+            await _notifications.ArtisanEscrowFunded(booking, ct);
 
         await _payments.SaveChangesAsync(ct);
     }

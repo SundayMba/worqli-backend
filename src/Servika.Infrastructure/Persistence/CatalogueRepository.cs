@@ -55,13 +55,22 @@ public sealed class CatalogueRepository : ICatalogueRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<ArtisanProfile>> ListAllArtisansAsync(CancellationToken ct) =>
+        await _db.ArtisanProfiles
+            .AsNoTracking()
+            // Pending profiles first (they're the ones awaiting an admin decision),
+            // then alphabetical.
+            .OrderBy(a => a.VerificationStatus == ArtisanVerificationStatus.Pending ? 0 : 1)
+            .ThenBy(a => a.FullName)
+            .ToListAsync(ct);
+
     public Task<ArtisanProfile?> GetArtisanByIdAsync(Guid id, CancellationToken ct) =>
         _db.ArtisanProfiles.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct);
 
     public Task<ArtisanProfile?> GetArtisanByUserIdAsync(Guid userId, CancellationToken ct) =>
         _db.ArtisanProfiles.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == userId, ct);
 
-    public async Task<IReadOnlyList<Guid>> ListArtisanUserIdsInCategoryAsync(
+    public async Task<IReadOnlyList<ArtisanRecipient>> ListArtisanRecipientsInCategoryAsync(
         string categorySlug, CancellationToken ct) =>
         await _db.ArtisanProfiles
             .AsNoTracking()
@@ -70,7 +79,7 @@ public sealed class CatalogueRepository : ICatalogueRepository
                         // Offline artisans have paused new requests — no broadcast.
                         && a.IsAvailable
                         && a.CategorySlugs.Contains(categorySlug))
-            .Select(a => a.UserId!.Value)
+            .Select(a => new ArtisanRecipient(a.Id, a.UserId!.Value))
             .ToListAsync(ct);
 
     // Tracked (no AsNoTracking) so a rating-aggregate change persists on SaveChanges.

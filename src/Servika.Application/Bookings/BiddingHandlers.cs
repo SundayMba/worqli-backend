@@ -1,6 +1,7 @@
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Storage;
 using Servika.Application.Abstractions.Time;
+using Servika.Application.Catalogue;
 using Servika.Application.Common;
 using Servika.Application.Notifications;
 using Servika.Contracts.Bookings;
@@ -10,9 +11,11 @@ using Servika.Domain.Catalogue;
 namespace Servika.Application.Bookings;
 
 /// <summary>
-/// An artisan places (or revises) a price offer on an open RemoteQuote request.
-/// Same eligibility rules as claiming: verified profile, category match, request
-/// still Open — plus the request must actually be in bidding mode.
+/// An artisan places (or revises) a price offer. Two cases: a competing bid on
+/// an open RemoteQuote broadcast (verified profile, category match, request
+/// still Open, bidding mode), or the pre-selected artisan quoting on their own
+/// direct Pending request (they were chosen by name — no category gate; the
+/// quote is how a direct job gets its agreed price before any payment).
 /// </summary>
 public sealed class SubmitBidHandler
 {
@@ -20,16 +23,18 @@ public sealed class SubmitBidHandler
     private readonly IBidRepository _bids;
     private readonly ICatalogueRepository _catalogue;
     private readonly NotificationEmitter _notifications;
+    private readonly Payments.ArtisanStandingService _standing;
     private readonly IClock _clock;
 
     public SubmitBidHandler(
         IBookingRepository bookings, IBidRepository bids, ICatalogueRepository catalogue,
-        NotificationEmitter notifications, IClock clock)
+        NotificationEmitter notifications, Payments.ArtisanStandingService standing, IClock clock)
     {
         _bookings = bookings;
         _bids = bids;
         _catalogue = catalogue;
         _notifications = notifications;
+        _standing = standing;
         _clock = clock;
     }
 
@@ -43,13 +48,38 @@ public sealed class SubmitBidHandler
 
         var booking = await _bookings.FindByIdReadOnlyAsync(bookingId, ct)
             ?? throw new NotFoundException("This request was not found.");
-        if (booking.Status != BookingStatus.Open)
-            throw new ConflictException("This request is no longer open.");
-        if (booking.Assessment != AssessmentMode.RemoteQuote)
-            throw new ConflictException(
-                "This request is inspect-first — accept it directly instead of bidding.");
-        if (!profile.CategorySlugs.Contains(booking.CategorySlug))
-            throw new ConflictException("This job is not in your service categories.");
+
+        // The assigned artisan can quote on their own direct request before the
+        // customer accepts (Pending) — and also en-route/on-site (Accepted →
+        // Arrived), which is how an inspect-first visit produces its in-app
+        // quote. A direct request is only visible to its pre-selected artisan —
+        // anyone else probing one sees a 404, never a hint it exists.
+        var isDirectQuote = booking.ArtisanId == profile.Id
+            && booking.Status is BookingStatus.Pending or BookingStatus.Accepted
+                or BookingStatus.OnMyWay or BookingStatus.Arrived;
+        if (isDirectQuote)
+        {
+            if (booking.PaymentState == BookingPaymentState.Paid)
+                throw new ConflictException("This job is already paid — the price can't change.");
+        }
+        else
+        {
+            if (booking.Status == BookingStatus.Pending)
+                throw new NotFoundException("This request was not found.");
+            if (booking.Status != BookingStatus.Open)
+                throw new ConflictException("This request is no longer open.");
+            if (booking.Assessment != AssessmentMode.RemoteQuote)
+                throw new ConflictException(
+                    "This request is inspect-first — accept it directly instead of bidding.");
+            if (!profile.CategorySlugs.Contains(booking.CategorySlug))
+                throw new ConflictException("This job is not in your service categories.");
+            // Standing gate applies to competing for NEW work only — an artisan
+            // quoting on a job already assigned to them is never blocked (online
+            // jobs are how the debt auto-nets down).
+            if (await _standing.IsRestrictedAsync(profile.Id, ct))
+                throw new ConflictException(
+                    "Settle your outstanding Servika service fees to bid on new jobs.");
+        }
 
         var now = _clock.UtcNow;
         var existing = await _bids.FindForArtisanAsync(bookingId, profile.Id, ct);
@@ -114,7 +144,7 @@ public sealed class GetBookingBidsHandler
     public async Task<IReadOnlyList<BidDto>> HandleAsync(
         Guid customerId, Guid bookingId, CancellationToken ct)
     {
-        _ = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
+        var booking = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
             ?? throw new NotFoundException("Booking was not found.");
 
         var bids = await _bids.ListForBookingAsync(bookingId, ct);
@@ -124,10 +154,18 @@ public sealed class GetBookingBidsHandler
             // Bids are few per request — per-bid profile lookups are fine and keep
             // the reputation data (rating, certificate, photo) live, not stale.
             var profile = await _catalogue.GetArtisanByIdAsync(bid.ArtisanId, ct);
-            result.Add(bid.ToDto(profile));
+            result.Add(bid.ToDto(profile, DistanceToJobKm(booking, profile)));
         }
         return result;
     }
+
+    /// <summary>Km from the job's location to the artisan's base pin, when both
+    /// are known — powers the customer's "Nearest" sort. Null otherwise.</summary>
+    private static double? DistanceToJobKm(Booking booking, ArtisanProfile? profile) =>
+        booking is { LocationLat: { } jobLat, LocationLng: { } jobLng } &&
+        profile is { Latitude: { } artLat, Longitude: { } artLng }
+            ? Math.Round(GeoDistance.Km(jobLat, jobLng, artLat, artLng), 1)
+            : null;
 }
 
 /// <summary>
@@ -162,12 +200,13 @@ public sealed class AcceptBidHandler
             ?? throw new NotFoundException("That bid was not found.");
 
         var now = _clock.UtcNow;
+        var statusBeforeAccept = booking.Status;
         booking.AcceptBid(winner.ArtisanId, winner.ArtisanName, winner.AmountNaira, now);
         winner.MarkAccepted(now);
         foreach (var other in bids.Where(b => b.Id != bidId))
             other.MarkClosed(now);
 
-        _notifications.BidAccepted(booking, winner);
+        _notifications.BidAccepted(booking, winner, statusBeforeAccept);
         await _bookings.SaveChangesAsync(ct);
 
         return booking.ToDetailDto(bidCount: 0);
@@ -221,7 +260,7 @@ public sealed class GetBookingMediaHandler
 
 internal static class BidMapping
 {
-    public static BidDto ToDto(this Bid bid, ArtisanProfile? profile) =>
+    public static BidDto ToDto(this Bid bid, ArtisanProfile? profile, double? distanceKm = null) =>
         new(
             bid.Id,
             bid.BookingId,
@@ -236,5 +275,6 @@ internal static class BidMapping
             bid.AmountNaira,
             bid.MaterialsNote,
             bid.Status.ToString(),
-            bid.CreatedAt);
+            bid.CreatedAt,
+            distanceKm);
 }

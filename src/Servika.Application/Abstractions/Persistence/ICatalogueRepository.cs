@@ -22,6 +22,10 @@ public interface ICatalogueRepository
     /// <summary>Artisan summaries, optionally filtered to one category slug.</summary>
     Task<IReadOnlyList<ArtisanProfile>> GetArtisansAsync(string? categorySlug, CancellationToken ct);
 
+    /// <summary>Every artisan profile regardless of verification status — the admin
+    /// directory (newest first). Public catalogue reads use <see cref="GetArtisansAsync"/>.</summary>
+    Task<IReadOnlyList<ArtisanProfile>> ListAllArtisansAsync(CancellationToken ct);
+
     /// <summary>A single artisan profile by id, or null if not found.</summary>
     Task<ArtisanProfile?> GetArtisanByIdAsync(Guid id, CancellationToken ct);
 
@@ -30,9 +34,11 @@ public interface ICatalogueRepository
     /// jobs assigned to their profile.</summary>
     Task<ArtisanProfile?> GetArtisanByUserIdAsync(Guid userId, CancellationToken ct);
 
-    /// <summary>Login ids of <b>verified</b> artisans (with a linked account) whose
-    /// services include the given category — recipients of an open-job broadcast.</summary>
-    Task<IReadOnlyList<Guid>> ListArtisanUserIdsInCategoryAsync(string categorySlug, CancellationToken ct);
+    /// <summary>Available <b>verified</b> artisans (with a linked account) whose
+    /// services include the given category — candidate recipients of an open-job
+    /// broadcast. Carries the profile id too, so callers can filter out artisans
+    /// whose standing (unpaid cash-job commission) blocks new requests.</summary>
+    Task<IReadOnlyList<ArtisanRecipient>> ListArtisanRecipientsInCategoryAsync(string categorySlug, CancellationToken ct);
 
     /// <summary>A <b>tracked</b> artisan profile by id, or null — used when a
     /// review needs to fold its rating into the artisan's aggregate (the change
@@ -63,3 +69,7 @@ public interface ICatalogueRepository
 
     Task<int> SaveChangesAsync(CancellationToken ct);
 }
+
+/// <summary>A broadcast candidate: the artisan's profile id (standing/ledger key)
+/// and their login account id (notification recipient).</summary>
+public sealed record ArtisanRecipient(Guid ProfileId, Guid UserId);

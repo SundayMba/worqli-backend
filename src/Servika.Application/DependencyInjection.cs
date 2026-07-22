@@ -30,6 +30,8 @@ public static class DependencyInjection
         services.AddScoped<Users.Delete.DeleteAccountHandler>();
         services.AddScoped<VerifyOtpHandler>();
         services.AddScoped<ResendOtpHandler>();
+        services.AddScoped<SendPhoneOtpHandler>();
+        services.AddScoped<VerifyPhoneOtpHandler>();
         services.AddScoped<ForgotPasswordHandler>();
         services.AddScoped<ResetPasswordHandler>();
         services.AddScoped<BecomeArtisanHandler>();
@@ -47,6 +49,9 @@ public static class DependencyInjection
 
         // Artisan self-onboarding (create/read their own marketplace profile).
         services.AddScoped<GetMyArtisanProfileHandler>();
+        services.AddScoped<GetMyArtisanServicesHandler>();
+        services.AddScoped<SaveArtisanServiceHandler>();
+        services.AddScoped<DeleteArtisanServiceHandler>();
         services.AddScoped<SetArtisanAvailabilityHandler>();
         services.AddScoped<SaveArtisanProfileHandler>();
 
@@ -64,6 +69,8 @@ public static class DependencyInjection
         services.AddScoped<AcceptBidHandler>();
         services.AddScoped<GetBookingMediaHandler>();
         services.AddScoped<CancelBookingHandler>();
+        services.AddScoped<ChoosePaymentMethodHandler>();
+        services.AddScoped<RebroadcastBookingHandler>();
         services.AddScoped<CompleteBookingHandler>();
         services.AddScoped<SubmitJobCompletionHandler>();
         services.AddScoped<GetJobCompletionHandler>();
@@ -85,6 +92,8 @@ public static class DependencyInjection
         // Payments + wallet handlers.
         services.AddScoped<InitializePaymentHandler>();
         services.AddScoped<HandlePaymentWebhookHandler>();
+        services.AddScoped<Payments.HandleTransferWebhookHandler>();
+        services.AddScoped<Payments.GetBanksHandler>();
         services.AddScoped<RefundService>();
         services.AddScoped<GetWalletHandler>();
         services.AddScoped<GetWalletTransactionsHandler>();
@@ -92,6 +101,9 @@ public static class DependencyInjection
         // Payouts (shared owner-agnostic engine + artisan earnings entry points).
         services.AddScoped<WithdrawalService>();
         services.AddScoped<GetArtisanWalletHandler>();
+        services.AddScoped<Payments.CashCommissionService>();
+        services.AddScoped<Payments.ArtisanStandingService>();
+        services.AddScoped<Payments.SettleCommissionHandler>();
         services.AddScoped<GetArtisanWithdrawalsHandler>();
         services.AddScoped<RequestWithdrawalHandler>();
 
@@ -143,6 +155,8 @@ public static class DependencyInjection
         services.AddScoped<Admin.ListAllBookingsHandler>();
         services.AddScoped<Admin.GetAdminBookingHandler>();
         services.AddScoped<Admin.GetAdminPaymentsHandler>();
+        services.AddScoped<Admin.ListAdminArtisansHandler>();
+        services.AddScoped<Admin.GetAdminArtisanCertificateHandler>();
         services.AddScoped<Admin.ListAllCategoriesHandler>();
         services.AddScoped<Admin.CreateCategoryHandler>();
         services.AddScoped<Admin.UpdateCategoryHandler>();

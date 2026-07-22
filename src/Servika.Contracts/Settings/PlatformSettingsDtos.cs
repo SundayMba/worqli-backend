@@ -7,6 +7,7 @@ public sealed record PlatformSettingsDto(
     int AutoConfirmHours,
     int MinWithdrawalNaira,
     int ReferralRewardNaira,
+    int MaxCommissionDebtNaira,
     DateTimeOffset UpdatedAtUtc);
 
 /// <summary>Update the platform settings (PUT /api/v1/admin/settings). All fields required.</summary>
@@ -15,4 +16,5 @@ public sealed record UpdatePlatformSettingsRequest(
     decimal EmergencyCommissionRate,
     int AutoConfirmHours,
     int MinWithdrawalNaira,
-    int ReferralRewardNaira);
+    int ReferralRewardNaira,
+    int MaxCommissionDebtNaira);

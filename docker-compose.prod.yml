@@ -59,6 +59,12 @@ services:
       Resend__FromEmail: ${RESEND_FROM_EMAIL:-onboarding@resend.dev}
       Resend__FromName: ${RESEND_FROM_NAME:-Servika}
       Paystack__SecretKey: ${PAYSTACK_SECRET_KEY}
+      # Phone-verification OTP (Termii). Empty => dev stub logs codes.
+      Sms__ApiKey: ${SMS_API_KEY:-}
+      Sms__SenderId: ${SMS_SENDER_ID:-Servika}
+      # Gate booking/chat on a verified phone. Keep false until SMS_API_KEY is set;
+      # the API refuses to boot if this is true while Sms__ApiKey is blank.
+      Auth__RequirePhoneForBooking: ${REQUIRE_PHONE_FOR_BOOKING:-false}
       Google__DirectionsApiKey: ${GOOGLE_DIRECTIONS_API_KEY}
       # Google Sign-In: WEB OAuth client id(s), comma-separated (the ID-token
       # audience the API accepts). Empty = the /auth/google endpoint rejects all.

@@ -85,13 +85,27 @@ public sealed class Withdrawal
         };
     }
 
+    /// <summary>
+    /// Records that a real transfer was initiated with the provider but hasn't
+    /// settled yet — the payout stays <see cref="WithdrawalStatus.Pending"/> until
+    /// the provider's transfer webhook resolves it (async providers like Paystack
+    /// Transfers). Stamps the provider + its transfer code for correlation.
+    /// </summary>
+    public void BeginProcessing(string provider, string? providerReference)
+    {
+        if (Status != WithdrawalStatus.Pending) return;
+        Provider = provider;
+        ProviderReference = providerReference;
+    }
+
     /// <summary>Marks the payout disbursed with the provider's reference.</summary>
     public void MarkPaid(string provider, string? providerReference, DateTimeOffset now)
     {
         if (Status != WithdrawalStatus.Pending) return;
         Status = WithdrawalStatus.Paid;
         Provider = provider;
-        ProviderReference = providerReference;
+        // Keep the transfer code stamped at initiate if the webhook omits it.
+        ProviderReference = providerReference ?? ProviderReference;
         ProcessedAtUtc = now;
     }
 

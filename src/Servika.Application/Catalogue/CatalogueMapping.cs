@@ -19,12 +19,13 @@ internal static class CatalogueMapping
             distanceKmOverride ?? a.DistanceKm, a.IsAvailable, a.Accent,
             a.Latitude, a.Longitude, a.PhotoUrl(), a.HasCertificate);
 
-    public static ArtisanDetailDto ToDetailDto(this ArtisanProfile a) =>
+    public static ArtisanDetailDto ToDetailDto(
+        this ArtisanProfile a, IReadOnlyList<ArtisanServiceDto>? pricedServices = null) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
             a.DistanceKm, a.IsAvailable, a.Accent, a.ExperienceYears, a.Location,
             a.ResponseTime, a.JobsCount, a.InspectionFeeNaira, a.About,
             a.Services, a.GalleryKeys, a.CategorySlugs, a.PhotoUrl(), a.CoverPhotoUrl(),
-            a.GalleryUrls(), a.HasCertificate);
+            a.GalleryUrls(), a.HasCertificate, pricedServices ?? Array.Empty<ArtisanServiceDto>());
 
     public static MyArtisanProfileDto ToMyProfileDto(this ArtisanProfile a) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,

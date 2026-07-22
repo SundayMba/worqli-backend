@@ -11,5 +11,6 @@ internal static class UserMapping
         FullName: user.FullName,
         Email: user.Email,
         PhoneNumber: user.PhoneNumber,
-        Role: user.Role.ToString());
+        Role: user.Role.ToString(),
+        PhoneVerified: user.IsPhoneVerified);
 }

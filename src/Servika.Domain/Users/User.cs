@@ -26,6 +26,13 @@ public sealed class User
     /// <summary>When the user's email/phone was OTP-verified. Null until verified.</summary>
     public DateTimeOffset? EmailVerifiedAtUtc { get; private set; }
 
+    /// <summary>When the user's phone number was OTP-verified (SMS/WhatsApp). Null
+    /// until verified — phone is verified at first booking/chat, not at signup.</summary>
+    public DateTimeOffset? PhoneVerifiedAtUtc { get; private set; }
+
+    /// <summary>True once the phone number has been confirmed by OTP.</summary>
+    public bool IsPhoneVerified => PhoneVerifiedAtUtc is not null;
+
     /// <summary>The user's own share code others enter to be referred by them.
     /// Assigned lazily (on first view / at registration).</summary>
     public string? ReferralCode { get; private set; }
@@ -100,6 +107,9 @@ public sealed class User
 
     /// <summary>Marks the account as verified after a successful OTP check.</summary>
     public void MarkEmailVerified(DateTimeOffset whenUtc) => EmailVerifiedAtUtc = whenUtc;
+
+    /// <summary>Records that the phone number has been OTP-verified. Idempotent.</summary>
+    public void MarkPhoneVerified(DateTimeOffset whenUtc) => PhoneVerifiedAtUtc ??= whenUtc;
 
     /// <summary>Updates the editable profile fields (name + phone). Email is
     /// immutable here — changing it would need re-verification (a later slice).</summary>

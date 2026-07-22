@@ -23,17 +23,20 @@ public sealed class NotificationEmitter
     private readonly INotificationRepository _notifications;
     private readonly INotificationPushDispatcher _push;
     private readonly ICatalogueRepository _catalogue;
+    private readonly Payments.ArtisanStandingService _standing;
     private readonly IClock _clock;
 
     public NotificationEmitter(
         INotificationRepository notifications,
         INotificationPushDispatcher push,
         ICatalogueRepository catalogue,
+        Payments.ArtisanStandingService standing,
         IClock clock)
     {
         _notifications = notifications;
         _push = push;
         _catalogue = catalogue;
+        _standing = standing;
         _clock = clock;
     }
 
@@ -45,6 +48,12 @@ public sealed class NotificationEmitter
 
         var (title, body) = action switch
         {
+            // A fixed-price booking already has its amount — nudge the payment
+            // that unlocks the work; a quote-based accept has nothing due yet.
+            ArtisanBookingAction.Accept when booking.InitialQuoteAmountNaira is { } due &&
+                                             booking.PaymentState != BookingPaymentState.Paid =>
+                ("Booking accepted",
+                 $"{who} accepted your {service} booking. Pay ₦{due:N0} to secure it — held safely until the job is done."),
             ArtisanBookingAction.Accept =>
                 ("Booking accepted", $"{who} accepted your {service} booking."),
             ArtisanBookingAction.Reject =>
@@ -155,11 +164,14 @@ public sealed class NotificationEmitter
     public async Task OpenJobPosted(Booking booking, CancellationToken ct)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
-        var recipients = await _catalogue.ListArtisanUserIdsInCategoryAsync(booking.CategorySlug, ct);
+        var recipients = await _catalogue.ListArtisanRecipientsInCategoryAsync(booking.CategorySlug, ct);
+        // Artisans past the commission-debt limit don't receive new requests
+        // until they settle — the enforcement half of commission-on-cash.
+        var restricted = (await _standing.GetRestrictedProfileIdsAsync(ct)).ToHashSet();
         var bidding = booking.Assessment == Domain.Bookings.AssessmentMode.RemoteQuote;
-        foreach (var artisanUserId in recipients)
+        foreach (var recipient in recipients.Where(r => !restricted.Contains(r.ProfileId)))
         {
-            Add(artisanUserId, NotificationType.OpenJob,
+            Add(recipient.UserId, NotificationType.OpenJob,
                 bidding ? "New job — send your price" : "New job available",
                 bidding
                     ? $"A new {service} request is open for bids. Check the photos and offer your price."
@@ -168,24 +180,95 @@ public sealed class NotificationEmitter
         }
     }
 
-    /// <summary>Tell the customer an artisan offered a price on their request.</summary>
+    /// <summary>Tell the customer an artisan offered a price on their request.
+    /// A broadcast invites comparison; a direct request has one quote to review.</summary>
     public void BidPlaced(Booking booking, Bid bid)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "request" : $"{booking.ServiceName} request";
+        var direct = booking.ArtisanId is not null;
         Add(booking.CustomerId, NotificationType.Booking,
-            "New price offer",
-            $"{bid.ArtisanName} offered ₦{bid.AmountNaira:N0} for your {service}. Compare offers and pick your artisan.",
+            direct ? "Quote received" : "New price offer",
+            direct
+                ? $"{bid.ArtisanName} sent a quote of ₦{bid.AmountNaira:N0} for your {service}. Review and accept to proceed."
+                : $"{bid.ArtisanName} offered ₦{bid.AmountNaira:N0} for your {service}. Compare offers and pick your artisan.",
             booking.Id);
     }
 
-    /// <summary>Tell the winning artisan the customer accepted their bid.</summary>
-    public void BidAccepted(Booking booking, Bid bid)
+    /// <summary>Tell the winning artisan the customer accepted their price.
+    /// Copy depends on where the job stood when they accepted (acceptance itself
+    /// mutates the booking, so the caller passes the pre-acceptance status): a
+    /// broadcast win means "head out"; a pre-visit quote waits on payment; an
+    /// en-route/on-site quote can start the moment the payment gate clears.</summary>
+    public void BidAccepted(Booking booking, Bid bid, BookingStatus statusBeforeAccept)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
-        Add(bid.ArtisanUserId, NotificationType.Booking,
-            "Your offer was accepted",
-            $"You won the {service} at ₦{bid.AmountNaira:N0}. Head out when ready!",
-            booking.Id);
+        var body = statusBeforeAccept switch
+        {
+            BookingStatus.Open =>
+                $"You won the {service} at ₦{bid.AmountNaira:N0}. Head out when ready!",
+            BookingStatus.Pending =>
+                $"Your ₦{bid.AmountNaira:N0} quote for the {service} was accepted. You'll be notified once payment is secured.",
+            _ =>
+                $"The customer accepted your ₦{bid.AmountNaira:N0} quote. You can start as soon as payment is secured.",
+        };
+        Add(bid.ArtisanUserId, NotificationType.Booking, "Your offer was accepted", body, booking.Id);
+    }
+
+    /// <summary>Tell the artisan the escrow is funded — the start-work gate is open.</summary>
+    public Task ArtisanEscrowFunded(Booking booking, CancellationToken ct)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
+        var amount = booking.InitialQuoteAmountNaira is { } a ? $"₦{a:N0} " : string.Empty;
+        return NotifyArtisanAsync(booking,
+            "Payment secured",
+            $"{amount}for the {service} is held in escrow. You're clear to start the work.", ct);
+    }
+
+    /// <summary>Tell the artisan the customer chose to pay cash after service.</summary>
+    public Task ArtisanCashChosen(Booking booking, CancellationToken ct)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
+        var amount = booking.InitialQuoteAmountNaira is { } a ? $"₦{a:N0} " : string.Empty;
+        return NotifyArtisanAsync(booking,
+            "Cash payment chosen",
+            $"The customer will pay {amount}in cash after the {service}. You're clear to start the work.", ct);
+    }
+
+    /// <summary>Tell the artisan a cash job's service fee was recorded against
+    /// their balance — transparency, never a surprise deduction.</summary>
+    public Task ArtisanCommissionRecorded(Booking booking, int commissionNaira, CancellationToken ct)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
+        return NotifyArtisanAsync(booking,
+            "Service fee recorded",
+            $"₦{commissionNaira:N0} Servika fee on your cash {service} — it'll be deducted from your next online earnings, or settle it anytime from Earnings.", ct);
+    }
+
+    /// <summary>Tell the payout requester their bank transfer landed.</summary>
+    public void PayoutSent(Guid userId, int amountNaira, string bankMasked)
+    {
+        Add(userId, NotificationType.Payment,
+            "Payout sent",
+            $"₦{amountNaira:N0} was sent to your bank account {bankMasked}.",
+            null);
+    }
+
+    /// <summary>Tell the payout requester the transfer failed and funds were returned.</summary>
+    public void PayoutFailed(Guid userId, int amountNaira)
+    {
+        Add(userId, NotificationType.Payment,
+            "Payout failed",
+            $"Your ₦{amountNaira:N0} payout couldn't be completed — the funds are back in your balance. Please check your bank details and try again.",
+            null);
+    }
+
+    /// <summary>Tell the artisan their settlement landed and they're active again.</summary>
+    public void ArtisanBalanceSettled(Guid artisanUserId, int amountNaira)
+    {
+        Add(artisanUserId, NotificationType.Payment,
+            "Balance settled",
+            $"₦{amountNaira:N0} received — your service fees are cleared and you're receiving job requests again.",
+            null);
     }
 
     /// <summary>Tell the customer an artisan claimed their open request.</summary>

@@ -18,17 +18,20 @@ public sealed class CompleteBookingHandler
     private readonly IBookingRepository _bookings;
     private readonly NotificationEmitter _notifications;
     private readonly ReferralService _referrals;
+    private readonly Payments.CashCommissionService _cashCommission;
     private readonly IClock _clock;
 
     public CompleteBookingHandler(
         IBookingRepository bookings,
         NotificationEmitter notifications,
         ReferralService referrals,
+        Payments.CashCommissionService cashCommission,
         IClock clock)
     {
         _bookings = bookings;
         _notifications = notifications;
         _referrals = referrals;
+        _cashCommission = cashCommission;
         _clock = clock;
     }
 
@@ -42,6 +45,9 @@ public sealed class CompleteBookingHandler
         booking.ConfirmCompletion(now);
         _notifications.BookingCompleted(booking);
         await _notifications.ArtisanJobConfirmed(booking, ct);
+        // Cash job → record Servika's commission against the artisan's ledger
+        // (online jobs already had it deducted at escrow settlement).
+        await _cashCommission.RecordIfCashJobAsync(booking, ct);
         // First completed job for a referred artisan → credit the referrer.
         await _referrals.AwardIfReferredAsync(booking, now, ct);
         await _bookings.SaveChangesAsync(ct);

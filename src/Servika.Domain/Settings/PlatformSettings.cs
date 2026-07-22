@@ -28,6 +28,10 @@ public sealed class PlatformSettings
     /// <summary>Reward (Naira) credited to a referrer on a referred artisan's first job.</summary>
     public int ReferralRewardNaira { get; private set; }
 
+    /// <summary>How much unpaid cash-job commission an artisan may carry before
+    /// they stop receiving new job requests (the enforcement floor).</summary>
+    public int MaxCommissionDebtNaira { get; private set; }
+
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     private PlatformSettings() { }
@@ -41,6 +45,7 @@ public sealed class PlatformSettings
         AutoConfirmHours = 48,
         MinWithdrawalNaira = 1000,
         ReferralRewardNaira = 500,
+        MaxCommissionDebtNaira = 2000,
         UpdatedAtUtc = now,
     };
 
@@ -52,6 +57,7 @@ public sealed class PlatformSettings
         int autoConfirmHours,
         int minWithdrawalNaira,
         int referralRewardNaira,
+        int maxCommissionDebtNaira,
         DateTimeOffset now)
     {
         CommissionRate = Rate(commissionRate, nameof(commissionRate));
@@ -63,10 +69,13 @@ public sealed class PlatformSettings
             throw new ArgumentException("Minimum withdrawal can't be negative.", nameof(minWithdrawalNaira));
         if (referralRewardNaira < 0)
             throw new ArgumentException("Referral reward can't be negative.", nameof(referralRewardNaira));
+        if (maxCommissionDebtNaira < 0)
+            throw new ArgumentException("Commission-debt limit can't be negative.", nameof(maxCommissionDebtNaira));
 
         AutoConfirmHours = autoConfirmHours;
         MinWithdrawalNaira = minWithdrawalNaira;
         ReferralRewardNaira = referralRewardNaira;
+        MaxCommissionDebtNaira = maxCommissionDebtNaira;
         UpdatedAtUtc = now;
     }
 

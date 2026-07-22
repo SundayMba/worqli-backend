@@ -232,6 +232,42 @@ public sealed class AuthController : ControllerBase
         return Ok(await handler.HandleAsync(userId, ct));
     }
 
+    /// <summary>Send a phone-verification code to the current user's phone (SMS/WhatsApp).</summary>
+    /// <response code="200">Sent (or already verified).</response>
+    /// <response code="400">No phone number on the account.</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="429">Asked again too soon.</response>
+    [Authorize]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("phone-otp")]
+    [HttpPost("phone/send")]
+    [ProducesResponseType(typeof(SendPhoneOtpResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<SendPhoneOtpResponse>> SendPhoneOtp(
+        [FromServices] SendPhoneOtpHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), ct));
+    }
+
+    /// <summary>Verify the current user's phone with the code they received.</summary>
+    /// <response code="200">Verified — returns the updated user.</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="422">Invalid or expired code.</response>
+    [Authorize]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("phone-otp")]
+    [HttpPost("phone/verify")]
+    [ProducesResponseType(typeof(VerifyPhoneOtpResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<VerifyPhoneOtpResponse>> VerifyPhoneOtp(
+        [FromBody] VerifyPhoneOtpRequest request,
+        [FromServices] VerifyPhoneOtpHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), request, ct));
+    }
+
     /// <summary>Permanently delete the current user's account.</summary>
     /// <remarks>Required for app-store compliance. Bookings, notifications,
     /// tokens and chat cascade away; the wallet ledger (financial record) is
@@ -279,5 +315,15 @@ public sealed class AuthController : ControllerBase
             throw new InvalidCredentialsException();
 
         return Ok(await handler.HandleAsync(userId, request, ct));
+    }
+
+    /// <summary>The signed-in user's id from the validated access token.</summary>
+    private Guid CurrentUserId()
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(sub, out var userId))
+            throw new InvalidCredentialsException();
+        return userId;
     }
 }

@@ -27,4 +27,8 @@ public sealed record CreateBookingRequest(
     List<string>? MediaBase64 = null,
     /// <summary>A short video clip of the job (base64), so bidding artisans can
     /// assess the work properly. Optional.</summary>
-    string? VideoBase64 = null);
+    string? VideoBase64 = null,
+    /// <summary>One of the chosen artisan's published fixed-price services —
+    /// books directly at its published price (no quote round-trip). Requires
+    /// <see cref="ArtisanId"/>; the price is read server-side, never from here.</summary>
+    Guid? ArtisanServiceId = null);

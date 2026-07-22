@@ -1,10 +1,11 @@
 namespace Servika.Domain.Bookings;
 
 /// <summary>
-/// An artisan's price offer on an open <see cref="AssessmentMode.RemoteQuote"/>
-/// request. One bid per (booking, artisan) — re-bidding updates the amount.
-/// The customer reviews the bidders and accepts one; acceptance assigns the
-/// booking to that artisan at the offered price.
+/// An artisan's price offer on a request — a competing bid on an open
+/// <see cref="AssessmentMode.RemoteQuote"/> broadcast, or the pre-selected
+/// artisan's quote on a direct Pending booking. One bid per (booking, artisan)
+/// — re-bidding updates the amount. The customer accepts one; acceptance makes
+/// it the booking's agreed price (and assigns the artisan, for broadcasts).
 /// </summary>
 public sealed class Bid
 {

@@ -8,10 +8,13 @@ namespace Servika.Application.Catalogue;
 public sealed class GetArtisanByIdHandler
 {
     private readonly ICatalogueRepository _catalogue;
+    private readonly IArtisanServiceRepository _services;
 
-    public GetArtisanByIdHandler(ICatalogueRepository catalogue)
+    public GetArtisanByIdHandler(
+        ICatalogueRepository catalogue, IArtisanServiceRepository services)
     {
         _catalogue = catalogue;
+        _services = services;
     }
 
     public async Task<ArtisanDetailDto> HandleAsync(Guid id, CancellationToken ct)
@@ -19,6 +22,8 @@ public sealed class GetArtisanByIdHandler
         var artisan = await _catalogue.GetArtisanByIdAsync(id, ct)
             ?? throw new NotFoundException($"Artisan '{id}' was not found.");
 
-        return artisan.ToDetailDto();
+        var priced = await _services.ListForArtisanAsync(artisan.Id, ct);
+        return artisan.ToDetailDto(
+            priced.Select(s => new ArtisanServiceDto(s.Id, s.Name, s.PriceNaira)).ToList());
     }
 }

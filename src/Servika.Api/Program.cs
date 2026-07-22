@@ -1,13 +1,14 @@
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using Servika.Api.Bookings;
 using Servika.Api.Hubs;
 using Servika.Api.Middleware;
-using Servika.Api.Tracking;
+using Servika.Infrastructure.BackgroundJobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Servika.Application;
@@ -20,6 +21,53 @@ var builder = WebApplication.CreateBuilder(args);
 // them, but raise Kestrel's ~30MB default so an uncompressed-fallback upload from
 // a high-megapixel phone camera isn't rejected/reset.
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 60 * 1024 * 1024);
+
+// --- Fail-closed production config guard --------------------------------------
+// In Development we allow insecure conveniences (a placeholder JWT key, the stub
+// payment/payout gateways that trust every webhook, AllowAnyOrigin CORS). None of
+// those may run in Production: a blank Paystack key there would select the stub
+// gateway, which accepts ANY webhook signature — an attacker could mark bookings
+// paid for free. Rather than run insecurely, refuse to start and say why.
+var jwtSigningKey = builder.Configuration["Jwt:SigningKey"];
+var paystackSecretKey = builder.Configuration["Paystack:SecretKey"];
+var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                         ?? Array.Empty<string>();
+
+if (builder.Environment.IsProduction())
+{
+    var misconfig = new List<string>();
+    if (string.IsNullOrWhiteSpace(jwtSigningKey)
+        || jwtSigningKey.Length < 32
+        || jwtSigningKey.Contains("REPLACE_WITH", StringComparison.OrdinalIgnoreCase))
+    {
+        misconfig.Add("Jwt:SigningKey must be a real secret of at least 32 characters "
+                      + "(set Jwt__SigningKey).");
+    }
+    if (string.IsNullOrWhiteSpace(paystackSecretKey))
+    {
+        misconfig.Add("Paystack:SecretKey is required in Production — without it the payment/"
+                      + "payout STUBS run, and they trust every webhook signature (set Paystack__SecretKey).");
+    }
+    if (corsAllowedOrigins.Length == 0)
+    {
+        misconfig.Add("Cors:AllowedOrigins must list the browser origins allowed to call the API "
+                      + "(set Cors__AllowedOrigins__0, __1, …).");
+    }
+    // If the phone gate is on, codes must be deliverable — the stub only logs, so
+    // turning it on without an SMS provider would lock customers out of booking.
+    if (builder.Configuration.GetValue("Auth:RequirePhoneForBooking", false)
+        && string.IsNullOrWhiteSpace(builder.Configuration["Sms:ApiKey"]))
+    {
+        misconfig.Add("Auth:RequirePhoneForBooking is on but Sms:ApiKey is unset — customers "
+                      + "couldn't receive codes. Set Sms__ApiKey or turn the gate off.");
+    }
+    if (misconfig.Count > 0)
+    {
+        throw new InvalidOperationException(
+            "Refusing to start: insecure production configuration:\n - "
+            + string.Join("\n - ", misconfig));
+    }
+}
 
 // --- Services (the "DI container": register everything the app can use) -----
 
@@ -80,10 +128,21 @@ builder.Services.AddSingleton<
     Servika.Application.Abstractions.Notifications.INotificationRealtimePublisher,
     Servika.Api.Realtime.SignalRNotificationPublisher>();
 
-// Background sweep that ends stale tracking sessions (see TrackingCleanupService).
-builder.Services.AddHostedService<TrackingCleanupService>();
-// Background sweep that auto-confirms jobs the customer never confirmed.
-builder.Services.AddHostedService<CompletionAutoConfirmService>();
+// Real-time tracking broadcast (the stale-session sweep publishes through this port
+// so it can broadcast TrackingEnded while hosted in the Api; the worker has no hub).
+builder.Services.AddSingleton<
+    Servika.Application.Abstractions.Tracking.ITrackingRealtimePublisher,
+    Servika.Api.Realtime.SignalRTrackingPublisher>();
+
+// Periodic background sweeps (stale-tracking cleanup + completion auto-confirm).
+// They live in Infrastructure so the dedicated Servika.Worker can run them when the
+// API is scaled out. Until then the API runs them in-process (default true); set
+// Worker:RunSweepsInApi=false on the API instances once the Worker is deployed, so
+// the sweeps run exactly once.
+if (builder.Configuration.GetValue("Worker:RunSweepsInApi", true))
+{
+    builder.Services.AddBackgroundSweeps();
+}
 
 // Register MVC controllers. This makes ASP.NET scan the assembly for classes
 // that derive from ControllerBase and turn their methods into HTTP endpoints.
@@ -136,6 +195,24 @@ builder.Services.AddSwaggerGen(options =>
 // Health checks (DB and other dependencies are added in later slices).
 builder.Services.AddHealthChecks();
 
+// Per-IP rate limit on the phone-OTP endpoints (defence-in-depth vs SMS pumping,
+// on top of the per-user daily cap). A generous fixed window so legit use — one
+// send + a few verify attempts — never trips it. Returns 429 when exceeded.
+// (Behind a proxy/LB, register forwarded-headers so the client IP is real.)
+const string PhoneOtpRateLimit = "phone-otp";
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(PhoneOtpRateLimit, httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 12,
+                Window = TimeSpan.FromMinutes(10),
+            }));
+});
+
 // CORS — gate *browser* clients (the admin dashboard + Expo web/dev). Native mobile
 // builds don't send an Origin header, so they aren't subject to CORS and work
 // regardless; this list is what browsers are allowed to call the API from.
@@ -143,16 +220,15 @@ builder.Services.AddHealthChecks();
 // recompile (override per-env with the Cors__AllowedOrigins__0.. env vars). If none
 // are configured we fall back to AllowAnyOrigin — convenient for local dev only.
 const string MobileCorsPolicy = "MobileApp";
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                     ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(MobileCorsPolicy, policy =>
     {
-        if (allowedOrigins.Length > 0)
-            policy.WithOrigins(allowedOrigins);   // production: known origins only
-        else
-            policy.AllowAnyOrigin();              // dev fallback when nothing configured
+        if (corsAllowedOrigins.Length > 0)
+            policy.WithOrigins(corsAllowedOrigins);   // known origins only
+        else if (!builder.Environment.IsProduction())
+            policy.AllowAnyOrigin();                  // dev-only fallback (Production
+                                                      // already threw at startup)
 
         policy.AllowAnyHeader().AllowAnyMethod();
     });
@@ -177,15 +253,23 @@ using (var scope = app.Services.CreateScope())
 // turns our use-case exceptions into clean ProblemDetails responses.
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// Swagger UI is available in every environment for now (MVP); restrict later.
-app.UseSwagger();
-app.UseSwaggerUI(options =>
+// Swagger exposes the full API surface + an auth-primed "try it" console, so it's
+// off in Production unless explicitly opted in (Swagger:Enabled=true for a staging
+// box). Always on outside Production for local dev.
+if (!app.Environment.IsProduction() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Servika API v1");
-    options.RoutePrefix = "swagger";
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Servika API v1");
+        options.RoutePrefix = "swagger";
+    });
+}
 
 app.UseCors(MobileCorsPolicy);
+
+// Rate limiting runs before the endpoints it guards.
+app.UseRateLimiter();
 
 // Authentication must run before authorization: first work out *who* the caller
 // is (validate the JWT), then enforce *what* they're allowed to do ([Authorize]).

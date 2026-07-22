@@ -48,6 +48,19 @@ public sealed class InitializePaymentHandler
         if (booking.InitialQuoteAmountNaira is not { } amount || amount <= 0)
             throw new ConflictException("This booking has nothing due to pay yet.");
 
+        // Payment starts only once the job is actually on: a fixed-price booking
+        // carries its amount from creation, but paying before the artisan accepts
+        // would need a refund path if they decline — so the gate opens at Accepted.
+        if (booking.Status is Domain.Bookings.BookingStatus.Open
+            or Domain.Bookings.BookingStatus.Pending
+            or Domain.Bookings.BookingStatus.Rejected
+            or Domain.Bookings.BookingStatus.Cancelled
+            or Domain.Bookings.BookingStatus.Expired)
+        {
+            throw new ConflictException(
+                "Payment opens once the artisan accepts your booking.");
+        }
+
         // Reuse an in-flight Pending payment so a retry doesn't create duplicates.
         var existing = await _payments.FindActiveForBookingAsync(bookingId, ct);
         if (existing is { Status: PaymentStatus.Pending })

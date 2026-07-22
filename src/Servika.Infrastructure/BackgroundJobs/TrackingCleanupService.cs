@@ -1,36 +1,39 @@
-using Microsoft.AspNetCore.SignalR;
-using Servika.Api.Hubs;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Servika.Application.Abstractions.Tracking;
 using Servika.Application.Tracking;
 
-namespace Servika.Api.Tracking;
+namespace Servika.Infrastructure.BackgroundJobs;
 
 /// <summary>
 /// Sweeps up live-tracking sessions that have gone quiet — an artisan who closed
 /// the app or lost signal mid-trip leaves an <c>Active</c> session that would
-/// otherwise linger. Periodically ends sessions with no recent update and notifies
-/// their groups with <c>TrackingEnded</c>.
+/// otherwise linger. Periodically ends stale sessions and (best-effort) tells their
+/// tracking group with <c>TrackingEnded</c>.
 ///
-/// Hosted in the API for this slice so it runs alongside the hub and is easy to
-/// verify; its natural home is the dedicated <c>Servika.Worker</c> process. Cadence
-/// and staleness window are configurable via <c>Tracking:SweepSeconds</c> /
-/// <c>Tracking:StaleAfterSeconds</c> (defaults 60s / 180s).
+/// Host-agnostic: registered by <c>AddBackgroundSweeps</c> in the API or the
+/// <c>Servika.Worker</c>. The DB cleanup runs wherever it's hosted; the
+/// <c>TrackingEnded</c> broadcast goes out only when an
+/// <see cref="ITrackingRealtimePublisher"/> is registered (the API, which owns the
+/// hub) — in the worker it's absent and the broadcast is skipped (cross-process
+/// delivery needs a SignalR Redis backplane, not wired yet). Cadence + staleness via
+/// <c>Tracking:SweepSeconds</c> / <c>Tracking:StaleAfterSeconds</c> (defaults 60/180).
 /// </summary>
 public sealed class TrackingCleanupService : BackgroundService
 {
     private readonly IServiceProvider _services;
-    private readonly IHubContext<TrackingHub> _hub;
     private readonly ILogger<TrackingCleanupService> _logger;
     private readonly TimeSpan _sweepInterval;
     private readonly TimeSpan _staleAfter;
 
     public TrackingCleanupService(
         IServiceProvider services,
-        IHubContext<TrackingHub> hub,
         IConfiguration config,
         ILogger<TrackingCleanupService> logger)
     {
         _services = services;
-        _hub = hub;
         _logger = logger;
         _sweepInterval = TimeSpan.FromSeconds(config.GetValue("Tracking:SweepSeconds", 60));
         _staleAfter = TimeSpan.FromSeconds(config.GetValue("Tracking:StaleAfterSeconds", 180));
@@ -63,13 +66,14 @@ public sealed class TrackingCleanupService : BackgroundService
         // Scoped DI: the TrackingService (and its EF DbContext) is per-operation.
         using var scope = _services.CreateScope();
         var tracking = scope.ServiceProvider.GetRequiredService<TrackingService>();
+        // Optional — present only in the host that owns the tracking hub (the API).
+        var realtime = scope.ServiceProvider.GetService<ITrackingRealtimePublisher>();
 
         var endedBookingIds = await tracking.EndStaleAsync(_staleAfter, ct);
-        foreach (var bookingId in endedBookingIds)
+        if (realtime is not null)
         {
-            await _hub.Clients
-                .Group($"booking:{bookingId}")
-                .SendAsync("TrackingEnded", new { bookingId, reason = "stale" }, ct);
+            foreach (var bookingId in endedBookingIds)
+                await realtime.TrackingEndedAsync(bookingId, "stale", ct);
         }
 
         if (endedBookingIds.Count > 0)

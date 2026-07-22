@@ -18,5 +18,15 @@ public interface IWalletRepository
     Task<int> GetBalanceAsync(
         WalletOwnerType ownerType, Guid ownerId, CancellationToken ct);
 
+    /// <summary>Owner ids whose ledger balance is below the threshold — the
+    /// artisans past the commission-debt limit (standing enforcement).</summary>
+    Task<IReadOnlyList<Guid>> ListOwnerIdsWithBalanceBelowAsync(
+        WalletOwnerType ownerType, int threshold, CancellationToken ct);
+
+    /// <summary>Every owner's ledger balance for one owner type, in one grouped
+    /// query — for the admin directory's per-artisan standing (no N+1).</summary>
+    Task<IReadOnlyDictionary<Guid, int>> ListBalancesAsync(
+        WalletOwnerType ownerType, CancellationToken ct);
+
     Task<int> SaveChangesAsync(CancellationToken ct);
 }

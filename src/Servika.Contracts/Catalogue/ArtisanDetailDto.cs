@@ -38,4 +38,14 @@ public sealed record ArtisanDetailDto(
     /// newest first. Empty → the client falls back to bundled gallery art.</summary>
     IReadOnlyList<string> GalleryUrls,
     /// <summary>True when the artisan uploaded a work certificate.</summary>
-    bool HasCertificate);
+    bool HasCertificate,
+    /// <summary>The artisan's published fixed-price services ("Knotless braids —
+    /// ₦15,000") — bookable directly at that price, paid once the artisan
+    /// accepts. Empty for quote-only artisans.</summary>
+    IReadOnlyList<ArtisanServiceDto>? PricedServices = null);
+
+/// <summary>A fixed-price service on an artisan's profile.</summary>
+public sealed record ArtisanServiceDto(Guid Id, string Name, int PriceNaira);
+
+/// <summary>POST /api/v1/artisan/services body. Re-posting a name revises its price.</summary>
+public sealed record SaveArtisanServiceRequest(string Name, int PriceNaira);

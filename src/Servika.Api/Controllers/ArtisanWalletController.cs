@@ -36,6 +36,23 @@ public sealed class ArtisanWalletController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), ct));
     }
 
+    /// <summary>Pay off outstanding cash-job service fees (the "Settle balance" button).</summary>
+    /// <response code="200">Pending settlement payment with the checkout URL.</response>
+    /// <response code="401">Not signed in.</response>
+    /// <response code="404">No artisan profile linked to this account.</response>
+    /// <response code="409">Nothing owed.</response>
+    [HttpPost("wallet/settle")]
+    [ProducesResponseType(typeof(Contracts.Payments.PaymentInitResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<Contracts.Payments.PaymentInitResponse>> Settle(
+        [FromServices] SettleCommissionHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), ct));
+    }
+
     /// <summary>The artisan's payout history, newest first.</summary>
     /// <response code="200">The withdrawals.</response>
     /// <response code="401">Not signed in.</response>

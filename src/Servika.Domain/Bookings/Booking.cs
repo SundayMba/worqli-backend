@@ -50,8 +50,9 @@ public sealed class Booking
     public Urgency Urgency { get; private set; }
     public PricingModel PricingModel { get; private set; }
 
-    /// <summary>Up-front amount in Naira (e.g. the artisan's inspection / call-out
-    /// fee) known at booking time. Null when nothing is owed until a quote.</summary>
+    /// <summary>The agreed job price in Naira, set when the customer accepts an
+    /// artisan's price offer (<see cref="AcceptBid"/>). Null until then — booking
+    /// is always free; nothing is owed before a price has been agreed.</summary>
     public int? InitialQuoteAmountNaira { get; private set; }
 
     /// <summary>Commission basis recorded at booking time (0 during the launch
@@ -62,6 +63,11 @@ public sealed class Booking
 
     /// <summary>At-a-glance payment state, advanced by the payments flow.</summary>
     public BookingPaymentState PaymentState { get; private set; }
+
+    /// <summary>How the agreed price gets settled — online escrow (default) or
+    /// cash after service. The customer chooses at the payment moment; work
+    /// can't start until the price is secured one way or the other.</summary>
+    public PaymentMethod PaymentMethod { get; private set; } = PaymentMethod.Online;
 
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? AcceptedAtUtc { get; private set; }
@@ -179,24 +185,58 @@ public sealed class Booking
     }
 
     /// <summary>
-    /// The customer accepts an artisan's bid on an open RemoteQuote request:
-    /// the booking is assigned to that artisan at the offered price and moves
-    /// Open → Accepted (the bid IS the acceptance — no second confirmation).
+    /// The customer accepts an artisan's price offer. Two paths land here:
+    /// an <b>open</b> RemoteQuote request accepting any bidder (the booking is
+    /// assigned to that artisan), or a <b>direct</b> Pending request accepting
+    /// the pre-selected artisan's quote. Either way the offer becomes the
+    /// booking's price and it moves to Accepted — payment happens against this
+    /// agreed amount, never before ("pay only when a price has been agreed").
     /// </summary>
     public void AcceptBid(Guid artisanId, string artisanName, int amountNaira, DateTimeOffset now)
     {
-        if (Status is not BookingStatus.Open)
-            throw new InvalidBookingStateException(
-                $"Only an Open request can accept a bid (this one is {Status}).");
-        if (Assessment is not AssessmentMode.RemoteQuote)
-            throw new InvalidBookingStateException(
-                "This request is inspect-first — artisans accept it directly instead of bidding.");
+        // Open broadcast: any bidder can win — acceptance assigns the artisan.
+        if (Status is BookingStatus.Open)
+        {
+            if (Assessment is not AssessmentMode.RemoteQuote)
+                throw new InvalidBookingStateException(
+                    "This request is inspect-first — artisans accept it directly instead of bidding.");
 
-        ArtisanId = artisanId;
-        ArtisanName = artisanName;
-        InitialQuoteAmountNaira = amountNaira;
-        Status = BookingStatus.Accepted;
-        AcceptedAtUtc = now;
+            ArtisanId = artisanId;
+            ArtisanName = artisanName;
+            InitialQuoteAmountNaira = amountNaira;
+            Status = BookingStatus.Accepted;
+            AcceptedAtUtc = now;
+            return;
+        }
+
+        // Direct booking: only the pre-selected artisan's quote can be accepted.
+        if (ArtisanId is null || ArtisanId != artisanId)
+            throw new InvalidBookingStateException(
+                "Only the requested artisan's quote can be accepted on this booking.");
+
+        // Pre-visit quote: accepting doubles as accepting the job (→ Accepted).
+        if (Status is BookingStatus.Pending)
+        {
+            InitialQuoteAmountNaira = amountNaira;
+            Status = BookingStatus.Accepted;
+            AcceptedAtUtc = now;
+            return;
+        }
+
+        // On-site / en-route quote: the artisan already accepted-to-inspect, so
+        // acceptance only fixes the price — the trip status stays where it is.
+        if (Status is BookingStatus.Accepted or BookingStatus.OnMyWay or BookingStatus.Arrived)
+        {
+            if (PaymentState == BookingPaymentState.Paid)
+                throw new InvalidBookingStateException(
+                    "The price is already agreed and paid — it can't change now.");
+
+            InitialQuoteAmountNaira = amountNaira;
+            return;
+        }
+
+        throw new InvalidBookingStateException(
+            $"A price offer can't be accepted while the booking is {Status}.");
     }
 
     // NOTE: claiming an open request (Open → Accepted, assigning the artisan) is done
@@ -251,6 +291,30 @@ public sealed class Booking
         Status = BookingStatus.Rejected;
     }
 
+    /// <summary>
+    /// The customer re-broadcasts a direct request to every matching artisan —
+    /// the escape hatch when their chosen artisan declined (Rejected) or never
+    /// responded (still Pending). The artisan is unassigned and the booking
+    /// becomes an Open request, keeping its description, media and schedule so
+    /// nothing is re-typed. With photos/video attached it reopens in bidding
+    /// mode (artisans send prices); bare requests reopen first-to-claim.
+    /// </summary>
+    public void Rebroadcast()
+    {
+        if (ArtisanId is null)
+            throw new InvalidBookingStateException("This request is already open to all artisans.");
+        if (Status is not (BookingStatus.Pending or BookingStatus.Rejected))
+            throw new InvalidBookingStateException(
+                $"A booking that is {Status} can't be re-broadcast — only an unanswered or declined request can.");
+
+        ArtisanId = null;
+        ArtisanName = null;
+        Status = BookingStatus.Open;
+        Assessment = MediaKeys.Count > 0 || VideoKey is not null
+            ? AssessmentMode.RemoteQuote
+            : AssessmentMode.Inspection;
+    }
+
     /// <summary>The artisan starts the trip to the customer. Accepted → OnMyWay.</summary>
     public void StartTrip()
     {
@@ -271,15 +335,46 @@ public sealed class Booking
         Status = BookingStatus.Arrived;
     }
 
-    /// <summary>The artisan begins the work. Arrived → InProgress.</summary>
+    /// <summary>
+    /// The artisan begins the work. Arrived → InProgress — but only once the
+    /// agreed price is secured: paid into escrow, or the customer explicitly
+    /// chose cash. This is the pay-before-work gate that makes escrow the spine
+    /// of the marketplace instead of an optional step.
+    /// </summary>
     public void StartWork(DateTimeOffset now)
     {
         if (Status is not BookingStatus.Arrived)
             throw new InvalidBookingStateException(
                 $"Work can only start once the artisan has Arrived (this one is {Status}).");
+        if (InitialQuoteAmountNaira is null or <= 0)
+            throw new InvalidBookingStateException(
+                "A price must be agreed before work starts — send the customer your quote first.");
+        if (PaymentState != BookingPaymentState.Paid && PaymentMethod != PaymentMethod.Cash)
+            throw new InvalidBookingStateException(
+                "Waiting for the customer's payment — work can start once it's secured in escrow (or they choose cash).");
 
         Status = BookingStatus.InProgress;
         WorkStartedAtUtc = now;
+    }
+
+    /// <summary>
+    /// The customer picks how they'll settle the agreed price: online escrow
+    /// (default) or cash after service. Only before the work starts, and never
+    /// after an online payment has already been made.
+    /// </summary>
+    public void ChoosePaymentMethod(PaymentMethod method)
+    {
+        if (Status is not (BookingStatus.Open or BookingStatus.Pending or BookingStatus.Accepted
+            or BookingStatus.OnMyWay or BookingStatus.Arrived))
+        {
+            throw new InvalidBookingStateException(
+                $"The payment method can't change once the job is {Status}.");
+        }
+        if (PaymentState is BookingPaymentState.Paid or BookingPaymentState.Refunded)
+            throw new InvalidBookingStateException(
+                "This booking has already been paid — the payment method is settled.");
+
+        PaymentMethod = method;
     }
 
     /// <summary>
@@ -368,8 +463,13 @@ public sealed class Booking
     /// <summary>Payment has been initialized and is awaiting the gateway result.</summary>
     public void MarkPaymentPending() => PaymentState = BookingPaymentState.Pending;
 
-    /// <summary>Funds received and held in escrow.</summary>
-    public void MarkPaid() => PaymentState = BookingPaymentState.Paid;
+    /// <summary>Funds received and held in escrow. An escrow settlement is
+    /// online by definition, so a stale cash choice is overwritten.</summary>
+    public void MarkPaid()
+    {
+        PaymentState = BookingPaymentState.Paid;
+        PaymentMethod = PaymentMethod.Online;
+    }
 
     /// <summary>Escrow returned to the customer (e.g. a dispute resolved in their favour).</summary>
     public void MarkRefunded() => PaymentState = BookingPaymentState.Refunded;

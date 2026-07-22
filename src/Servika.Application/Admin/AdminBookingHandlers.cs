@@ -37,7 +37,8 @@ public sealed class ListAllBookingsHandler
                 b.Id, b.Status.ToString(), b.ServiceName, b.ArtisanName,
                 names.TryGetValue(b.CustomerId, out var n) ? n : "Customer",
                 b.AddressText, b.PreferredDate, b.PreferredTimeSlot, b.Urgency.ToString(),
-                b.PaymentState.ToString(), b.InitialQuoteAmountNaira, b.CreatedAt))
+                b.PaymentState.ToString(), b.InitialQuoteAmountNaira, b.CreatedAt,
+                b.Assessment.ToString(), b.PaymentMethod.ToString()))
             .ToList();
     }
 }
@@ -89,6 +90,7 @@ public sealed class GetAdminBookingHandler
             b.AddressText, b.LocationInstructions,
             b.PreferredDate, b.PreferredTimeSlot, b.Urgency.ToString(),
             amount, commission, b.CommissionRate, b.PaymentState.ToString(),
+            b.PaymentMethod.ToString(), b.PricingModel.ToString(), b.Assessment.ToString(),
             b.CreatedAt, b.AcceptedAtUtc, b.WorkSubmittedAtUtc, b.CompletedAtUtc, b.CancelledAtUtc, b.DisputedAtUtc);
     }
 }

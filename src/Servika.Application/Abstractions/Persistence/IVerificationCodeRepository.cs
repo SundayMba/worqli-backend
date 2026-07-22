@@ -17,5 +17,9 @@ public interface IVerificationCodeRepository
     /// <summary>Find a code by its stored hash, regardless of user (for self-identifying reset tokens).</summary>
     Task<VerificationCode?> FindByHashAsync(string codeHash, OtpPurpose purpose, CancellationToken ct);
 
+    /// <summary>How many codes of a purpose were issued to a user since a cutoff —
+    /// powers the per-user daily send cap (anti SMS-pumping cost control).</summary>
+    Task<int> CountSinceAsync(Guid userId, OtpPurpose purpose, DateTimeOffset sinceUtc, CancellationToken ct);
+
     Task<int> SaveChangesAsync(CancellationToken ct);
 }

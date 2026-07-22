@@ -64,10 +64,11 @@ public sealed class ArtisanController : ControllerBase
     /// <response code="403">Signed in but not an artisan.</response>
     /// <response code="404">No such job.</response>
     /// <response code="409">Already taken, not in your categories, or your profile isn't verified.</response>
-    /// <summary>Place (or revise) a price offer on an open bidding request.</summary>
+    /// <summary>Place (or revise) a price offer — a bid on an open bidding
+    /// request, or your quote on a direct request assigned to you.</summary>
     /// <response code="200">Your current bid.</response>
     /// <response code="400">Invalid amount.</response>
-    /// <response code="404">Unknown request.</response>
+    /// <response code="404">Unknown request (or a direct request that isn't yours).</response>
     /// <response code="409">Not open / not bidding-mode / not your category / unverified.</response>
     [HttpPost("{id:guid}/bid")]
     [ProducesResponseType(typeof(Contracts.Bookings.BidDto), StatusCodes.Status200OK)]

@@ -10,4 +10,6 @@ public sealed record UserDto(
     string FullName,
     string Email,
     string PhoneNumber,
-    string Role);
+    string Role,
+    /// <summary>True once the phone number has been OTP-verified (SMS/WhatsApp).</summary>
+    bool PhoneVerified = false);

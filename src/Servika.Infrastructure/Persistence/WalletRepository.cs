@@ -37,5 +37,22 @@ public sealed class WalletRepository : IWalletRepository
             .Where(t => t.OwnerType == ownerType && t.OwnerId == ownerId)
             .SumAsync(t => (int?)t.AmountNaira, ct) ?? 0;
 
+    public async Task<IReadOnlyList<Guid>> ListOwnerIdsWithBalanceBelowAsync(
+        WalletOwnerType ownerType, int threshold, CancellationToken ct) =>
+        await _db.WalletTransactions
+            .Where(t => t.OwnerType == ownerType)
+            .GroupBy(t => t.OwnerId)
+            .Where(g => g.Sum(t => t.AmountNaira) < threshold)
+            .Select(g => g.Key)
+            .ToListAsync(ct);
+
+    public async Task<IReadOnlyDictionary<Guid, int>> ListBalancesAsync(
+        WalletOwnerType ownerType, CancellationToken ct) =>
+        await _db.WalletTransactions
+            .Where(t => t.OwnerType == ownerType)
+            .GroupBy(t => t.OwnerId)
+            .Select(g => new { OwnerId = g.Key, Balance = g.Sum(t => t.AmountNaira) })
+            .ToDictionaryAsync(x => x.OwnerId, x => x.Balance, ct);
+
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }

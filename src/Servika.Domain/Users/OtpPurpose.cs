@@ -8,4 +8,8 @@ public enum OtpPurpose
 
     /// <summary>Authorise a password reset (paired with reset-password).</summary>
     PasswordReset = 1,
+
+    /// <summary>Confirm the account's phone number (verified at first booking/chat,
+    /// or during artisan KYC) — delivered by SMS/WhatsApp.</summary>
+    PhoneVerification = 2,
 }

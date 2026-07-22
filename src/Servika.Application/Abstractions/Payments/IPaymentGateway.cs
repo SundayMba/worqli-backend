@@ -27,7 +27,8 @@ public sealed record PaymentInitInput(
     string Reference,
     int AmountNaira,
     string CustomerEmail,
-    Guid BookingId);
+    /// <summary>The booking being paid — null for a commission settlement.</summary>
+    Guid? BookingId);
 
 /// <summary>The provider's reference (may differ from ours) and hosted checkout URL.</summary>
 public sealed record PaymentInitResult(string Reference, string? AuthorizationUrl);

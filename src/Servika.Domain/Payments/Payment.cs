@@ -14,8 +14,17 @@ namespace Servika.Domain.Payments;
 public sealed class Payment
 {
     public Guid Id { get; private set; }
-    public Guid BookingId { get; private set; }
+
+    /// <summary>The booking being paid — null for a commission settlement,
+    /// which is money owed by the artisan rather than for a job.</summary>
+    public Guid? BookingId { get; private set; }
+
+    /// <summary>The paying user — the booking's customer, or for a commission
+    /// settlement the artisan's own login account.</summary>
     public Guid CustomerId { get; private set; }
+
+    /// <summary>What this payment is for (escrow vs commission settlement).</summary>
+    public PaymentPurpose Purpose { get; private set; } = PaymentPurpose.BookingEscrow;
 
     /// <summary>The artisan profile being paid (nullable — open bookings).</summary>
     public Guid? ArtisanId { get; private set; }
@@ -82,6 +91,42 @@ public sealed class Payment
             Reference = reference,
             AuthorizationUrl = authorizationUrl,
             Status = PaymentStatus.Pending,
+            Purpose = PaymentPurpose.BookingEscrow,
+            CreatedAt = now,
+        };
+    }
+
+    /// <summary>
+    /// Starts an artisan's payment of owed cash-job commission. No booking, no
+    /// split — a successful settlement simply credits the artisan's ledger.
+    /// </summary>
+    public static Payment InitiateSettlement(
+        Guid artisanUserId,
+        Guid artisanProfileId,
+        int amountNaira,
+        string provider,
+        string reference,
+        string? authorizationUrl,
+        DateTimeOffset now)
+    {
+        if (amountNaira <= 0)
+            throw new ArgumentException("Amount must be positive.", nameof(amountNaira));
+        if (string.IsNullOrWhiteSpace(reference))
+            throw new ArgumentException("A gateway reference is required.", nameof(reference));
+
+        return new Payment
+        {
+            Id = Guid.NewGuid(),
+            BookingId = null,
+            CustomerId = artisanUserId,
+            ArtisanId = artisanProfileId,
+            AmountNaira = amountNaira,
+            CommissionRate = 0m,
+            Provider = provider,
+            Reference = reference,
+            AuthorizationUrl = authorizationUrl,
+            Status = PaymentStatus.Pending,
+            Purpose = PaymentPurpose.CommissionSettlement,
             CreatedAt = now,
         };
     }

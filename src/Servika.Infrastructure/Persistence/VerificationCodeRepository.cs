@@ -28,5 +28,10 @@ public sealed class VerificationCodeRepository : IVerificationCodeRepository
             .OrderByDescending(c => c.CreatedAtUtc)
             .FirstOrDefaultAsync(ct);
 
+    public Task<int> CountSinceAsync(
+        Guid userId, OtpPurpose purpose, DateTimeOffset sinceUtc, CancellationToken ct) =>
+        _db.VerificationCodes
+            .CountAsync(c => c.UserId == userId && c.Purpose == purpose && c.CreatedAtUtc >= sinceUtc, ct);
+
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }
