@@ -44,6 +44,10 @@ public sealed class ExpoPushSender : IPushSender
                 title,
                 body,
                 sound = "default",
+                // High priority = deliver immediately even in doze, and (with the
+                // app's MAX-importance channel) show as a heads-up banner.
+                priority = "high",
+                channelId = "default",
                 data = data ?? new Dictionary<string, string>(),
             });
 
