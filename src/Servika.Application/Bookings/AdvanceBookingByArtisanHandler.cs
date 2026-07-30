@@ -20,15 +20,17 @@ public sealed class AdvanceBookingByArtisanHandler
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
     private readonly NotificationEmitter _notifications;
+    private readonly Payments.RefundService _refunds;
     private readonly IClock _clock;
 
     public AdvanceBookingByArtisanHandler(
         IBookingRepository bookings, ICatalogueRepository catalogue,
-        NotificationEmitter notifications, IClock clock)
+        NotificationEmitter notifications, Payments.RefundService refunds, IClock clock)
     {
         _bookings = bookings;
         _catalogue = catalogue;
         _notifications = notifications;
+        _refunds = refunds;
         _clock = clock;
     }
 
@@ -49,6 +51,12 @@ public sealed class AdvanceBookingByArtisanHandler
             case ArtisanBookingAction.StartTrip: booking.StartTrip(); break;
             case ArtisanBookingAction.Arrive: booking.Arrive(); break;
             case ArtisanBookingAction.StartWork: booking.StartWork(_clock.UtcNow); break;
+            case ArtisanBookingAction.Cancel:
+                booking.Cancel(now);
+                // Any escrow the customer already paid goes straight back in full
+                // (no-op if unpaid). Same transaction as the cancellation.
+                await _refunds.RefundIfPaidAsync(booking, ct);
+                break;
             default: throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown artisan action.");
         }
 

@@ -158,6 +158,17 @@ public sealed class ArtisanController : ControllerBase
         Guid id, [FromServices] AdvanceBookingByArtisanHandler handler, CancellationToken ct) =>
         Advance(id, ArtisanBookingAction.StartWork, handler, ct);
 
+    /// <summary>Cancel an accepted/en-route job (Accepted/OnMyWay/Arrived → Cancelled).</summary>
+    /// <remarks>Any escrow the customer paid is refunded in full; the customer is
+    /// notified so they can book someone else. Not allowed once work is InProgress.</remarks>
+    /// <response code="200">Cancelled; escrow (if paid) refunded.</response>
+    /// <response code="404">Job not assigned to this artisan.</response>
+    /// <response code="409">Too late — work is already in progress.</response>
+    [HttpPost("{id:guid}/cancel")]
+    public Task<ActionResult<BookingDetailDto>> Cancel(
+        Guid id, [FromServices] AdvanceBookingByArtisanHandler handler, CancellationToken ct) =>
+        Advance(id, ArtisanBookingAction.Cancel, handler, ct);
+
     /// <summary>Submit proof of completed work (InProgress → AwaitingConfirmation).</summary>
     /// <remarks>At least one photo is required. The customer is notified to review &
     /// confirm; it auto-confirms after the window if they don't.</remarks>

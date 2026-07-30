@@ -247,17 +247,22 @@ public sealed class Booking
     // prevent two callers who both loaded it Open from both saving.
 
     /// <summary>
-    /// Cancels the booking. The customer may only cancel while it is still
-    /// <see cref="BookingStatus.Pending"/> or <see cref="BookingStatus.Accepted"/>
-    /// — once the artisan is on the way or working, cancellation goes through the
-    /// dispute flow (a later slice). Invalid transitions throw so the state
-    /// machine can never be driven into an impossible state.
+    /// Cancels the booking. Either party may cancel any time up to and including
+    /// <see cref="BookingStatus.Arrived"/> — plans change, vehicles break down.
+    /// Once work is <see cref="BookingStatus.InProgress"/> cancellation is no
+    /// longer allowed; that's what the dispute flow is for (otherwise a customer
+    /// could cancel mid-repair and skip paying). Escrow already paid is refunded
+    /// by the calling handler. Invalid transitions throw so the state machine can
+    /// never be driven into an impossible state.
     /// </summary>
     public void Cancel(DateTimeOffset now)
     {
-        if (Status is not (BookingStatus.Open or BookingStatus.Pending or BookingStatus.Accepted))
+        if (Status is not (BookingStatus.Open or BookingStatus.Pending or BookingStatus.Accepted
+            or BookingStatus.OnMyWay or BookingStatus.Arrived))
+        {
             throw new InvalidBookingStateException(
                 $"A booking that is {Status} can no longer be cancelled.");
+        }
 
         Status = BookingStatus.Cancelled;
         CancelledAtUtc = now;

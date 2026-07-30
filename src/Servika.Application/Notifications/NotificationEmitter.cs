@@ -64,6 +64,9 @@ public sealed class NotificationEmitter
                 ("Artisan arrived", $"{who} has arrived at your location."),
             ArtisanBookingAction.StartWork =>
                 ("Work started", $"{who} has started your {service} job."),
+            ArtisanBookingAction.Cancel =>
+                ("Booking cancelled",
+                 $"{who} can no longer take your {service} booking. Anything you paid is refunded automatically — you can book another artisan right away."),
             _ => (string.Empty, string.Empty),
         };
 

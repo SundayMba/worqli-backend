@@ -22,4 +22,8 @@ public enum ArtisanBookingAction
 
     /// <summary>Arrived → InProgress (work begins).</summary>
     StartWork,
+
+    /// <summary>Accepted/OnMyWay/Arrived → Cancelled (the artisan can't make it).
+    /// Any escrow paid is refunded to the customer in full.</summary>
+    Cancel,
 }
