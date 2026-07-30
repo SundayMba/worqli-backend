@@ -96,6 +96,27 @@ public sealed class TrackingService
         return new LocationRecorded(started, update);
     }
 
+    /// <summary>
+    /// The artisan's latest recorded position for a booking, or null when no
+    /// active session (or no fix yet). REST fallback for when the customer's hub
+    /// socket is down (flaky networks/tunnels) — same participant authorization
+    /// as joining the hub group.
+    /// </summary>
+    public async Task<LocationUpdate?> GetLatestAsync(
+        Guid userId, Guid bookingId, CancellationToken ct)
+    {
+        await AuthorizeJoinAsync(userId, bookingId, ct);
+
+        var session = await _tracking.FindActiveByBookingAsync(bookingId, ct);
+        if (session?.LastLatitude is not { } lat || session.LastLongitude is not { } lng)
+            return null;
+
+        return new LocationUpdate(
+            bookingId, lat, lng,
+            session.LastAccuracy, session.LastHeading, session.LastSpeed,
+            session.LastUpdateAtUtc ?? session.StartedAtUtc);
+    }
+
     /// <summary>Ends the active session for a booking, if any. Returns true if one
     /// was ended (e.g. on the artisan's arrival).</summary>
     public async Task<bool> EndAsync(Guid bookingId, CancellationToken ct)

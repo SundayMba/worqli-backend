@@ -39,6 +39,7 @@ public sealed class ExceptionHandlingMiddleware
                 InvalidCredentialsException => (StatusCodes.Status401Unauthorized, ex.Message),
                 AccountSuspendedException => (StatusCodes.Status403Forbidden, ex.Message),
                 PhoneVerificationRequiredException => (StatusCodes.Status403Forbidden, ex.Message),
+                TrackingNotAllowedException => (StatusCodes.Status403Forbidden, ex.Message),
                 InvalidRefreshTokenException => (StatusCodes.Status401Unauthorized, ex.Message),
                 InvalidOtpException => (StatusCodes.Status400BadRequest, ex.Message),
                 NotFoundException => (StatusCodes.Status404NotFound, ex.Message),
