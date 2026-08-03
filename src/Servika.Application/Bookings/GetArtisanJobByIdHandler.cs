@@ -13,11 +13,14 @@ public sealed class GetArtisanJobByIdHandler
 {
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
+    private readonly IUserRepository _users;
 
-    public GetArtisanJobByIdHandler(IBookingRepository bookings, ICatalogueRepository catalogue)
+    public GetArtisanJobByIdHandler(
+        IBookingRepository bookings, ICatalogueRepository catalogue, IUserRepository users)
     {
         _bookings = bookings;
         _catalogue = catalogue;
+        _users = users;
     }
 
     public async Task<BookingDetailDto> HandleAsync(
@@ -29,6 +32,10 @@ public sealed class GetArtisanJobByIdHandler
         var booking = await _bookings.FindForArtisanAsync(bookingId, profile.Id, ct)
             ?? throw new NotFoundException($"Booking '{bookingId}' was not found.");
 
-        return booking.ToDetailDto();
+        // The artisan is heading to a person, not a "Customer" — resolve the
+        // name for the job screen + the live map's destination tag.
+        var customer = await _users.FindByIdAsync(booking.CustomerId, ct);
+
+        return booking.ToDetailDto(customerName: customer?.FullName);
     }
 }

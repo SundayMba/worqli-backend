@@ -25,7 +25,8 @@ internal static class BookingMapping
             b.MediaUrls(),
             b.VideoUrl());
 
-    public static BookingDetailDto ToDetailDto(this Booking b, int bidCount = 0) =>
+    public static BookingDetailDto ToDetailDto(
+        this Booking b, int bidCount = 0, string? customerName = null) =>
         new(
             b.Id,
             b.Status.ToString(),
@@ -34,6 +35,7 @@ internal static class BookingMapping
             b.CategorySlug,
             b.ServiceName,
             b.ArtisanName,
+            customerName,
             b.Description,
             b.AddressText,
             b.LocationLat,

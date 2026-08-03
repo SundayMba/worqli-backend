@@ -13,6 +13,10 @@ public sealed record BookingDetailDto(
     string CategorySlug,
     string ServiceName,
     string? ArtisanName,
+    /// <summary>The customer's display name — filled on the ARTISAN-side job
+    /// detail (drives the map's name tag); null on customer-side responses,
+    /// where the caller is the customer.</summary>
+    string? CustomerName,
     string Description,
     string AddressText,
     double? LocationLat,
