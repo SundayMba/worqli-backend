@@ -17,13 +17,16 @@ public sealed class GetAdminPaymentsHandler
 
     private readonly IWalletRepository _wallet;
     private readonly IWithdrawalRepository _withdrawals;
+    private readonly IPaymentRepository _payments;
     private readonly IClock _clock;
 
     public GetAdminPaymentsHandler(
-        IWalletRepository wallet, IWithdrawalRepository withdrawals, IClock clock)
+        IWalletRepository wallet, IWithdrawalRepository withdrawals,
+        IPaymentRepository payments, IClock clock)
     {
         _wallet = wallet;
         _withdrawals = withdrawals;
+        _payments = payments;
         _clock = clock;
     }
 
@@ -63,8 +66,24 @@ public sealed class GetAdminPaymentsHandler
             .Select(e => new LedgerEntryDto(e.Id, e.Type.ToString(), e.Description, e.AmountNaira, e.CreatedAt, e.BookingId))
             .ToList();
 
+        // Refunds that failed at the gateway, or were requested and haven't been
+        // confirmed settled yet — the ones an admin may need to chase. A refund
+        // that landed (RefundSettledAtUtc set) needs no attention.
+        var refundAttention = (await _payments.ListRefundedAsync(ct))
+            .Where(p => p.RefundSettledAtUtc is null)
+            .Select(p => new AdminRefundDto(
+                p.BookingId ?? Guid.Empty,
+                p.AmountNaira,
+                p.RefundFailedAtUtc is not null ? "Failed" : "Pending",
+                p.RefundedAtUtc!.Value,
+                p.RefundFailedAtUtc))
+            // Failed first (needs action), then oldest-requested first.
+            .OrderByDescending(r => r.Status == "Failed")
+            .ThenBy(r => r.RequestedAtUtc)
+            .ToList();
+
         return new AdminPaymentsDto(
             revenue, commission, artisanEarnings, pending, refunds,
-            payoutSummary, series, recent);
+            payoutSummary, series, recent, refundAttention);
     }
 }

@@ -32,5 +32,12 @@ public sealed class PaymentRepository : IPaymentRepository
             .OrderByDescending(p => p.CreatedAt)
             .FirstOrDefaultAsync(ct);
 
+    public async Task<IReadOnlyList<Payment>> ListRefundedAsync(CancellationToken ct) =>
+        await _db.Payments
+            .AsNoTracking()
+            .Where(p => p.RefundedAtUtc != null)
+            .OrderByDescending(p => p.RefundedAtUtc)
+            .ToListAsync(ct);
+
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }

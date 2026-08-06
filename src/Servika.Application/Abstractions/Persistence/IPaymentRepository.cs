@@ -18,5 +18,9 @@ public interface IPaymentRepository
     /// refund reverses. Tracked, so <c>MarkRefunded</c> persists.</summary>
     Task<Payment?> FindSucceededForBookingAsync(Guid bookingId, CancellationToken ct);
 
+    /// <summary>All payments a refund was requested on (newest first), for the admin
+    /// refunds view. Read-only.</summary>
+    Task<IReadOnlyList<Payment>> ListRefundedAsync(CancellationToken ct);
+
     Task<int> SaveChangesAsync(CancellationToken ct);
 }

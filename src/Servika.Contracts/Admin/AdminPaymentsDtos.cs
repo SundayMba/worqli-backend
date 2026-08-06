@@ -9,7 +9,20 @@ public sealed record AdminPaymentsDto(
     long RefundAmountNaira,
     PayoutSummaryDto Payout,
     IReadOnlyList<RevenuePointDto> RevenueSeries,
-    IReadOnlyList<LedgerEntryDto> RecentTransactions);
+    IReadOnlyList<LedgerEntryDto> RecentTransactions,
+    /// <summary>Refunds that failed at the gateway or are still settling — the ones
+    /// an admin may need to chase. Empty when everything has landed.</summary>
+    IReadOnlyList<AdminRefundDto> RefundsNeedingAttention);
+
+/// <summary>A refund's settlement state for the admin refunds view.</summary>
+public sealed record AdminRefundDto(
+    Guid BookingId,
+    int AmountNaira,
+    /// <summary>"Failed" (gateway refused, needs a manual retry) or "Pending"
+    /// (requested, not yet confirmed by the provider).</summary>
+    string Status,
+    DateTimeOffset RequestedAtUtc,
+    DateTimeOffset? FailedAtUtc);
 
 /// <summary>Payout totals by status (for the donut).</summary>
 public sealed record PayoutSummaryDto(
