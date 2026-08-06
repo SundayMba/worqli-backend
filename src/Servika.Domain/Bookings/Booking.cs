@@ -477,5 +477,31 @@ public sealed class Booking
     }
 
     /// <summary>Escrow returned to the customer (e.g. a dispute resolved in their favour).</summary>
-    public void MarkRefunded() => PaymentState = BookingPaymentState.Refunded;
+    /// <summary>How much was returned to the customer (full or partial refund),
+    /// for display. Null until a refund happens.</summary>
+    public int? RefundedAmountNaira { get; private set; }
+
+    public void MarkRefunded(int amountNaira)
+    {
+        PaymentState = BookingPaymentState.Refunded;
+        RefundedAmountNaira = amountNaira;
+    }
+
+    public void MarkPartiallyRefunded(int amountNaira)
+    {
+        PaymentState = BookingPaymentState.PartiallyRefunded;
+        RefundedAmountNaira = amountNaira;
+    }
+
+    /// <summary>Resolves a dispute with a PARTIAL refund: the customer gets some
+    /// money back and the artisan keeps the rest for the work they did, so the job
+    /// is Completed rather than Cancelled.</summary>
+    public void ResolveDisputePartial(DateTimeOffset now)
+    {
+        if (Status is not BookingStatus.Disputed)
+            throw new InvalidBookingStateException(
+                $"Only a disputed booking can have its dispute resolved (this one is {Status}).");
+        Status = BookingStatus.Completed;
+        CompletedAtUtc ??= now;
+    }
 }

@@ -56,7 +56,7 @@ public sealed class HandleRefundWebhookHandler
             return; // not a terminal refund event we act on
 
         var payment = await _payments.FindByReferenceAsync(evt.TransactionReference, ct);
-        if (payment is null || payment.Status != PaymentStatus.Refunded)
+        if (payment is null || !payment.IsRefundRequested)
             return; // unknown, or we never requested this refund — idempotent no-op
 
         var now = _clock.UtcNow;

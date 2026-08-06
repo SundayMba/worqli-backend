@@ -53,6 +53,11 @@ public sealed class Payment
     /// The money movement itself settles asynchronously — see the two below.</summary>
     public DateTimeOffset? RefundedAtUtc { get; private set; }
 
+    /// <summary>How much was refunded to the customer. Equals <see cref="AmountNaira"/>
+    /// for a full refund; less for a partial (the artisan kept the remainder). 0 until
+    /// a refund is requested.</summary>
+    public int RefundedAmountNaira { get; private set; }
+
     /// <summary>When the provider CONFIRMED the refund actually reached the
     /// customer (Paystack <c>refund.processed</c> webhook). Null until then.</summary>
     public DateTimeOffset? RefundSettledAtUtc { get; private set; }
@@ -185,8 +190,11 @@ public sealed class Payment
         EarningReleasedAtUtc ??= now;
     }
 
-    /// <summary>Reverses a settled payment (e.g. a dispute resolved for the customer).
-    /// Only a Succeeded payment can be refunded, and only once.</summary>
+    /// <summary>True once any refund (full or partial) has been requested on this payment.</summary>
+    public bool IsRefundRequested => RefundedAtUtc is not null;
+
+    /// <summary>Fully reverses a settled payment (a dispute resolved wholly for the
+    /// customer). Only a Succeeded payment can be refunded, and only once.</summary>
     public void MarkRefunded(DateTimeOffset now)
     {
         if (Status != PaymentStatus.Succeeded)
@@ -194,23 +202,41 @@ public sealed class Payment
                 $"Payment {Id} is {Status}; only a Succeeded payment can be refunded.");
         Status = PaymentStatus.Refunded;
         RefundedAtUtc = now;
+        RefundedAmountNaira = AmountNaira;
+    }
+
+    /// <summary>Returns PART of a settled payment to the customer (a partial dispute
+    /// resolution); the artisan keeps the rest. The payment stays Succeeded (it wasn't
+    /// wholly reversed). Amount must be within (0, full) and can only happen once.</summary>
+    public void MarkPartiallyRefunded(int amountNaira, DateTimeOffset now)
+    {
+        if (Status != PaymentStatus.Succeeded)
+            throw new InvalidOperationException(
+                $"Payment {Id} is {Status}; only a Succeeded payment can be refunded.");
+        if (RefundedAtUtc is not null)
+            throw new InvalidOperationException($"Payment {Id} was already refunded.");
+        if (amountNaira <= 0 || amountNaira >= AmountNaira)
+            throw new ArgumentOutOfRangeException(nameof(amountNaira),
+                "A partial refund must be greater than 0 and less than the full amount.");
+        RefundedAtUtc = now;
+        RefundedAmountNaira = amountNaira;
     }
 
     /// <summary>Records that the provider confirmed the refund reached the customer
-    /// (<c>refund.processed</c>). No-op unless the payment is Refunded (i.e. we
-    /// actually requested it); idempotent on repeated webhooks.</summary>
+    /// (<c>refund.processed</c>). No-op unless a refund was requested (full or partial);
+    /// idempotent on repeated webhooks.</summary>
     public void ConfirmRefundSettled(DateTimeOffset now)
     {
-        if (Status != PaymentStatus.Refunded) return;
+        if (RefundedAtUtc is null) return;
         RefundSettledAtUtc ??= now;
         RefundFailedAtUtc = null; // a later success clears an earlier failure
     }
 
     /// <summary>Records that the provider failed to process the refund
-    /// (<c>refund.failed</c>) so it can be retried. No-op unless Refunded.</summary>
+    /// (<c>refund.failed</c>) so it can be retried. No-op unless a refund was requested.</summary>
     public void MarkRefundFailed(DateTimeOffset now)
     {
-        if (Status != PaymentStatus.Refunded) return;
+        if (RefundedAtUtc is null) return;
         if (RefundSettledAtUtc is not null) return; // already landed — ignore
         RefundFailedAtUtc = now;
     }

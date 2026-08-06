@@ -17,4 +17,8 @@ public enum BookingPaymentState
     Paid = 2,
 
     Refunded = 3,
+
+    /// <summary>Part of the payment was returned to the customer (a partial
+    /// dispute resolution); the artisan kept the rest for work rendered.</summary>
+    PartiallyRefunded = 4,
 }

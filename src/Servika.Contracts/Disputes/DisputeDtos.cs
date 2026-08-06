@@ -32,4 +32,8 @@ public sealed record RaiseDisputeRequest(
 /// </summary>
 public sealed record ResolveDisputeRequest(
     string Outcome,
-    string? Note);
+    string? Note,
+    /// <summary>For a "customer" outcome only: how much to refund. Null or ≥ the paid
+    /// amount refunds in full (booking Cancelled). A value below it is a PARTIAL refund
+    /// — the customer gets this back, the artisan keeps the rest, booking Completed.</summary>
+    int? RefundAmountNaira = null);

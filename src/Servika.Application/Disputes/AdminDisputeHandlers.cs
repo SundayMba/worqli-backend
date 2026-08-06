@@ -123,15 +123,31 @@ public sealed class ResolveDisputeHandler
         var booking = await _bookings.FindByIdAsync(dispute.BookingId, ct);
         if (booking is not null)
         {
-            booking.ResolveDispute(favourCustomer, now);
-            _notifications.DisputeResolved(booking, favourCustomer);
             if (favourCustomer)
             {
-                // Refund the escrow (no-op if the booking was never paid).
-                await _refunds.RefundIfPaidAsync(booking, ct);
+                // A partial refund amount below the paid total splits the money: the
+                // customer gets it back, the artisan keeps the rest, and the job is
+                // Completed rather than Cancelled. Otherwise it's a full refund.
+                var partial = request.RefundAmountNaira is { } r
+                              && booking.InitialQuoteAmountNaira is { } paid
+                              && r > 0 && r < paid;
+                if (partial)
+                {
+                    booking.ResolveDisputePartial(now);
+                    await _refunds.PartialRefundIfPaidAsync(booking, request.RefundAmountNaira!.Value, ct);
+                    _notifications.DisputeResolved(booking, favourCustomer: true);
+                }
+                else
+                {
+                    booking.ResolveDispute(favourCustomer: true, now);
+                    _notifications.DisputeResolved(booking, favourCustomer: true);
+                    await _refunds.RefundIfPaidAsync(booking, ct); // no-op if never paid
+                }
             }
             else
             {
+                booking.ResolveDispute(favourCustomer: false, now);
+                _notifications.DisputeResolved(booking, favourCustomer: false);
                 // Favour-artisan completes the job, so pay the artisan: release the
                 // held escrow (online) or record the cash-job commission. Exactly
                 // one applies, mirroring the normal completion paths.

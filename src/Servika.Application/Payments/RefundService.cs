@@ -41,12 +41,12 @@ public sealed class RefundService
         _clock = clock;
     }
 
-    /// <summary>Refunds the booking's settled payment if there is one. Returns the
-    /// refunded amount (0 if nothing was paid).</summary>
+    /// <summary>Fully refunds the booking's settled payment if there is one. Returns
+    /// the refunded amount (0 if nothing was paid).</summary>
     public async Task<int> RefundIfPaidAsync(Booking booking, CancellationToken ct)
     {
         var payment = await _payments.FindSucceededForBookingAsync(booking.Id, ct);
-        if (payment is null) return 0; // never paid — nothing to return
+        if (payment is null || payment.IsRefundRequested) return 0; // never paid / already refunded
 
         var now = _clock.UtcNow;
 
@@ -75,16 +75,84 @@ public sealed class RefundService
         }
 
         payment.MarkRefunded(now);
-        booking.MarkRefunded();
+        booking.MarkRefunded(payment.AmountNaira);
         _notifications.RefundIssued(booking, payment.AmountNaira);
-
-        // Send the real money back to the customer's card/bank. Best-effort: the
-        // ledger already records the refund, so a provider hiccup is logged by the
-        // gateway (Infrastructure) for ops to retry rather than aborting the dispute
-        // resolution. The stub just logs. Paystack refunds settle asynchronously; the
-        // request being accepted is what matters here.
         await _gateway.RefundAsync(payment.Reference, payment.AmountNaira, ct);
 
         return payment.AmountNaira;
+    }
+
+    /// <summary>Partially refunds a paid booking: the customer gets
+    /// <paramref name="refundNaira"/> back and the artisan keeps the rest as their
+    /// earning for work rendered. Used when an admin resolves a dispute with a partial
+    /// refund. Falls back to a full refund if the amount covers (or exceeds) the whole
+    /// payment. Returns the amount refunded to the customer (0 if nothing was paid).
+    ///
+    /// <para>The remainder is settled to the artisan here (released from escrow if it
+    /// was still held, or left in place / clawed down if it had already been released
+    /// at an earlier completion), so every booking-scoped balance nets correctly.</para>
+    /// </summary>
+    public async Task<int> PartialRefundIfPaidAsync(Booking booking, int refundNaira, CancellationToken ct)
+    {
+        var payment = await _payments.FindSucceededForBookingAsync(booking.Id, ct);
+        if (payment is null || payment.IsRefundRequested) return 0;
+
+        var full = payment.AmountNaira;
+        if (refundNaira >= full) return await RefundIfPaidAsync(booking, ct); // whole thing
+        if (refundNaira <= 0) return 0;
+
+        var now = _clock.UtcNow;
+        var keep = full - refundNaira;                 // the artisan's portion
+        var rate = payment.CommissionRate;
+        var commissionKeep = (int)Math.Round(keep * rate, MidpointRounding.AwayFromZero);
+        var earningKeep = keep - commissionKeep;
+
+        // Money back to the customer (the refunded portion).
+        _wallet.Add(WalletTransaction.Create(
+            WalletOwnerType.Customer, payment.CustomerId,
+            WalletTransactionType.Refund, refundNaira,
+            booking.Id, payment.Id, $"Partial refund for booking {booking.Id}", now));
+
+        if (payment.IsEarningReleased)
+        {
+            // The full split is already in the ledger; claw back only the refunded
+            // portion so the artisan is left holding earningKeep and the platform
+            // commissionKeep.
+            var artisanClawback = payment.ArtisanEarningNaira - earningKeep;
+            var platformClawback = payment.CommissionNaira - commissionKeep;
+            if (platformClawback > 0)
+                _wallet.Add(WalletTransaction.Create(
+                    WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
+                    WalletTransactionType.Adjustment, -platformClawback,
+                    booking.Id, payment.Id, $"Commission reversal for the partial refund on booking {booking.Id}", now));
+            if (payment.ArtisanId is { } aid && artisanClawback > 0)
+                _wallet.Add(WalletTransaction.Create(
+                    WalletOwnerType.Artisan, aid,
+                    WalletTransactionType.Adjustment, -artisanClawback,
+                    booking.Id, payment.Id, $"Earning reversal for the partial refund on booking {booking.Id}", now));
+        }
+        else
+        {
+            // Escrow was still held: release only the kept portion to the artisan +
+            // platform (the refunded portion goes back to the customer, above).
+            if (commissionKeep > 0)
+                _wallet.Add(WalletTransaction.Create(
+                    WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
+                    WalletTransactionType.PlatformCommission, commissionKeep,
+                    booking.Id, payment.Id, $"Commission on booking {booking.Id} (partial)", now));
+            if (payment.ArtisanId is { } aid && earningKeep > 0)
+                _wallet.Add(WalletTransaction.Create(
+                    WalletOwnerType.Artisan, aid,
+                    WalletTransactionType.ArtisanEarning, earningKeep,
+                    booking.Id, payment.Id, $"Earning for booking {booking.Id} (partial)", now));
+            payment.MarkEarningReleased(now); // the kept portion is now attributed
+        }
+
+        payment.MarkPartiallyRefunded(refundNaira, now);
+        booking.MarkPartiallyRefunded(refundNaira);
+        _notifications.RefundIssued(booking, refundNaira);
+        await _gateway.RefundAsync(payment.Reference, refundNaira, ct);
+
+        return refundNaira;
     }
 }

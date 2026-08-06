@@ -48,6 +48,7 @@ internal static class BookingMapping
             b.PaymentState.ToString(),
             b.PaymentMethod.ToString(),
             b.InitialQuoteAmountNaira,
+            b.RefundedAmountNaira,
             b.CommissionRate,
             b.CreatedAt,
             b.AcceptedAtUtc,

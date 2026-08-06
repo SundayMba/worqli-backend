@@ -30,6 +30,8 @@ public sealed record BookingDetailDto(
     /// <summary>"Online" (escrow, default) or "Cash" (pay after service).</summary>
     string PaymentMethod,
     int? InitialQuoteAmountNaira,
+    /// <summary>Amount returned to the customer if refunded (full or partial), else null.</summary>
+    int? RefundedAmountNaira,
     decimal CommissionRate,
     DateTimeOffset CreatedAt,
     DateTimeOffset? AcceptedAtUtc,
