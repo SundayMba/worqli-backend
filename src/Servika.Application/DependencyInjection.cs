@@ -95,6 +95,7 @@ public static class DependencyInjection
         services.AddScoped<Payments.HandleTransferWebhookHandler>();
         services.AddScoped<Payments.GetBanksHandler>();
         services.AddScoped<RefundService>();
+        services.AddScoped<Payments.EscrowReleaseService>();
         services.AddScoped<GetWalletHandler>();
         services.AddScoped<GetWalletTransactionsHandler>();
 

@@ -33,6 +33,15 @@ public sealed class StubPaymentGateway : IPaymentGateway
             $"servika://mock-pay/{input.Reference}"));
     }
 
+    public Task<GatewayRefundResult> RefundAsync(
+        string reference, int amountNaira, CancellationToken ct)
+    {
+        _logger.LogInformation(
+            "[STUB-PAY] refunded {Reference} for ₦{Amount} (no real money moves).",
+            reference, amountNaira);
+        return Task.FromResult(new GatewayRefundResult(true, null));
+    }
+
     // Dev gateway: every body is trusted.
     public bool VerifySignature(string rawBody, string? signature) => true;
 

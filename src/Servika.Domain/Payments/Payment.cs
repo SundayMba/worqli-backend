@@ -50,6 +50,16 @@ public sealed class Payment
     public DateTimeOffset? FailedAtUtc { get; private set; }
     public DateTimeOffset? RefundedAtUtc { get; private set; }
 
+    /// <summary>When the artisan's earning + platform commission were released
+    /// from escrow into the ledger. Null while the money is still HELD (paid but
+    /// the job isn't completed yet). Set once, at completion — this is what makes
+    /// the escrow real: the artisan can't withdraw an earning that was never
+    /// released, and a pre-completion refund has nothing to claw back.</summary>
+    public DateTimeOffset? EarningReleasedAtUtc { get; private set; }
+
+    /// <summary>True once escrow has been released to the split ledger entries.</summary>
+    public bool IsEarningReleased => EarningReleasedAtUtc is not null;
+
     /// <summary>Servika's cut, rounded to whole Naira.</summary>
     public int CommissionNaira =>
         (int)Math.Round(AmountNaira * CommissionRate, MidpointRounding.AwayFromZero);
@@ -149,6 +159,18 @@ public sealed class Payment
                 $"Payment {Id} is {Status}; only a Pending payment can fail.");
         Status = PaymentStatus.Failed;
         FailedAtUtc = now;
+    }
+
+    /// <summary>Releases the escrow split (platform commission + artisan earning)
+    /// into the ledger at job completion. Only a Succeeded payment can release,
+    /// and only once — so completion, auto-confirm and a favour-artisan dispute
+    /// resolution can all call it safely, and a late duplicate is a no-op.</summary>
+    public void MarkEarningReleased(DateTimeOffset now)
+    {
+        if (Status != PaymentStatus.Succeeded)
+            throw new InvalidOperationException(
+                $"Payment {Id} is {Status}; only a Succeeded payment can release escrow.");
+        EarningReleasedAtUtc ??= now;
     }
 
     /// <summary>Reverses a settled payment (e.g. a dispute resolved for the customer).

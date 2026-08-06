@@ -65,6 +65,46 @@ public sealed class PaystackPaymentGateway : IPaymentGateway
         return new PaymentInitResult(reference, authUrl);
     }
 
+    public async Task<GatewayRefundResult> RefundAsync(
+        string reference, int amountNaira, CancellationToken ct)
+    {
+        var client = _httpClientFactory.CreateClient("paystack");
+        client.BaseAddress = new Uri(_options.BaseUrl);
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.SecretKey);
+
+        // Paystack refunds by the ORIGINAL transaction reference; amount in kobo.
+        var body = JsonSerializer.Serialize(new
+        {
+            transaction = reference,
+            amount = amountNaira * 100,
+        });
+
+        try
+        {
+            using var content = new StringContent(body, Encoding.UTF8, "application/json");
+            using var response = await client.PostAsync("/refund", content, ct);
+            var json = await response.Content.ReadAsStringAsync(ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    "Paystack refund failed for {Reference} ({Status}): {Body}",
+                    reference, response.StatusCode, json);
+                return new GatewayRefundResult(false, $"Paystack returned {(int)response.StatusCode}");
+            }
+
+            _logger.LogInformation("Paystack refund accepted for {Reference} (₦{Amount})",
+                reference, amountNaira);
+            return new GatewayRefundResult(true, null);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Paystack refund threw for {Reference}", reference);
+            return new GatewayRefundResult(false, ex.Message);
+        }
+    }
+
     public bool VerifySignature(string rawBody, string? signature)
     {
         if (string.IsNullOrWhiteSpace(signature))

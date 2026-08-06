@@ -19,6 +19,7 @@ public sealed class CompleteBookingHandler
     private readonly NotificationEmitter _notifications;
     private readonly ReferralService _referrals;
     private readonly Payments.CashCommissionService _cashCommission;
+    private readonly Payments.EscrowReleaseService _escrow;
     private readonly IClock _clock;
 
     public CompleteBookingHandler(
@@ -26,12 +27,14 @@ public sealed class CompleteBookingHandler
         NotificationEmitter notifications,
         ReferralService referrals,
         Payments.CashCommissionService cashCommission,
+        Payments.EscrowReleaseService escrow,
         IClock clock)
     {
         _bookings = bookings;
         _notifications = notifications;
         _referrals = referrals;
         _cashCommission = cashCommission;
+        _escrow = escrow;
         _clock = clock;
     }
 
@@ -45,8 +48,10 @@ public sealed class CompleteBookingHandler
         booking.ConfirmCompletion(now);
         _notifications.BookingCompleted(booking);
         await _notifications.ArtisanJobConfirmed(booking, ct);
-        // Cash job → record Servika's commission against the artisan's ledger
-        // (online jobs already had it deducted at escrow settlement).
+        // Online job → release the held escrow to the artisan now (this is the
+        // point they can withdraw it). Cash job → record Servika's commission
+        // against the artisan's ledger instead. Exactly one applies.
+        await _escrow.ReleaseIfPaidAsync(booking, ct);
         await _cashCommission.RecordIfCashJobAsync(booking, ct);
         // First completed job for a referred artisan → credit the referrer.
         await _referrals.AwardIfReferredAsync(booking, now, ct);

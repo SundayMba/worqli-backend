@@ -20,7 +20,18 @@ public interface IPaymentGateway
     /// <summary>Parses a verified webhook body into a normalized event, or null if
     /// it isn't a payment event we care about.</summary>
     PaymentWebhookEvent? ParseWebhook(string rawBody);
+
+    /// <summary>Sends real money back to the customer who paid (e.g. a dispute
+    /// resolved in their favour). Refunds the charge identified by our original
+    /// <paramref name="reference"/> for <paramref name="amountNaira"/>. Best-effort:
+    /// the caller records the refund in the ledger regardless, so a transient
+    /// provider error is surfaced via the result, not by aborting the resolution.</summary>
+    Task<GatewayRefundResult> RefundAsync(string reference, int amountNaira, CancellationToken ct);
 }
+
+/// <summary>Outcome of asking the provider to refund a charge. <c>Accepted</c> means
+/// the provider took the request (the money movement itself may still settle async).</summary>
+public sealed record GatewayRefundResult(bool Accepted, string? Error);
 
 /// <summary>Inputs to start a charge. The amount is decided server-side.</summary>
 public sealed record PaymentInitInput(

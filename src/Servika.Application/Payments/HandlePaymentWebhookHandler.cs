@@ -82,25 +82,15 @@ public sealed class HandlePaymentWebhookHandler
             return;
         }
 
+        // Escrow: only the customer's debit is written now. The money is HELD —
+        // the artisan's earning + platform commission are released to the ledger
+        // at completion (EscrowReleaseService), never at payment, so an artisan
+        // cannot withdraw for work that isn't done.
         _wallet.Add(WalletTransaction.Create(
             WalletOwnerType.Customer, payment.CustomerId,
             WalletTransactionType.BookingPayment, -payment.AmountNaira,
             payment.BookingId, payment.Id,
             $"Payment for booking {payment.BookingId}", now));
-
-        if (payment.CommissionNaira > 0)
-            _wallet.Add(WalletTransaction.Create(
-                WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
-                WalletTransactionType.PlatformCommission, payment.CommissionNaira,
-                payment.BookingId, payment.Id,
-                $"Commission on booking {payment.BookingId}", now));
-
-        if (payment.ArtisanId is { } artisanId && payment.ArtisanEarningNaira > 0)
-            _wallet.Add(WalletTransaction.Create(
-                WalletOwnerType.Artisan, artisanId,
-                WalletTransactionType.ArtisanEarning, payment.ArtisanEarningNaira,
-                payment.BookingId, payment.Id,
-                $"Earning for booking {payment.BookingId}", now));
 
         var booking = await _bookings.FindByIdAsync(payment.BookingId!.Value, ct);
         booking?.MarkPaid();

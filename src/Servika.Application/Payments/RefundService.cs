@@ -1,3 +1,4 @@
+using Servika.Application.Abstractions.Payments;
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Time;
 using Servika.Application.Notifications;
@@ -23,17 +24,20 @@ public sealed class RefundService
     private readonly IPaymentRepository _payments;
     private readonly IWalletRepository _wallet;
     private readonly NotificationEmitter _notifications;
+    private readonly IPaymentGateway _gateway;
     private readonly IClock _clock;
 
     public RefundService(
         IPaymentRepository payments,
         IWalletRepository wallet,
         NotificationEmitter notifications,
+        IPaymentGateway gateway,
         IClock clock)
     {
         _payments = payments;
         _wallet = wallet;
         _notifications = notifications;
+        _gateway = gateway;
         _clock = clock;
     }
 
@@ -52,22 +56,34 @@ public sealed class RefundService
             WalletTransactionType.Refund, payment.AmountNaira,
             booking.Id, payment.Id, $"Refund for booking {booking.Id}", now));
 
-        // Claw the split back out of the platform + artisan pools.
-        if (payment.CommissionNaira > 0)
-            _wallet.Add(WalletTransaction.Create(
-                WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
-                WalletTransactionType.Adjustment, -payment.CommissionNaira,
-                booking.Id, payment.Id, $"Commission reversal for the refund on booking {booking.Id}", now));
+        // Only claw back the split that was actually released. Before completion
+        // the escrow is still held (no commission/earning entries exist), so there
+        // is nothing to reverse — clawing back then would push balances negative.
+        if (payment.IsEarningReleased)
+        {
+            if (payment.CommissionNaira > 0)
+                _wallet.Add(WalletTransaction.Create(
+                    WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
+                    WalletTransactionType.Adjustment, -payment.CommissionNaira,
+                    booking.Id, payment.Id, $"Commission reversal for the refund on booking {booking.Id}", now));
 
-        if (payment.ArtisanId is { } artisanId && payment.ArtisanEarningNaira > 0)
-            _wallet.Add(WalletTransaction.Create(
-                WalletOwnerType.Artisan, artisanId,
-                WalletTransactionType.Adjustment, -payment.ArtisanEarningNaira,
-                booking.Id, payment.Id, $"Earning reversal for the refund on booking {booking.Id}", now));
+            if (payment.ArtisanId is { } artisanId && payment.ArtisanEarningNaira > 0)
+                _wallet.Add(WalletTransaction.Create(
+                    WalletOwnerType.Artisan, artisanId,
+                    WalletTransactionType.Adjustment, -payment.ArtisanEarningNaira,
+                    booking.Id, payment.Id, $"Earning reversal for the refund on booking {booking.Id}", now));
+        }
 
         payment.MarkRefunded(now);
         booking.MarkRefunded();
         _notifications.RefundIssued(booking, payment.AmountNaira);
+
+        // Send the real money back to the customer's card/bank. Best-effort: the
+        // ledger already records the refund, so a provider hiccup is logged by the
+        // gateway (Infrastructure) for ops to retry rather than aborting the dispute
+        // resolution. The stub just logs. Paystack refunds settle asynchronously; the
+        // request being accepted is what matters here.
+        await _gateway.RefundAsync(payment.Reference, payment.AmountNaira, ct);
 
         return payment.AmountNaira;
     }

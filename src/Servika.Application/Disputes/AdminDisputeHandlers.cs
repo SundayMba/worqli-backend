@@ -85,6 +85,8 @@ public sealed class ResolveDisputeHandler
     private readonly IBookingRepository _bookings;
     private readonly NotificationEmitter _notifications;
     private readonly RefundService _refunds;
+    private readonly EscrowReleaseService _escrow;
+    private readonly CashCommissionService _cashCommission;
     private readonly IClock _clock;
 
     public ResolveDisputeHandler(
@@ -92,12 +94,16 @@ public sealed class ResolveDisputeHandler
         IBookingRepository bookings,
         NotificationEmitter notifications,
         RefundService refunds,
+        EscrowReleaseService escrow,
+        CashCommissionService cashCommission,
         IClock clock)
     {
         _disputes = disputes;
         _bookings = bookings;
         _notifications = notifications;
         _refunds = refunds;
+        _escrow = escrow;
+        _cashCommission = cashCommission;
         _clock = clock;
     }
 
@@ -119,9 +125,19 @@ public sealed class ResolveDisputeHandler
         {
             booking.ResolveDispute(favourCustomer, now);
             _notifications.DisputeResolved(booking, favourCustomer);
-            // Favour-customer → refund the escrow (no-op if the booking was never paid).
             if (favourCustomer)
+            {
+                // Refund the escrow (no-op if the booking was never paid).
                 await _refunds.RefundIfPaidAsync(booking, ct);
+            }
+            else
+            {
+                // Favour-artisan completes the job, so pay the artisan: release the
+                // held escrow (online) or record the cash-job commission. Exactly
+                // one applies, mirroring the normal completion paths.
+                await _escrow.ReleaseIfPaidAsync(booking, ct);
+                await _cashCommission.RecordIfCashJobAsync(booking, ct);
+            }
         }
 
         await _disputes.SaveChangesAsync(ct); // commits dispute + booking + refund + notifications
