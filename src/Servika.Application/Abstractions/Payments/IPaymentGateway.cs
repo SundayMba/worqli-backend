@@ -27,11 +27,26 @@ public interface IPaymentGateway
     /// the caller records the refund in the ledger regardless, so a transient
     /// provider error is surfaced via the result, not by aborting the resolution.</summary>
     Task<GatewayRefundResult> RefundAsync(string reference, int amountNaira, CancellationToken ct);
+
+    /// <summary>Parses a verified <c>refund.*</c> webhook into a normalized event,
+    /// or null if it isn't a refund settlement we act on. A refund is requested
+    /// synchronously but settles asynchronously — this confirms it landed or failed.</summary>
+    RefundWebhookEvent? ParseRefundWebhook(string rawBody);
 }
 
 /// <summary>Outcome of asking the provider to refund a charge. <c>Accepted</c> means
 /// the provider took the request (the money movement itself may still settle async).</summary>
 public sealed record GatewayRefundResult(bool Accepted, string? Error);
+
+public enum RefundWebhookOutcome
+{
+    Processed,
+    Failed,
+}
+
+/// <summary>A normalized refund webhook: keyed by the ORIGINAL charge reference
+/// (our <c>Payment.Reference</c>), and whether the money movement settled or failed.</summary>
+public sealed record RefundWebhookEvent(string TransactionReference, RefundWebhookOutcome Outcome);
 
 /// <summary>Inputs to start a charge. The amount is decided server-side.</summary>
 public sealed record PaymentInitInput(

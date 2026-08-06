@@ -42,6 +42,40 @@ public sealed class StubPaymentGateway : IPaymentGateway
         return Task.FromResult(new GatewayRefundResult(true, null));
     }
 
+    /// <summary>Dev refund webhook. Mirrors the real routed shape (an <c>event</c> of
+    /// <c>refund.processed</c>/<c>refund.failed</c>) so the controller routes it here,
+    /// with the original charge reference at top level: <c>{ "event": "refund.processed",
+    /// "reference": "..." }</c>.</summary>
+    public RefundWebhookEvent? ParseRefundWebhook(string rawBody)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(rawBody);
+            var root = doc.RootElement;
+            var evt = root.TryGetProperty("event", out var e) ? e.GetString() : null;
+            if (string.IsNullOrWhiteSpace(evt))
+                return null;
+
+            var reference =
+                (root.TryGetProperty("reference", out var r) ? r.GetString() : null)
+                ?? (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object
+                    && data.TryGetProperty("transaction_reference", out var tr) ? tr.GetString() : null);
+            if (string.IsNullOrWhiteSpace(reference))
+                return null;
+
+            return evt switch
+            {
+                "refund.processed" => new RefundWebhookEvent(reference, RefundWebhookOutcome.Processed),
+                "refund.failed" => new RefundWebhookEvent(reference, RefundWebhookOutcome.Failed),
+                _ => null,
+            };
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     // Dev gateway: every body is trusted.
     public bool VerifySignature(string rawBody, string? signature) => true;
 

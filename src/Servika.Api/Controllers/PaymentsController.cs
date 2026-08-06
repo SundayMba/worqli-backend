@@ -58,6 +58,7 @@ public sealed class PaymentsController : ControllerBase
     public async Task<IActionResult> Webhook(
         [FromServices] HandlePaymentWebhookHandler payments,
         [FromServices] HandleTransferWebhookHandler transfers,
+        [FromServices] HandleRefundWebhookHandler refunds,
         CancellationToken ct)
     {
         using var reader = new StreamReader(Request.Body);
@@ -70,8 +71,10 @@ public sealed class PaymentsController : ControllerBase
         // Paystack delivers charge.* AND transfer.* events to this one URL — route
         // to the right handler by the event name. Each verifies the signature and
         // no-ops on events it doesn't recognise.
-        if (IsTransferEvent(rawBody))
+        if (EventStartsWith(rawBody, "transfer."))
             await transfers.HandleAsync(rawBody, signature, ct);
+        else if (EventStartsWith(rawBody, "refund."))
+            await refunds.HandleAsync(rawBody, signature, ct);
         else
             await payments.HandleAsync(rawBody, signature, ct);
 
@@ -79,14 +82,14 @@ public sealed class PaymentsController : ControllerBase
     }
 
     /// <summary>Peeks the webhook's <c>event</c> field (before signature checking,
-    /// purely to route) — "transfer.*" goes to the payout handler.</summary>
-    private static bool IsTransferEvent(string rawBody)
+    /// purely to route) for the given prefix, e.g. "transfer." / "refund.".</summary>
+    private static bool EventStartsWith(string rawBody, string prefix)
     {
         try
         {
             using var doc = System.Text.Json.JsonDocument.Parse(rawBody);
             return doc.RootElement.TryGetProperty("event", out var e)
-                && (e.GetString()?.StartsWith("transfer.", StringComparison.Ordinal) ?? false);
+                && (e.GetString()?.StartsWith(prefix, StringComparison.Ordinal) ?? false);
         }
         catch (System.Text.Json.JsonException)
         {

@@ -48,7 +48,19 @@ public sealed class Payment
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset? PaidAtUtc { get; private set; }
     public DateTimeOffset? FailedAtUtc { get; private set; }
+
+    /// <summary>When we REQUESTED the refund (ledger reversed, Paystack asked).
+    /// The money movement itself settles asynchronously — see the two below.</summary>
     public DateTimeOffset? RefundedAtUtc { get; private set; }
+
+    /// <summary>When the provider CONFIRMED the refund actually reached the
+    /// customer (Paystack <c>refund.processed</c> webhook). Null until then.</summary>
+    public DateTimeOffset? RefundSettledAtUtc { get; private set; }
+
+    /// <summary>When the provider reported the refund FAILED to process (Paystack
+    /// <c>refund.failed</c>). The customer is still owed — this flags it for a
+    /// manual retry; the ledger refund is not reversed (the dispute stands).</summary>
+    public DateTimeOffset? RefundFailedAtUtc { get; private set; }
 
     /// <summary>When the artisan's earning + platform commission were released
     /// from escrow into the ledger. Null while the money is still HELD (paid but
@@ -182,5 +194,24 @@ public sealed class Payment
                 $"Payment {Id} is {Status}; only a Succeeded payment can be refunded.");
         Status = PaymentStatus.Refunded;
         RefundedAtUtc = now;
+    }
+
+    /// <summary>Records that the provider confirmed the refund reached the customer
+    /// (<c>refund.processed</c>). No-op unless the payment is Refunded (i.e. we
+    /// actually requested it); idempotent on repeated webhooks.</summary>
+    public void ConfirmRefundSettled(DateTimeOffset now)
+    {
+        if (Status != PaymentStatus.Refunded) return;
+        RefundSettledAtUtc ??= now;
+        RefundFailedAtUtc = null; // a later success clears an earlier failure
+    }
+
+    /// <summary>Records that the provider failed to process the refund
+    /// (<c>refund.failed</c>) so it can be retried. No-op unless Refunded.</summary>
+    public void MarkRefundFailed(DateTimeOffset now)
+    {
+        if (Status != PaymentStatus.Refunded) return;
+        if (RefundSettledAtUtc is not null) return; // already landed — ignore
+        RefundFailedAtUtc = now;
     }
 }

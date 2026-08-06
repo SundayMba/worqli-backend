@@ -23,6 +23,7 @@ public sealed class NotificationEmitter
     private readonly INotificationRepository _notifications;
     private readonly INotificationPushDispatcher _push;
     private readonly ICatalogueRepository _catalogue;
+    private readonly IUserRepository _users;
     private readonly Payments.ArtisanStandingService _standing;
     private readonly IClock _clock;
 
@@ -30,12 +31,14 @@ public sealed class NotificationEmitter
         INotificationRepository notifications,
         INotificationPushDispatcher push,
         ICatalogueRepository catalogue,
+        IUserRepository users,
         Payments.ArtisanStandingService standing,
         IClock clock)
     {
         _notifications = notifications;
         _push = push;
         _catalogue = catalogue;
+        _users = users;
         _standing = standing;
         _clock = clock;
     }
@@ -109,12 +112,35 @@ public sealed class NotificationEmitter
         Add(booking.CustomerId, NotificationType.Booking, "Dispute resolved", body, booking.Id);
     }
 
-    /// <summary>Tell the customer a refund was issued to them.</summary>
+    /// <summary>Tell the customer a refund is on its way (requested, settling async).</summary>
     public void RefundIssued(Booking booking, int amountNaira)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "booking" : $"{booking.ServiceName} booking";
         Add(booking.CustomerId, NotificationType.Payment,
-            "Refund issued", $"₦{amountNaira:N0} for your {service} has been refunded.", booking.Id);
+            "Refund on its way",
+            $"We're sending ₦{amountNaira:N0} for your {service} back to your account. It can take a few days to appear.",
+            booking.Id);
+    }
+
+    /// <summary>Confirm to the customer that their refund actually landed.</summary>
+    public void RefundSettled(Guid customerId, Guid bookingId, string serviceName, int amountNaira)
+    {
+        var service = string.IsNullOrWhiteSpace(serviceName) ? "booking" : $"{serviceName} booking";
+        Add(customerId, NotificationType.Payment,
+            "Refund complete", $"₦{amountNaira:N0} for your {service} has landed in your account.", bookingId);
+    }
+
+    /// <summary>Alert every admin that a refund failed at the gateway and needs a
+    /// manual retry. The customer's ledger refund stands (they won the dispute); only
+    /// the money movement failed, so this is an ops action, not a customer message.</summary>
+    public async Task RefundFailedNeedsRetryAsync(Guid bookingId, int amountNaira, CancellationToken ct)
+    {
+        var admins = await _users.ListAsync(Domain.Users.Role.Admin, ct);
+        var superAdmins = await _users.ListAsync(Domain.Users.Role.SuperAdmin, ct);
+        var body = $"A ₦{amountNaira:N0} refund for booking {bookingId.ToString()[..8].ToUpperInvariant()} " +
+                   "failed at Paystack. Reprocess the refund from the Paystack dashboard.";
+        foreach (var admin in admins.Concat(superAdmins))
+            Add(admin.Id, NotificationType.System, "Refund failed", body, bookingId);
     }
 
     /// <summary>Confirm to the customer that their payment settled.</summary>

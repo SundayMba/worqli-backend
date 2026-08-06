@@ -105,6 +105,43 @@ public sealed class PaystackPaymentGateway : IPaymentGateway
         }
     }
 
+    public RefundWebhookEvent? ParseRefundWebhook(string rawBody)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(rawBody);
+            var root = doc.RootElement;
+            var evt = root.TryGetProperty("event", out var e) ? e.GetString() : null;
+            if (string.IsNullOrWhiteSpace(evt) || !evt.StartsWith("refund.", StringComparison.Ordinal))
+                return null;
+
+            if (!root.TryGetProperty("data", out var data))
+                return null;
+
+            // Paystack's refund payload carries the ORIGINAL charge reference so we
+            // can match it to our Payment. Field name is transaction_reference.
+            var reference =
+                (data.TryGetProperty("transaction_reference", out var tr) ? tr.GetString() : null)
+                ?? (data.TryGetProperty("transaction", out var tx) && tx.ValueKind == JsonValueKind.Object
+                    && tx.TryGetProperty("reference", out var txr) ? txr.GetString() : null);
+            if (string.IsNullOrWhiteSpace(reference))
+                return null;
+
+            // event is refund.processed / refund.failed / refund.pending / refund.processing.
+            // We only act on the two terminal ones; anything else is a no-op.
+            return evt switch
+            {
+                "refund.processed" => new RefundWebhookEvent(reference, RefundWebhookOutcome.Processed),
+                "refund.failed" => new RefundWebhookEvent(reference, RefundWebhookOutcome.Failed),
+                _ => null,
+            };
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public bool VerifySignature(string rawBody, string? signature)
     {
         if (string.IsNullOrWhiteSpace(signature))
