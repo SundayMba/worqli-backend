@@ -35,6 +35,19 @@ public sealed class DisputeRepository : IDisputeRepository
     public Task<Dispute?> FindByIdForUpdateAsync(Guid id, CancellationToken ct) =>
         _db.Disputes.FirstOrDefaultAsync(d => d.Id == id, ct);
 
+    public Task<Dispute?> FindByBookingIdAsync(Guid bookingId, CancellationToken ct) =>
+        _db.Disputes
+            .AsNoTracking()
+            .Where(d => d.BookingId == bookingId)
+            .OrderByDescending(d => d.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+    public Task<Dispute?> FindByBookingIdForUpdateAsync(Guid bookingId, CancellationToken ct) =>
+        _db.Disputes
+            .Where(d => d.BookingId == bookingId)
+            .OrderByDescending(d => d.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
     public async Task<IReadOnlyList<Dispute>> ListAllAsync(DisputeStatus? status, CancellationToken ct)
     {
         var query = _db.Disputes.AsNoTracking().AsQueryable();

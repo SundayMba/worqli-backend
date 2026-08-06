@@ -190,6 +190,39 @@ public sealed class ArtisanController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), id, request, ct));
     }
 
+    /// <summary>View the dispute a customer raised on one of the artisan's jobs.</summary>
+    /// <response code="200">The dispute.</response>
+    /// <response code="404">Job not assigned to this artisan, or no dispute raised.</response>
+    [HttpGet("{id:guid}/dispute")]
+    [ProducesResponseType(typeof(Contracts.Disputes.DisputeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<Contracts.Disputes.DisputeDto>> GetDispute(
+        Guid id,
+        [FromServices] Application.Disputes.GetArtisanDisputeHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>Respond to a dispute on one of the artisan's jobs (their side of it).</summary>
+    /// <response code="200">Response saved.</response>
+    /// <response code="400">Empty response.</response>
+    /// <response code="404">Job not assigned to this artisan, or no dispute raised.</response>
+    /// <response code="409">The dispute is already resolved.</response>
+    [HttpPost("{id:guid}/dispute/respond")]
+    [ProducesResponseType(typeof(Contracts.Disputes.DisputeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<Contracts.Disputes.DisputeDto>> RespondToDispute(
+        Guid id,
+        [FromBody] Contracts.Disputes.RespondToDisputeRequest request,
+        [FromServices] Application.Disputes.RespondToDisputeHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, request, ct));
+    }
+
     // Shared body for the five transition verbs. A 404 means the job isn't
     // assigned to this artisan; a 409 means the move is illegal in the current
     // state (both produced by the handler/Domain and mapped in middleware).

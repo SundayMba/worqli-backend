@@ -317,6 +317,31 @@ public sealed class NotificationEmitter
         Add(artisanUserId, NotificationType.Booking, title, body, booking.Id);
     }
 
+    /// <summary>Tell the assigned artisan a customer opened a dispute, so they can
+    /// give their side in the app.</summary>
+    public Task DisputeRaisedForArtisanAsync(Booking booking, CancellationToken ct)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "a booking" : $"the {booking.ServiceName} booking";
+        return NotifyArtisanAsync(booking,
+            "A customer reported an issue",
+            $"A customer opened a dispute on {service}. Open it to give your side before it's reviewed.",
+            ct);
+    }
+
+    /// <summary>Tell the customer + all admins that the artisan responded to a dispute.</summary>
+    public async Task ArtisanRespondedToDisputeAsync(Booking booking, CancellationToken ct)
+    {
+        var who = string.IsNullOrWhiteSpace(booking.ArtisanName) ? "The artisan" : booking.ArtisanName!;
+        Add(booking.CustomerId, NotificationType.Booking,
+            "Artisan responded", $"{who} responded to your reported issue.", booking.Id);
+
+        var admins = await _users.ListAsync(Domain.Users.Role.Admin, ct);
+        var superAdmins = await _users.ListAsync(Domain.Users.Role.SuperAdmin, ct);
+        foreach (var admin in admins.Concat(superAdmins))
+            Add(admin.Id, NotificationType.System,
+                "Dispute updated", $"{who} added a response to a dispute. Review it before resolving.", booking.Id);
+    }
+
     /// <summary>Notify the recipient of a new chat message from the other party.
     /// The feed is <b>coalesced</b> — only one unread chat notification per
     /// conversation, so a burst of messages doesn't flood the bell — but a push fires

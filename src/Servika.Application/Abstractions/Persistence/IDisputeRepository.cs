@@ -21,6 +21,14 @@ public interface IDisputeRepository
     /// resolve (its status change persists on SaveChanges).</summary>
     Task<Dispute?> FindByIdForUpdateAsync(Guid id, CancellationToken ct);
 
+    /// <summary>The latest dispute for a booking, untracked — for the assigned artisan
+    /// to view (they aren't the raiser, so this isn't scoped by raiser).</summary>
+    Task<Dispute?> FindByBookingIdAsync(Guid bookingId, CancellationToken ct);
+
+    /// <summary>The latest dispute for a booking, <b>tracked</b> — for the artisan's
+    /// response to persist.</summary>
+    Task<Dispute?> FindByBookingIdForUpdateAsync(Guid bookingId, CancellationToken ct);
+
     /// <summary>All disputes, newest first, optionally one status only (admin).</summary>
     Task<IReadOnlyList<Dispute>> ListAllAsync(DisputeStatus? status, CancellationToken ct);
 

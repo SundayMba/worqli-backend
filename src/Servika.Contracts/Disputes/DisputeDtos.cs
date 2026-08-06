@@ -15,6 +15,9 @@ public sealed record DisputeDto(
     string Status,
     string Resolution,
     string? ResolutionNote,
+    /// <summary>The assigned artisan's response, if they've given one.</summary>
+    string? ArtisanResponse,
+    DateTimeOffset? ArtisanRespondedAtUtc,
     DateTimeOffset CreatedAt,
     DateTimeOffset? ResolvedAtUtc);
 
@@ -37,3 +40,7 @@ public sealed record ResolveDisputeRequest(
     /// amount refunds in full (booking Cancelled). A value below it is a PARTIAL refund
     /// — the customer gets this back, the artisan keeps the rest, booking Completed.</summary>
     int? RefundAmountNaira = null);
+
+/// <summary>The assigned artisan responds to a dispute on their job
+/// (POST /api/v1/artisan/jobs/{id}/dispute/respond).</summary>
+public sealed record RespondToDisputeRequest(string Response);

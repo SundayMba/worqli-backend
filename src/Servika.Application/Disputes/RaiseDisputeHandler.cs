@@ -18,17 +18,20 @@ public sealed class RaiseDisputeHandler
     private readonly IBookingRepository _bookings;
     private readonly IDisputeRepository _disputes;
     private readonly IUserRepository _users;
+    private readonly Notifications.NotificationEmitter _notifications;
     private readonly IClock _clock;
 
     public RaiseDisputeHandler(
         IBookingRepository bookings,
         IDisputeRepository disputes,
         IUserRepository users,
+        Notifications.NotificationEmitter notifications,
         IClock clock)
     {
         _bookings = bookings;
         _disputes = disputes;
         _users = users;
+        _notifications = notifications;
         _clock = clock;
     }
 
@@ -55,7 +58,8 @@ public sealed class RaiseDisputeHandler
 
         _disputes.Add(dispute);
         booking.RaiseDispute(now); // InProgress/AwaitingConfirmation/Completed → Disputed
-        await _disputes.SaveChangesAsync(ct); // commits the dispute + the booking together
+        await _notifications.DisputeRaisedForArtisanAsync(booking, ct); // let the artisan respond
+        await _disputes.SaveChangesAsync(ct); // commits the dispute + booking + notification together
 
         return dispute.ToDto();
     }

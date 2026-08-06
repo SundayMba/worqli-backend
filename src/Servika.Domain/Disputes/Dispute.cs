@@ -35,6 +35,13 @@ public sealed class Dispute
     /// <summary>The admin's closing note (why it was decided that way).</summary>
     public string? ResolutionNote { get; private set; }
 
+    /// <summary>The assigned artisan's side of the story, if they've responded. The
+    /// admin weighs this against the customer's account before deciding.</summary>
+    public string? ArtisanResponse { get; private set; }
+
+    /// <summary>When the artisan last responded, or null if they haven't.</summary>
+    public DateTimeOffset? ArtisanRespondedAtUtc { get; private set; }
+
     /// <summary>The admin (a <c>User</c>) who took it under review / resolved it.</summary>
     public Guid? HandledByUserId { get; private set; }
 
@@ -72,6 +79,21 @@ public sealed class Dispute
             CreatedAt = now,
             UpdatedAt = now,
         };
+    }
+
+    /// <summary>The assigned artisan gives their side. Allowed while the dispute is
+    /// still open or under review (not once it's resolved); a later response replaces
+    /// the earlier one.</summary>
+    public void RespondAsArtisan(string response, DateTimeOffset now)
+    {
+        if (Status is DisputeStatus.Resolved)
+            throw new InvalidDisputeStateException("This dispute is already resolved.");
+        if (string.IsNullOrWhiteSpace(response))
+            throw new ArgumentException("A response is required.", nameof(response));
+
+        ArtisanResponse = response.Trim();
+        ArtisanRespondedAtUtc = now;
+        UpdatedAt = now;
     }
 
     /// <summary>An admin acknowledges the dispute and starts investigating.</summary>

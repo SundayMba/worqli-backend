@@ -134,6 +134,8 @@ public static class DependencyInjection
         services.AddScoped<Disputes.GetDisputeHandler>();
         services.AddScoped<Disputes.MarkDisputeUnderReviewHandler>();
         services.AddScoped<Disputes.ResolveDisputeHandler>();
+        services.AddScoped<Disputes.GetArtisanDisputeHandler>();
+        services.AddScoped<Disputes.RespondToDisputeHandler>();
 
         // Notifications (in-app feed + unread badge; emitter fans out domain events).
         services.AddScoped<Notifications.NotificationEmitter>();
