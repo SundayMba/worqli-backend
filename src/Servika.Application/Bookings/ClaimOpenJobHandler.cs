@@ -55,7 +55,7 @@ public sealed class ClaimOpenJobHandler
             throw new ConflictException("This job isn't in your service categories.");
         if (booking.Assessment == AssessmentMode.RemoteQuote)
             throw new ConflictException(
-                "This request takes price offers — place a bid instead of claiming it.");
+                "This request takes price offers. Place a bid instead of claiming it.");
 
         // Atomic winner-determination: only one artisan flips it Open → Accepted.
         var won = await _bookings.TryClaimAsync(bookingId, profile.Id, profile.FullName, _clock.UtcNow, ct);

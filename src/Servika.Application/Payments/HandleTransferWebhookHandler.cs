@@ -69,7 +69,7 @@ public sealed class HandleTransferWebhookHandler
             _wallet.Add(WalletTransaction.Create(
                 withdrawal.OwnerType, withdrawal.OwnerId, WalletTransactionType.Adjustment,
                 withdrawal.AmountNaira, null, null,
-                $"Reversal — payout {withdrawal.Id} failed", now));
+                $"Reversal for failed payout {withdrawal.Id}", now));
             _notifications.PayoutFailed(withdrawal.UserId, withdrawal.AmountNaira);
         }
 

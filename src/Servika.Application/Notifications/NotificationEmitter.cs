@@ -53,11 +53,11 @@ public sealed class NotificationEmitter
             ArtisanBookingAction.Accept when booking.InitialQuoteAmountNaira is { } due &&
                                              booking.PaymentState != BookingPaymentState.Paid =>
                 ("Booking accepted",
-                 $"{who} accepted your {service} booking. Pay ₦{due:N0} to secure it — held safely until the job is done."),
+                 $"{who} accepted your {service} booking. Pay ₦{due:N0} to secure it. Your money is held safely until the job is done."),
             ArtisanBookingAction.Accept =>
                 ("Booking accepted", $"{who} accepted your {service} booking."),
             ArtisanBookingAction.Reject =>
-                ("Booking declined", $"{who} can't take this {service} booking — try another artisan."),
+                ("Booking declined", $"{who} can't take this {service} booking. Try another artisan."),
             ArtisanBookingAction.StartTrip =>
                 ("Artisan on the way", $"{who} is heading to your location."),
             ArtisanBookingAction.Arrive =>
@@ -66,7 +66,7 @@ public sealed class NotificationEmitter
                 ("Work started", $"{who} has started your {service} job."),
             ArtisanBookingAction.Cancel =>
                 ("Booking cancelled",
-                 $"{who} can no longer take your {service} booking. Anything you paid is refunded automatically — you can book another artisan right away."),
+                 $"{who} can no longer take your {service} booking. Anything you paid is refunded automatically, and you can book another artisan right away."),
             _ => (string.Empty, string.Empty),
         };
 
@@ -175,7 +175,7 @@ public sealed class NotificationEmitter
         foreach (var recipient in recipients.Where(r => !restricted.Contains(r.ProfileId)))
         {
             Add(recipient.UserId, NotificationType.OpenJob,
-                bidding ? "New job — send your price" : "New job available",
+                bidding ? "New job: send your price" : "New job available",
                 bidding
                     ? $"A new {service} request is open for bids. Check the photos and offer your price."
                     : $"A new {service} request is open near you. Tap to view and accept.",
@@ -244,7 +244,7 @@ public sealed class NotificationEmitter
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
         return NotifyArtisanAsync(booking,
             "Service fee recorded",
-            $"₦{commissionNaira:N0} Servika fee on your cash {service} — it'll be deducted from your next online earnings, or settle it anytime from Earnings.", ct);
+            $"A ₦{commissionNaira:N0} Servika fee applies to your cash {service}. It'll be deducted from your next online earnings, or you can settle it anytime from Earnings.", ct);
     }
 
     /// <summary>Tell the payout requester their bank transfer landed.</summary>
@@ -261,7 +261,7 @@ public sealed class NotificationEmitter
     {
         Add(userId, NotificationType.Payment,
             "Payout failed",
-            $"Your ₦{amountNaira:N0} payout couldn't be completed — the funds are back in your balance. Please check your bank details and try again.",
+            $"Your ₦{amountNaira:N0} payout couldn't be completed. The funds are back in your balance. Please check your bank details and try again.",
             null);
     }
 
@@ -270,7 +270,7 @@ public sealed class NotificationEmitter
     {
         Add(artisanUserId, NotificationType.Payment,
             "Balance settled",
-            $"₦{amountNaira:N0} received — your service fees are cleared and you're receiving job requests again.",
+            $"₦{amountNaira:N0} received. Your service fees are cleared and you're receiving job requests again.",
             null);
     }
 

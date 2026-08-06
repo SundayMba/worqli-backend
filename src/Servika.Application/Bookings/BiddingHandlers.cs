@@ -60,7 +60,7 @@ public sealed class SubmitBidHandler
         if (isDirectQuote)
         {
             if (booking.PaymentState == BookingPaymentState.Paid)
-                throw new ConflictException("This job is already paid — the price can't change.");
+                throw new ConflictException("This job is already paid, so the price can't change.");
         }
         else
         {
@@ -70,7 +70,7 @@ public sealed class SubmitBidHandler
                 throw new ConflictException("This request is no longer open.");
             if (booking.Assessment != AssessmentMode.RemoteQuote)
                 throw new ConflictException(
-                    "This request is inspect-first — accept it directly instead of bidding.");
+                    "This request is inspect-first. Accept it directly instead of bidding.");
             if (!profile.CategorySlugs.Contains(booking.CategorySlug))
                 throw new ConflictException("This job is not in your service categories.");
             // Standing gate applies to competing for NEW work only — an artisan

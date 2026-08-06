@@ -57,13 +57,13 @@ public sealed class RefundService
             _wallet.Add(WalletTransaction.Create(
                 WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
                 WalletTransactionType.Adjustment, -payment.CommissionNaira,
-                booking.Id, payment.Id, $"Commission reversal — refund on booking {booking.Id}", now));
+                booking.Id, payment.Id, $"Commission reversal for the refund on booking {booking.Id}", now));
 
         if (payment.ArtisanId is { } artisanId && payment.ArtisanEarningNaira > 0)
             _wallet.Add(WalletTransaction.Create(
                 WalletOwnerType.Artisan, artisanId,
                 WalletTransactionType.Adjustment, -payment.ArtisanEarningNaira,
-                booking.Id, payment.Id, $"Earning reversal — refund on booking {booking.Id}", now));
+                booking.Id, payment.Id, $"Earning reversal for the refund on booking {booking.Id}", now));
 
         payment.MarkRefunded(now);
         booking.MarkRefunded();

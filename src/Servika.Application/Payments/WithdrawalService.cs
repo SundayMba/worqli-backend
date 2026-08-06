@@ -102,7 +102,7 @@ public sealed class WithdrawalService
                 _wallet.Add(WalletTransaction.Create(
                     ownerType, ownerId, WalletTransactionType.Adjustment,
                     request.AmountNaira, null, null,
-                    $"Reversal — payout {withdrawal.Id} failed", now));
+                    $"Reversal for failed payout {withdrawal.Id}", now));
                 break;
         }
 
