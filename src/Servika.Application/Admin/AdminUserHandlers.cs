@@ -66,3 +66,43 @@ public sealed class SetUserSuspendedHandler
         return user.ToAdminDto();
     }
 }
+
+/// <summary>
+/// Permanently deletes a customer or artisan account and everything tied to it —
+/// the artisan profile, KYC, bookings, ledger, reviews, bids, chats, favourites,
+/// referrals — plus every uploaded file (KYC images, profile/cover/certificate/
+/// gallery photos, booking photos/videos). Admin accounts are protected. The
+/// database rows go in one transaction (<see cref="IAccountEraser"/>); the storage
+/// files are deleted best-effort afterwards, so a blob-store hiccup can't undo the
+/// database erase.
+/// </summary>
+public sealed class AdminDeleteUserHandler
+{
+    private readonly IUserRepository _users;
+    private readonly IAccountEraser _eraser;
+    private readonly Abstractions.Storage.IFileStorage _storage;
+
+    public AdminDeleteUserHandler(
+        IUserRepository users,
+        IAccountEraser eraser,
+        Abstractions.Storage.IFileStorage storage)
+    {
+        _users = users;
+        _eraser = eraser;
+        _storage = storage;
+    }
+
+    public async Task HandleAsync(Guid userId, CancellationToken ct)
+    {
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new NotFoundException($"User '{userId}' was not found.");
+
+        if (user.Role is Role.Admin or Role.SuperAdmin)
+            throw new ConflictException("Admin accounts cannot be deleted.");
+
+        var fileKeys = await _eraser.EraseAsync(userId, ct);
+
+        foreach (var key in fileKeys)
+            await _storage.DeleteAsync(key, ct);
+    }
+}

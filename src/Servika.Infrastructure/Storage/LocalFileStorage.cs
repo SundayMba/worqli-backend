@@ -41,6 +41,24 @@ public sealed class LocalFileStorage : IFileStorage
         return new StoredFile(bytes, ContentTypeFor(key));
     }
 
+    public Task DeleteAsync(string key, CancellationToken ct)
+    {
+        // Bare filenames only; ignore anything unknown or path-like.
+        if (string.IsNullOrWhiteSpace(key) || key.Contains('/') || key.Contains('\\'))
+            return Task.CompletedTask;
+
+        var path = Path.Combine(_root, key);
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch
+        {
+            // Best-effort: a failed file delete must not abort an account erase.
+        }
+        return Task.CompletedTask;
+    }
+
     private static string ExtFor(string contentType) => contentType switch
     {
         "image/png" => ".png",

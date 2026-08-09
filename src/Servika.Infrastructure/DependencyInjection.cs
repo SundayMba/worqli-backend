@@ -59,6 +59,7 @@ public static class DependencyInjection
         // DbContext, so it must share its Scoped lifetime.
         services.AddSingleton<IClock, SystemClock>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IAccountEraser, AccountEraser>();
 
         // Google sign-in: ID-token verification via Google's tokeninfo endpoint.
         // Always registered — with no Google:OAuthClientIds configured it rejects

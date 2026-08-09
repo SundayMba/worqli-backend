@@ -59,4 +59,23 @@ public sealed class AdminUsersController : ControllerBase
     {
         return Ok(await handler.HandleAsync(id, suspend: false, ct));
     }
+
+    /// <summary>Permanently delete an account and everything tied to it (profile,
+    /// KYC, bookings, ledger, reviews, chats, and all uploaded files). Irreversible.</summary>
+    /// <response code="204">Deleted.</response>
+    /// <response code="404">User not found.</response>
+    /// <response code="409">Admin accounts can't be deleted.</response>
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Delete(
+        Guid id,
+        [FromServices] AdminDeleteUserHandler handler,
+        CancellationToken ct)
+    {
+        await handler.HandleAsync(id, ct);
+        return NoContent();
+    }
 }

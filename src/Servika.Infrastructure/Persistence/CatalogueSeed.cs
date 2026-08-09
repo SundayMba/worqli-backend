@@ -38,10 +38,13 @@ internal static class CatalogueSeed
 
     public static void Apply(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<User>().HasData(ArtisanUsers());
+        // Demo artisans + their login accounts are no longer seeded — the
+        // marketplace starts empty and fills with real registered artisans.
+        // (Categories are reference data and the admin account is operational,
+        // so both stay.) The migration AddRemoveSeedArtisans drops the previously
+        // seeded rows from existing databases.
         modelBuilder.Entity<User>().HasData(AdminUsers());
         modelBuilder.Entity<ServiceCategory>().HasData(Categories());
-        modelBuilder.Entity<ArtisanProfile>().HasData(Artisans());
     }
 
     // The platform admin account that resolves disputes. Role stored as a string

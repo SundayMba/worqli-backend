@@ -75,6 +75,21 @@ public sealed class S3FileStorage : IFileStorage
         }
     }
 
+    public async Task DeleteAsync(string key, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(key) || key.Contains('/') || key.Contains('\\'))
+            return;
+
+        try
+        {
+            await _s3.DeleteObjectAsync(_bucket, key, ct);
+        }
+        catch (AmazonS3Exception)
+        {
+            // Best-effort: a failed object delete must not abort an account erase.
+        }
+    }
+
     private static string ExtFor(string contentType) => contentType switch
     {
         "image/png" => ".png",

@@ -156,6 +156,7 @@ public static class DependencyInjection
         services.AddScoped<Admin.ReviewKycHandler>();
         services.AddScoped<Admin.ListUsersHandler>();
         services.AddScoped<Admin.SetUserSuspendedHandler>();
+        services.AddScoped<Admin.AdminDeleteUserHandler>();
         services.AddScoped<Admin.ListAllBookingsHandler>();
         services.AddScoped<Admin.GetAdminBookingHandler>();
         services.AddScoped<Admin.GetAdminPaymentsHandler>();
