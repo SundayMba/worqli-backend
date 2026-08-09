@@ -1,0 +1,96 @@
+name: Deploy backend (staging)
+
+# Runs on every push to the `staging` branch (and can be triggered by hand).
+# Builds an image tagged `:staging` and rolls out the SEPARATE staging stack on
+# the same server — production (on `main`) is untouched.
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  IMAGE: ghcr.io/sundaymba/worqli-backend
+  AWS_REGION: eu-west-1
+  INSTANCE_ID: i-057abe4f3e2ae565f
+
+jobs:
+  build:
+    name: Build & push staging image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:staging
+            ${{ env.IMAGE }}:staging-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy staging stack (SSM)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials (OIDC, keyless)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::177467935393:role/servika-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Trigger staging deploy on the instance
+        run: |
+          # Pull the repo (for the latest docker-compose.staging.yml), then pull
+          # the `:staging` image and (re)start ONLY the staging stack. The
+          # --env-file and the compose file's `name:` keep it isolated from prod.
+          cat > params.json <<'JSON'
+          {
+            "commands": [
+              "sudo -iu ubuntu bash -lc 'cd /home/ubuntu/worqli-backend && git pull --ff-only && docker compose -f docker-compose.staging.yml --env-file .env.staging pull && docker compose -f docker-compose.staging.yml --env-file .env.staging up -d && docker image prune -f'"
+            ]
+          }
+          JSON
+
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Staging deploy ${GITHUB_SHA::7}" \
+            --parameters file://params.json \
+            --query "Command.CommandId" --output text)
+          echo "SSM command id: $CMD_ID"
+
+          sleep 5
+          aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" || true
+
+          echo "===== server stdout ====="
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query StandardOutputContent --output text
+          echo "===== server stderr ====="
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query StandardErrorContent --output text
+
+          STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" --query Status --output text)
+          echo "Deploy status: $STATUS"
+          [ "$STATUS" = "Success" ]

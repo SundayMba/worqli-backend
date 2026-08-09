@@ -1,0 +1,93 @@
+# Staging compose — a SECOND, isolated backend stack that runs alongside the
+# production one on the same server (docker-compose.prod.yml). It has its own
+# database, its own Redis, its own volumes and its own port, so nothing it does
+# can touch production data.
+#
+# What makes it "staging":
+#   - ASPNETCORE_ENVIRONMENT=Staging  → the app treats it as NOT Production, so
+#     Swagger is ON (at /swagger), the fail-closed production guard is skipped,
+#     and (with no Paystack key) the STUB payment gateways run — test money, no
+#     real charges.
+#   - Its own Postgres volume (servika_staging_pgdata) → a separate database you
+#     can wipe freely without affecting live users.
+#
+# The `name:` gives this stack its own Docker project, so its containers,
+# network and volumes never collide with the production stack in the same folder.
+#
+# Deploy: GitHub Actions builds the image from the `staging` branch and tags it
+# `:staging`; AWS SSM runs
+#   docker compose -f docker-compose.staging.yml --env-file .env.staging up -d
+# on the server. Secrets come from `.env.staging` (server-only, never committed).
+name: servika-staging
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: servika
+      POSTGRES_USER: servika
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - servika_staging_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U servika -d servika']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # Internal only — never exposed to the internet.
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - servika_staging_redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: ghcr.io/sundaymba/worqli-backend:${IMAGE_TAG:-staging}
+    pull_policy: always
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # The one line that flips Swagger on, skips the prod guard, and lets the
+      # stub gateways run for safe test payments.
+      ASPNETCORE_ENVIRONMENT: Staging
+      ConnectionStrings__Postgres: 'Host=postgres;Port=5432;Database=servika;Username=servika;Password=${POSTGRES_PASSWORD}'
+      ConnectionStrings__Redis: 'redis:6379'
+      # Staging still needs a real JWT signing key to issue/verify tokens.
+      Jwt__SigningKey: ${JWT_SIGNING_KEY}
+      # Email OTP: set a Resend key to send real emails, or leave blank to have
+      # codes logged to the container (docker logs) as [DEV-OTP] …
+      Resend__ApiKey: ${RESEND_API_KEY:-}
+      Resend__FromEmail: ${RESEND_FROM_EMAIL:-onboarding@resend.dev}
+      Resend__FromName: ${RESEND_FROM_NAME:-Servika Staging}
+      # Leave Paystack blank on staging → STUB payment/payout gateways (fake money).
+      Paystack__SecretKey: ${PAYSTACK_SECRET_KEY:-}
+      Sms__ApiKey: ${SMS_API_KEY:-}
+      Sms__SenderId: ${SMS_SENDER_ID:-Servika}
+      Auth__RequirePhoneForBooking: ${REQUIRE_PHONE_FOR_BOOKING:-false}
+      Google__DirectionsApiKey: ${GOOGLE_DIRECTIONS_API_KEY:-}
+      Google__OAuthClientIds: ${GOOGLE_OAUTH_CLIENT_IDS:-}
+      # Leave S3 blank → uploads go to the container's local disk (ephemeral, which
+      # is fine for throwaway staging data), or point at a SEPARATE staging bucket.
+      Storage__S3Bucket: ${STORAGE_S3_BUCKET:-}
+      Storage__S3Region: ${STORAGE_S3_REGION:-}
+      # Auto-approve KYC on staging so you don't have to hand-verify test artisans.
+      Kyc__AutoApprove: ${KYC_AUTOAPPROVE:-true}
+    # A DIFFERENT host port from production's 8080. Caddy fronts it on 443 for
+    # staging-api.servika.com.ng. The firewall blocks 8081 from the internet.
+    ports:
+      - '8081:8080'
+
+volumes:
+  servika_staging_pgdata:
+  servika_staging_redisdata:

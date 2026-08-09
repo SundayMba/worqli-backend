@@ -11,4 +11,5 @@ obj/
 *.env
 .env
 !.env.example
+.env.staging
 appsettings.*.local.json
