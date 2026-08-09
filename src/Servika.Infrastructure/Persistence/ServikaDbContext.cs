@@ -108,9 +108,14 @@ public sealed class ServikaDbContext : DbContext
             user.Property(u => u.PasswordHash).IsRequired();
 
             user.Property(u => u.Email).IsRequired().HasMaxLength(256);
-            // Enforce one account per email at the database level — the ultimate
-            // guard against duplicate registrations, even under a race.
-            user.HasIndex(u => u.Email).IsUnique();
+            // Enforce one LIVE account per email at the database level. Filtered on
+            // DeletedAtUtc so a soft-deleted email frees up for re-registration
+            // (the old row still exists, awaiting purge, but no longer reserves it).
+            user.HasIndex(u => u.Email).IsUnique().HasFilter("\"DeletedAtUtc\" IS NULL");
+
+            // Soft delete: hide deleted accounts from every query by default. Admin
+            // views and the purge worker opt back in with IgnoreQueryFilters().
+            user.HasQueryFilter(u => u.DeletedAtUtc == null);
 
             // Store the Role enum as a readable string ("Customer") rather than a
             // bare number, so the database stays legible.
@@ -228,6 +233,10 @@ public sealed class ServikaDbContext : DbContext
                    .WithMany()
                    .HasForeignKey(a => a.UserId)
                    .OnDelete(DeleteBehavior.SetNull);
+
+            // Soft delete: hide a deleted artisan's profile from the catalogue,
+            // explore and search. Opt back in with IgnoreQueryFilters() where needed.
+            artisan.HasQueryFilter(a => a.DeletedAtUtc == null);
         });
 
         modelBuilder.Entity<Booking>(booking =>

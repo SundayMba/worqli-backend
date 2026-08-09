@@ -9,4 +9,6 @@ public sealed record AdminUserDto(
     string Role,
     bool EmailVerified,
     bool IsSuspended,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    /// <summary>When the account was soft-deleted (recoverable / pending purge), else null.</summary>
+    DateTimeOffset? DeletedAtUtc);

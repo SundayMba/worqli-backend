@@ -11,7 +11,7 @@ internal static class AdminUserMapping
 {
     public static AdminUserDto ToAdminDto(this User u) =>
         new(u.Id, u.FullName, u.Email, u.PhoneNumber, u.Role.ToString(),
-            u.EmailVerifiedAtUtc is not null, u.IsSuspended, u.CreatedAt);
+            u.EmailVerifiedAtUtc is not null, u.IsSuspended, u.CreatedAt, u.DeletedAtUtc);
 }
 
 /// <summary>The admin user directory, newest first, optional role filter.</summary>
@@ -68,13 +68,76 @@ public sealed class SetUserSuspendedHandler
 }
 
 /// <summary>
-/// Permanently deletes a customer or artisan account and everything tied to it —
-/// the artisan profile, KYC, bookings, ledger, reviews, bids, chats, favourites,
-/// referrals — plus every uploaded file (KYC images, profile/cover/certificate/
-/// gallery photos, booking photos/videos). Admin accounts are protected. The
-/// database rows go in one transaction (<see cref="IAccountEraser"/>); the storage
-/// files are deleted best-effort afterwards, so a blob-store hiccup can't undo the
-/// database erase.
+/// Soft-deletes an account (the default "delete"): it's hidden everywhere and can't
+/// sign in, but the data and files survive for the grace period so it's recoverable,
+/// and the background purge hard-erases it later. The artisan profile is soft-deleted
+/// alongside so it leaves the marketplace immediately. Admin accounts are protected.
+/// </summary>
+public sealed class SoftDeleteUserHandler
+{
+    private readonly IUserRepository _users;
+    private readonly ICatalogueRepository _catalogue;
+    private readonly IClock _clock;
+
+    public SoftDeleteUserHandler(IUserRepository users, ICatalogueRepository catalogue, IClock clock)
+    {
+        _users = users;
+        _catalogue = catalogue;
+        _clock = clock;
+    }
+
+    public async Task HandleAsync(Guid userId, CancellationToken ct)
+    {
+        var user = await _users.FindByIdAsync(userId, ct)
+            ?? throw new NotFoundException($"User '{userId}' was not found.");
+
+        if (user.Role is Role.Admin or Role.SuperAdmin)
+            throw new ConflictException("Admin accounts cannot be deleted.");
+
+        var now = _clock.UtcNow;
+        user.SoftDelete(now);
+        var profile = await _catalogue.GetArtisanByUserIdForUpdateAsync(userId, ct);
+        profile?.SoftDelete(now);
+
+        await _users.SaveChangesAsync(ct);
+        await _catalogue.SaveChangesAsync(ct);
+    }
+}
+
+/// <summary>Restores a soft-deleted account (and its artisan profile) back to life.</summary>
+public sealed class RestoreUserHandler
+{
+    private readonly IUserRepository _users;
+    private readonly ICatalogueRepository _catalogue;
+
+    public RestoreUserHandler(IUserRepository users, ICatalogueRepository catalogue)
+    {
+        _users = users;
+        _catalogue = catalogue;
+    }
+
+    public async Task HandleAsync(Guid userId, CancellationToken ct)
+    {
+        var user = await _users.FindByIdIncludingDeletedAsync(userId, ct)
+            ?? throw new NotFoundException($"User '{userId}' was not found.");
+
+        user.Restore();
+        var profile = await _catalogue.GetArtisanByUserIdForUpdateIncludingDeletedAsync(userId, ct);
+        profile?.Restore();
+
+        await _users.SaveChangesAsync(ct);
+        await _catalogue.SaveChangesAsync(ct);
+    }
+}
+
+/// <summary>
+/// PERMANENTLY deletes an account and everything tied to it — the artisan profile,
+/// KYC, bookings, ledger, reviews, bids, chats, favourites, referrals — plus every
+/// uploaded file (KYC images, profile/cover/certificate/gallery photos, booking
+/// photos/videos). Irreversible. Used by the admin "delete permanently" action and by
+/// the background purge once the grace period passes. Admin accounts are protected.
+/// The database rows go in one transaction (<see cref="IAccountEraser"/>); the storage
+/// files are deleted best-effort afterwards, so a blob-store hiccup can't undo the erase.
 /// </summary>
 public sealed class AdminDeleteUserHandler
 {
@@ -94,7 +157,8 @@ public sealed class AdminDeleteUserHandler
 
     public async Task HandleAsync(Guid userId, CancellationToken ct)
     {
-        var user = await _users.FindByIdAsync(userId, ct)
+        // Include soft-deleted: permanent delete usually follows a soft delete.
+        var user = await _users.FindByIdIncludingDeletedAsync(userId, ct)
             ?? throw new NotFoundException($"User '{userId}' was not found.");
 
         if (user.Role is Role.Admin or Role.SuperAdmin)

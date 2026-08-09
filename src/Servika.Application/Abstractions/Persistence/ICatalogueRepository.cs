@@ -50,6 +50,10 @@ public interface ICatalogueRepository
     /// edits), or null if this user has no profile yet.</summary>
     Task<ArtisanProfile?> GetArtisanByUserIdForUpdateAsync(Guid userId, CancellationToken ct);
 
+    /// <summary>Tracked profile-by-user lookup INCLUDING a soft-deleted profile, so an
+    /// account soft-delete/restore can flip the profile's state too.</summary>
+    Task<ArtisanProfile?> GetArtisanByUserIdForUpdateIncludingDeletedAsync(Guid userId, CancellationToken ct);
+
     /// <summary>Stages a new artisan profile (self-onboarding). Persisted on SaveChanges.</summary>
     void AddArtisan(ArtisanProfile profile);
 

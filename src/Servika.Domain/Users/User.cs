@@ -44,6 +44,15 @@ public sealed class User
     /// <summary>Whether the account is currently suspended (blocked from signing in).</summary>
     public bool IsSuspended => SuspendedAtUtc is not null;
 
+    /// <summary>When the account was soft-deleted. Null = live. A soft-deleted account
+    /// is hidden everywhere (a global query filter excludes it) and can't sign in; the
+    /// row and its files survive for a grace period, then a background purge hard-erases
+    /// it. This makes an accidental or regretted deletion recoverable.</summary>
+    public DateTimeOffset? DeletedAtUtc { get; private set; }
+
+    /// <summary>Whether the account has been soft-deleted.</summary>
+    public bool IsDeleted => DeletedAtUtc is not null;
+
     // EF Core needs a parameterless constructor to rebuild a User from a database
     // row. It's private so normal application code can't use it to skip our rules.
     private User() { }
@@ -151,4 +160,10 @@ public sealed class User
 
     /// <summary>Admin action: lift a suspension.</summary>
     public void Reactivate() => SuspendedAtUtc = null;
+
+    /// <summary>Soft-delete the account (recoverable until purged).</summary>
+    public void SoftDelete(DateTimeOffset now) => DeletedAtUtc ??= now;
+
+    /// <summary>Undo a soft-delete, bringing the account back to life.</summary>
+    public void Restore() => DeletedAtUtc = null;
 }

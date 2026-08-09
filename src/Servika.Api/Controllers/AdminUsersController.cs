@@ -60,9 +60,9 @@ public sealed class AdminUsersController : ControllerBase
         return Ok(await handler.HandleAsync(id, suspend: false, ct));
     }
 
-    /// <summary>Permanently delete an account and everything tied to it (profile,
-    /// KYC, bookings, ledger, reviews, chats, and all uploaded files). Irreversible.</summary>
-    /// <response code="204">Deleted.</response>
+    /// <summary>Soft-delete an account: hidden everywhere and blocked from sign-in, but
+    /// recoverable for a grace period before the background purge erases it.</summary>
+    /// <response code="204">Soft-deleted.</response>
     /// <response code="404">User not found.</response>
     /// <response code="409">Admin accounts can't be deleted.</response>
     [HttpDelete("{id:guid}")]
@@ -71,6 +71,41 @@ public sealed class AdminUsersController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Delete(
+        Guid id,
+        [FromServices] SoftDeleteUserHandler handler,
+        CancellationToken ct)
+    {
+        await handler.HandleAsync(id, ct);
+        return NoContent();
+    }
+
+    /// <summary>Restore a soft-deleted account (and its artisan profile).</summary>
+    /// <response code="204">Restored.</response>
+    /// <response code="404">User not found.</response>
+    [HttpPost("{id:guid}/restore")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Restore(
+        Guid id,
+        [FromServices] RestoreUserHandler handler,
+        CancellationToken ct)
+    {
+        await handler.HandleAsync(id, ct);
+        return NoContent();
+    }
+
+    /// <summary>PERMANENTLY delete an account and everything tied to it (profile, KYC,
+    /// bookings, ledger, reviews, chats, and all uploaded files). Irreversible.</summary>
+    /// <response code="204">Erased.</response>
+    /// <response code="404">User not found.</response>
+    /// <response code="409">Admin accounts can't be deleted.</response>
+    [HttpDelete("{id:guid}/permanent")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeletePermanent(
         Guid id,
         [FromServices] AdminDeleteUserHandler handler,
         CancellationToken ct)

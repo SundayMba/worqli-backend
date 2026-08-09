@@ -59,6 +59,13 @@ public sealed class ArtisanProfile
     /// <summary>KYC/verification state. Only Verified profiles show in the catalogue.</summary>
     public ArtisanVerificationStatus VerificationStatus { get; private set; }
 
+    /// <summary>When the profile was soft-deleted (its owner's account was deleted).
+    /// Null = live. A global query filter hides soft-deleted profiles from the
+    /// catalogue, explore and search; the row survives until the account is purged.</summary>
+    public DateTimeOffset? DeletedAtUtc { get; private set; }
+
+    public bool IsDeleted => DeletedAtUtc is not null;
+
     /// <summary>Accent colour for the avatar ring, hex e.g. "#F97316".</summary>
     public string Accent { get; private set; } = string.Empty;
 
@@ -298,6 +305,12 @@ public sealed class ArtisanProfile
 
     /// <summary>Toggles the artisan's availability (online/offline).</summary>
     public void SetAvailability(bool available) => IsAvailable = available;
+
+    /// <summary>Soft-delete the profile (hidden from the marketplace, recoverable).</summary>
+    public void SoftDelete(DateTimeOffset now) => DeletedAtUtc ??= now;
+
+    /// <summary>Undo a soft-delete.</summary>
+    public void Restore() => DeletedAtUtc = null;
 
     /// <summary>KYC approved → profile becomes visible/bookable in the catalogue.</summary>
     public void MarkVerified() => VerificationStatus = ArtisanVerificationStatus.Verified;

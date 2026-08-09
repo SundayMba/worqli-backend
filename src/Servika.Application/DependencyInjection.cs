@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<LogoutHandler>();
         services.AddScoped<GetMeHandler>();
         services.AddScoped<Users.Delete.DeleteAccountHandler>();
+        services.AddScoped<Users.Delete.PurgeDeletedAccountsHandler>();
         services.AddScoped<VerifyOtpHandler>();
         services.AddScoped<ResendOtpHandler>();
         services.AddScoped<SendPhoneOtpHandler>();
@@ -157,6 +158,8 @@ public static class DependencyInjection
         services.AddScoped<Admin.ListUsersHandler>();
         services.AddScoped<Admin.SetUserSuspendedHandler>();
         services.AddScoped<Admin.AdminDeleteUserHandler>();
+        services.AddScoped<Admin.SoftDeleteUserHandler>();
+        services.AddScoped<Admin.RestoreUserHandler>();
         services.AddScoped<Admin.ListAllBookingsHandler>();
         services.AddScoped<Admin.GetAdminBookingHandler>();
         services.AddScoped<Admin.GetAdminPaymentsHandler>();

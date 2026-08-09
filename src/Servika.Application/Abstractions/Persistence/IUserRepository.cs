@@ -18,8 +18,17 @@ public interface IUserRepository
 
     Task<User?> FindByIdAsync(Guid id, CancellationToken ct);
 
+    /// <summary>Finds a user by id INCLUDING soft-deleted ones (for admin restore /
+    /// permanent-delete, which act on already-deleted accounts).</summary>
+    Task<User?> FindByIdIncludingDeletedAsync(Guid id, CancellationToken ct);
+
+    /// <summary>Ids of accounts soft-deleted before <paramref name="cutoff"/> — the ones
+    /// the background purge should now hard-erase (grace period elapsed).</summary>
+    Task<IReadOnlyList<Guid>> ListSoftDeletedBeforeAsync(DateTimeOffset cutoff, CancellationToken ct);
+
     /// <summary>All users for the admin directory, newest first, optionally one role
-    /// only. Tracked (an admin suspend/reactivate persists on SaveChanges).</summary>
+    /// only. Tracked (an admin suspend/reactivate persists on SaveChanges). Includes
+    /// soft-deleted accounts so the admin can see and restore/purge them.</summary>
     Task<IReadOnlyList<User>> ListAsync(Role? role, CancellationToken ct);
 
     /// <summary>Finds the owner of a referral share code, or null if unknown.</summary>

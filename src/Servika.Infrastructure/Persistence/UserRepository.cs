@@ -36,9 +36,19 @@ public sealed class UserRepository : IUserRepository
     public Task<User?> FindByIdAsync(Guid id, CancellationToken ct) =>
         _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
 
+    public Task<User?> FindByIdIncludingDeletedAsync(Guid id, CancellationToken ct) =>
+        _db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == id, ct);
+
+    public async Task<IReadOnlyList<Guid>> ListSoftDeletedBeforeAsync(DateTimeOffset cutoff, CancellationToken ct) =>
+        await _db.Users.IgnoreQueryFilters().AsNoTracking()
+            .Where(u => u.DeletedAtUtc != null && u.DeletedAtUtc < cutoff)
+            .Select(u => u.Id)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<User>> ListAsync(Role? role, CancellationToken ct)
     {
-        var query = _db.Users.AsQueryable();
+        // Admins see soft-deleted accounts too (to restore or purge them).
+        var query = _db.Users.IgnoreQueryFilters().AsQueryable();
         if (role is { } r)
             query = query.Where(u => u.Role == r);
         return await query.OrderByDescending(u => u.CreatedAt).ToListAsync(ct);

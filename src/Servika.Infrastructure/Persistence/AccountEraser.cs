@@ -25,7 +25,9 @@ public sealed class AccountEraser : IAccountEraser
     public async Task<IReadOnlyList<string>> EraseAsync(Guid userId, CancellationToken ct)
     {
         // The artisan profile (if any) whose id keys most of the un-cascaded data.
-        var profile = await _db.ArtisanProfiles.AsNoTracking()
+        // IgnoreQueryFilters throughout: the purge worker erases SOFT-DELETED accounts,
+        // which the global filters would otherwise hide from these queries.
+        var profile = await _db.ArtisanProfiles.AsNoTracking().IgnoreQueryFilters()
             .FirstOrDefaultAsync(p => p.UserId == userId, ct);
         var profileId = profile?.Id;
 
@@ -82,7 +84,7 @@ public sealed class AccountEraser : IAccountEraser
             // payments/bids/reviews/disputes/tracking via the booking FK cascade.
             await _db.Bookings.Where(b => b.ArtisanId == pid).ExecuteDeleteAsync(ct);
             // The profile itself (artisan_services cascade from it).
-            await _db.ArtisanProfiles.Where(p => p.Id == pid).ExecuteDeleteAsync(ct);
+            await _db.ArtisanProfiles.IgnoreQueryFilters().Where(p => p.Id == pid).ExecuteDeleteAsync(ct);
         }
 
         // Conversations where this user is the ARTISAN side (customer side cascades
@@ -94,7 +96,7 @@ public sealed class AccountEraser : IAccountEraser
         // Finally the user: cascades refresh tokens, verification codes, push tokens,
         // the user's own favourites, notifications, customer bookings (+ children),
         // withdrawals, KYC, referred-referrals, and customer conversations (+ messages).
-        await _db.Users.Where(u => u.Id == userId).ExecuteDeleteAsync(ct);
+        await _db.Users.IgnoreQueryFilters().Where(u => u.Id == userId).ExecuteDeleteAsync(ct);
 
         await tx.CommitAsync(ct);
 

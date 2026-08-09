@@ -89,6 +89,9 @@ public sealed class CatalogueRepository : ICatalogueRepository
     public Task<ArtisanProfile?> GetArtisanByUserIdForUpdateAsync(Guid userId, CancellationToken ct) =>
         _db.ArtisanProfiles.FirstOrDefaultAsync(a => a.UserId == userId, ct);
 
+    public Task<ArtisanProfile?> GetArtisanByUserIdForUpdateIncludingDeletedAsync(Guid userId, CancellationToken ct) =>
+        _db.ArtisanProfiles.IgnoreQueryFilters().FirstOrDefaultAsync(a => a.UserId == userId, ct);
+
     public void AddArtisan(ArtisanProfile profile) => _db.ArtisanProfiles.Add(profile);
 
     public async Task<IReadOnlyList<ServiceCategory>> GetAllCategoriesAsync(CancellationToken ct) =>
