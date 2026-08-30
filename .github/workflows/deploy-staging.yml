@@ -8,8 +8,10 @@ on:
     branches: [staging]
   workflow_dispatch:
 
+# Shared with the production workflow — both git-pull the same server checkout,
+# so they must queue, never run at once.
 concurrency:
-  group: deploy-staging
+  group: deploy-server
   cancel-in-progress: false
 
 permissions:

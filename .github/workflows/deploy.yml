@@ -6,9 +6,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Never let two deploys run at once; queue them instead.
+# Never let two deploys run at once; queue them instead. The group is SHARED
+# with the staging workflow: both SSM commands `git pull` the same server
+# checkout, so running them simultaneously races the ref update (seen when
+# main and staging were pushed together: "incorrect old value provided").
 concurrency:
-  group: deploy-production
+  group: deploy-server
   cancel-in-progress: false
 
 # Least-privilege permissions for the whole workflow:
