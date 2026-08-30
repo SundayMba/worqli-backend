@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Servika.Domain.Bookings;
@@ -267,6 +268,8 @@ public sealed class ServikaDbContext : DbContext
             // Default backfills existing rows on migration (Online = the escrow default).
             booking.Property(b => b.PaymentMethod).HasConversion<string>().HasMaxLength(10)
                 .HasDefaultValue(Domain.Bookings.PaymentMethod.Online);
+            booking.Property(b => b.MaterialsAdvanceStatus).HasConversion<string>().HasMaxLength(16)
+                .HasDefaultValue(MaterialsAdvanceStatus.None);
             booking.Property(b => b.PreDisputeStatus).HasConversion<string>().HasMaxLength(20);
 
             // Proof-of-work completion: note + photo storage keys (text[] like the
@@ -390,6 +393,24 @@ public sealed class ServikaDbContext : DbContext
             bid.Property(b => b.ArtisanName).IsRequired().HasMaxLength(120);
             bid.Property(b => b.MaterialsNote).HasMaxLength(500);
             bid.Property(b => b.Status).HasConversion<string>().HasMaxLength(16);
+
+            // Itemised materials live as a JSON document on the bid: read whole,
+            // written whole, never queried by line. The comparer is structural so
+            // EF doesn't see every load as a change (same lesson as the text[] lists).
+            bid.Property(b => b.WorkmanshipNaira).HasDefaultValue(0);
+            bid.Property(b => b.CounterRounds).HasDefaultValue(0);
+            bid.Property(b => b.PendingCounterNote).HasMaxLength(200);
+            bid.Property(b => b.Materials)
+               .HasColumnType("jsonb")
+               .HasConversion(
+                   v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                   v => JsonSerializer.Deserialize<List<BidMaterialLine>>(v, (JsonSerializerOptions?)null)
+                        ?? new List<BidMaterialLine>())
+               .HasDefaultValueSql("'[]'::jsonb")
+               .Metadata.SetValueComparer(new ValueComparer<List<BidMaterialLine>>(
+                   (x, y) => (x ?? new()).SequenceEqual(y ?? new()),
+                   v => v.Aggregate(0, (h, m) => HashCode.Combine(h, m)),
+                   v => v.ToList()));
 
             // Bids die with their booking.
             bid.HasOne<Booking>()

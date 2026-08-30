@@ -82,18 +82,28 @@ public sealed class SubmitBidHandler
         }
 
         var now = _clock.UtcNow;
+        // Itemised quote: labour + material lines (total derived). A legacy
+        // single-price body is all-workmanship.
+        var materials = (request.Materials ?? Array.Empty<BidMaterialLineDto>())
+            .Select(m => BidMaterialLine.Create(m.Name, m.Quantity, m.UnitPriceNaira))
+            .ToList();
+        var workmanship = request.WorkmanshipNaira ?? request.AmountNaira;
+
         var existing = await _bids.FindForArtisanAsync(bookingId, profile.Id, ct);
         Bid bid;
         if (existing is not null)
         {
-            existing.Revise(request.AmountNaira, request.MaterialsNote, now);
+            var answeringCounter = existing.HasPendingCounter;
+            existing.Revise(workmanship, materials, request.MaterialsNote, now);
             bid = existing;
+            // A revised price that answers the customer's counter IS news to them.
+            if (answeringCounter) _notifications.BidRevisedAfterCounter(booking, bid);
         }
         else
         {
             bid = Bid.Place(
                 bookingId, profile.Id, artisanUserId, profile.FullName,
-                request.AmountNaira, request.MaterialsNote, now);
+                workmanship, materials, request.MaterialsNote, now);
             _bids.Add(bid);
             // Only a fresh bid notifies — a price tweak shouldn't ping the customer again.
             _notifications.BidPlaced(booking, bid);
@@ -201,15 +211,133 @@ public sealed class AcceptBidHandler
 
         var now = _clock.UtcNow;
         var statusBeforeAccept = booking.Status;
-        booking.AcceptBid(winner.ArtisanId, winner.ArtisanName, winner.AmountNaira, now);
-        winner.MarkAccepted(now);
-        foreach (var other in bids.Where(b => b.Id != bidId))
-            other.MarkClosed(now);
+        SettleOnBooking(booking, winner, bids, now);
 
         _notifications.BidAccepted(booking, winner, statusBeforeAccept);
         await _bookings.SaveChangesAsync(ct);
 
         return booking.ToDetailDto(bidCount: 0);
+    }
+
+    /// <summary>Makes <paramref name="winner"/> the booking's agreed price and closes
+    /// every other bid. Shared with the counter-offer acceptance path.</summary>
+    internal static void SettleOnBooking(
+        Booking booking, Bid winner, IReadOnlyList<Bid> bids, DateTimeOffset now)
+    {
+        booking.AcceptBid(
+            winner.ArtisanId, winner.ArtisanName, winner.AmountNaira, now,
+            winner.WorkmanshipNaira, winner.MaterialsNaira);
+        winner.MarkAccepted(now);
+        foreach (var other in bids.Where(b => b.Id != winner.Id))
+            other.MarkClosed(now);
+    }
+}
+
+/// <summary>
+/// The customer counters an offer's WORKMANSHIP price (inDrive-style bargaining).
+/// Nothing is agreed yet: the artisan accepts (deal), declines, or sends a new price.
+/// Capped at <see cref="Bid.MaxCounterRounds"/> rounds so it ends.
+/// </summary>
+public sealed class CounterBidHandler
+{
+    private readonly IBookingRepository _bookings;
+    private readonly IBidRepository _bids;
+    private readonly ICatalogueRepository _catalogue;
+    private readonly NotificationEmitter _notifications;
+    private readonly IClock _clock;
+
+    public CounterBidHandler(
+        IBookingRepository bookings, IBidRepository bids, ICatalogueRepository catalogue,
+        NotificationEmitter notifications, IClock clock)
+    {
+        _bookings = bookings;
+        _bids = bids;
+        _catalogue = catalogue;
+        _notifications = notifications;
+        _clock = clock;
+    }
+
+    public async Task<BidDto> HandleAsync(
+        Guid customerId, Guid bookingId, Guid bidId, CounterBidRequest request, CancellationToken ct)
+    {
+        var booking = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
+            ?? throw new NotFoundException("Booking was not found.");
+        if (booking.PaymentState == BookingPaymentState.Paid)
+            throw new ConflictException("This job is already paid, so the price can't change.");
+
+        var bids = await _bids.ListForBookingAsync(bookingId, ct);
+        var bid = bids.FirstOrDefault(b => b.Id == bidId)
+            ?? throw new NotFoundException("That offer was not found.");
+
+        bid.Counter(request.WorkmanshipNaira, request.Note, _clock.UtcNow);
+        _notifications.CounterOfferMade(booking, bid);
+        await _bids.SaveChangesAsync(ct);
+
+        var profile = await _catalogue.GetArtisanByIdAsync(bid.ArtisanId, ct);
+        return bid.ToDto(profile);
+    }
+}
+
+/// <summary>
+/// The artisan answers the customer's counter-offer on their own bid: accept (the
+/// price is agreed at the customer's number and the booking proceeds exactly as if
+/// the customer had accepted the quote) or decline (the artisan's quote stands).
+/// </summary>
+public sealed class RespondToCounterHandler
+{
+    private readonly IBookingRepository _bookings;
+    private readonly IBidRepository _bids;
+    private readonly ICatalogueRepository _catalogue;
+    private readonly NotificationEmitter _notifications;
+    private readonly IClock _clock;
+
+    public RespondToCounterHandler(
+        IBookingRepository bookings, IBidRepository bids, ICatalogueRepository catalogue,
+        NotificationEmitter notifications, IClock clock)
+    {
+        _bookings = bookings;
+        _bids = bids;
+        _catalogue = catalogue;
+        _notifications = notifications;
+        _clock = clock;
+    }
+
+    public async Task<BidDto> DeclineAsync(Guid artisanUserId, Guid bookingId, CancellationToken ct)
+    {
+        var (profile, bid, booking) = await LoadAsync(artisanUserId, bookingId, ct);
+        var declined = bid.PendingCounterNaira ?? 0;
+        bid.DeclineCounter(_clock.UtcNow);
+        _notifications.CounterOfferDeclined(booking, bid, declined);
+        await _bids.SaveChangesAsync(ct);
+        return bid.ToDto(profile);
+    }
+
+    public async Task<BookingDetailDto> AcceptAsync(Guid artisanUserId, Guid bookingId, CancellationToken ct)
+    {
+        var (_, bid, booking) = await LoadAsync(artisanUserId, bookingId, ct);
+        var now = _clock.UtcNow;
+        var statusBefore = booking.Status;
+
+        bid.AcceptCounter(now);
+        var bids = await _bids.ListForBookingAsync(bookingId, ct);
+        AcceptBidHandler.SettleOnBooking(booking, bid, bids, now);
+
+        _notifications.CounterOfferAccepted(booking, bid, statusBefore);
+        await _bookings.SaveChangesAsync(ct);
+        return booking.ToDetailDto(bidCount: 0);
+    }
+
+    private async Task<(ArtisanProfile profile, Bid bid, Booking booking)> LoadAsync(
+        Guid artisanUserId, Guid bookingId, CancellationToken ct)
+    {
+        var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct)
+            ?? throw new NotFoundException("No Pro profile.");
+        var bid = await _bids.FindForArtisanAsync(bookingId, profile.Id, ct)
+            ?? throw new NotFoundException("You haven't quoted on this request.");
+        // Tracked booking: accepting mutates it. Open (broadcast) or the artisan's own direct job.
+        var booking = await _bookings.FindByIdAsync(bookingId, ct)
+            ?? throw new NotFoundException("This request was not found.");
+        return (profile, bid, booking);
     }
 }
 
@@ -276,5 +404,12 @@ internal static class BidMapping
             bid.MaterialsNote,
             bid.Status.ToString(),
             bid.CreatedAt,
-            distanceKm);
+            distanceKm,
+            bid.WorkmanshipNaira,
+            bid.MaterialsNaira,
+            bid.Materials.Select(m => new BidMaterialLineDto(m.Name, m.Quantity, m.UnitPriceNaira)).ToList(),
+            bid.PendingCounterNaira,
+            bid.PendingCounterNote,
+            bid.CounterRounds,
+            Bid.MaxCounterRounds);
 }

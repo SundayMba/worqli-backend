@@ -48,6 +48,12 @@ public sealed class RefundService
         var payment = await _payments.FindSucceededForBookingAsync(booking.Id, ct);
         if (payment is null || payment.IsRefundRequested) return 0; // never paid / already refunded
 
+        // A materials advance the customer explicitly released is theirs no longer:
+        // the artisan bought the parts with it. Everything else comes back.
+        var advance = booking.ReleasedMaterialsAdvanceNaira;
+        if (advance > 0)
+            return await PartialRefundIfPaidAsync(booking, payment.AmountNaira - advance, ct, refundAll: true);
+
         var now = _clock.UtcNow;
 
         // Money back to the customer (the "refund" the KPI counts).
@@ -92,17 +98,24 @@ public sealed class RefundService
     /// was still held, or left in place / clawed down if it had already been released
     /// at an earlier completion), so every booking-scoped balance nets correctly.</para>
     /// </summary>
-    public async Task<int> PartialRefundIfPaidAsync(Booking booking, int refundNaira, CancellationToken ct)
+    public Task<int> PartialRefundIfPaidAsync(Booking booking, int refundNaira, CancellationToken ct) =>
+        PartialRefundIfPaidAsync(booking, refundNaira, ct, refundAll: false);
+
+    private async Task<int> PartialRefundIfPaidAsync(
+        Booking booking, int refundNaira, CancellationToken ct, bool refundAll)
     {
         var payment = await _payments.FindSucceededForBookingAsync(booking.Id, ct);
         if (payment is null || payment.IsRefundRequested) return 0;
 
         var full = payment.AmountNaira;
-        if (refundNaira >= full) return await RefundIfPaidAsync(booking, ct); // whole thing
+        // A released materials advance can never be refunded (see RefundIfPaidAsync).
+        var advance = booking.ReleasedMaterialsAdvanceNaira;
+        refundNaira = Math.Min(refundNaira, full - advance);
+        if (!refundAll && refundNaira >= full) return await RefundIfPaidAsync(booking, ct); // whole thing
         if (refundNaira <= 0) return 0;
 
         var now = _clock.UtcNow;
-        var keep = full - refundNaira;                 // the artisan's portion
+        var keep = full - refundNaira;                 // the artisan's portion (incl. any advance)
         var rate = payment.CommissionRate;
         var commissionKeep = (int)Math.Round(keep * rate, MidpointRounding.AwayFromZero);
         var earningKeep = keep - commissionKeep;
@@ -140,10 +153,11 @@ public sealed class RefundService
                     WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
                     WalletTransactionType.PlatformCommission, commissionKeep,
                     booking.Id, payment.Id, $"Commission on booking {booking.Id} (partial)", now));
-            if (payment.ArtisanId is { } aid && earningKeep > 0)
+            var earningToRelease = Math.Max(0, earningKeep - advance); // advance already in their wallet
+            if (payment.ArtisanId is { } aid && earningToRelease > 0)
                 _wallet.Add(WalletTransaction.Create(
                     WalletOwnerType.Artisan, aid,
-                    WalletTransactionType.ArtisanEarning, earningKeep,
+                    WalletTransactionType.ArtisanEarning, earningToRelease,
                     booking.Id, payment.Id, $"Earning for booking {booking.Id} (partial)", now));
             payment.MarkEarningReleased(now); // the kept portion is now attributed
         }

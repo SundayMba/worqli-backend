@@ -71,6 +71,10 @@ public static class DependencyInjection
         services.AddScoped<GetBookingMediaHandler>();
         services.AddScoped<CancelBookingHandler>();
         services.AddScoped<ChoosePaymentMethodHandler>();
+        services.AddScoped<RequestMaterialsAdvanceHandler>();
+        services.AddScoped<CounterBidHandler>();
+        services.AddScoped<RespondToCounterHandler>();
+        services.AddScoped<DecideMaterialsAdvanceHandler>();
         services.AddScoped<RebroadcastBookingHandler>();
         services.AddScoped<CompleteBookingHandler>();
         services.AddScoped<SubmitJobCompletionHandler>();

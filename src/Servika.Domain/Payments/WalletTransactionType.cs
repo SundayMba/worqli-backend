@@ -33,4 +33,10 @@ public enum WalletTransactionType
 
     /// <summary>The artisan paid off owed cash-job commission through the gateway.</summary>
     CommissionSettlement = 9,
+
+    /// <summary>Part of a paid booking's MATERIALS money released to the artisan
+    /// before completion, on the customer's explicit approval, so they can buy the
+    /// parts. Comes out of the same escrow: the earning released at completion is
+    /// reduced by exactly this amount.</summary>
+    MaterialsAdvance = 10,
 }

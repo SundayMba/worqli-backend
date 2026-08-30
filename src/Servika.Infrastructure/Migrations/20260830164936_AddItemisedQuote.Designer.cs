@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Servika.Infrastructure.Persistence;
@@ -12,9 +13,11 @@ using Servika.Infrastructure.Persistence;
 namespace Servika.Infrastructure.Migrations
 {
     [DbContext(typeof(ServikaDbContext))]
-    partial class ServikaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260830164936_AddItemisedQuote")]
+    partial class AddItemisedQuote
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -46,11 +49,6 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<Guid>("BookingId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("CounterRounds")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -63,13 +61,6 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<string>("MaterialsNote")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
-
-                    b.Property<int?>("PendingCounterNaira")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PendingCounterNote")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -173,22 +164,6 @@ namespace Servika.Infrastructure.Migrations
 
                     b.Property<double?>("LocationLng")
                         .HasColumnType("double precision");
-
-                    b.Property<DateTimeOffset?>("MaterialsAdvanceDecidedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("MaterialsAdvanceNaira")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("MaterialsAdvanceRequestedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("MaterialsAdvanceStatus")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)")
-                        .HasDefaultValue("None");
 
                     b.PrimitiveCollection<List<string>>("MediaKeys")
                         .IsRequired()

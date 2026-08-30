@@ -64,6 +64,56 @@ public sealed class ArtisanController : ControllerBase
     /// <response code="403">Signed in but not an artisan.</response>
     /// <response code="404">No such job.</response>
     /// <response code="409">Already taken, not in your categories, or your profile isn't verified.</response>
+    /// <summary>Accept the customer's counter-offer on your quote: the price is agreed
+    /// at their number and the job proceeds as if they had accepted your quote.</summary>
+    /// <response code="200">The booking, now at the agreed price.</response>
+    /// <response code="404">You haven't quoted here.</response>
+    /// <response code="409">No pending counter, or the request is no longer open.</response>
+    [HttpPost("{id:guid}/bid/counter/accept")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BookingDetailDto>> AcceptCounter(
+        Guid id, [FromServices] RespondToCounterHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.AcceptAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>Decline the customer's counter-offer; your quote stands.</summary>
+    /// <response code="200">Your bid, with the counter cleared.</response>
+    /// <response code="404">You haven't quoted here.</response>
+    /// <response code="409">No pending counter.</response>
+    [HttpPost("{id:guid}/bid/counter/decline")]
+    [ProducesResponseType(typeof(Contracts.Bookings.BidDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<Contracts.Bookings.BidDto>> DeclineCounter(
+        Guid id, [FromServices] RespondToCounterHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.DeclineAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>Ask the customer to release part of the agreed MATERIALS money from
+    /// the paid escrow now, to buy parts. Capped at the itemised materials total; the
+    /// customer must approve before anything moves.</summary>
+    /// <response code="200">Request recorded; the customer has been notified.</response>
+    /// <response code="400">Amount out of range.</response>
+    /// <response code="404">Not your job.</response>
+    /// <response code="409">Job not paid into escrow, no itemised materials, or already advanced.</response>
+    [HttpPost("{id:guid}/materials-advance")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BookingDetailDto>> RequestMaterialsAdvance(
+        Guid id,
+        [FromBody] Contracts.Bookings.RequestMaterialsAdvanceRequest request,
+        [FromServices] RequestMaterialsAdvanceHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, request, ct));
+    }
+
     /// <summary>Place (or revise) a price offer — a bid on an open bidding
     /// request, or your quote on a direct request assigned to you.</summary>
     /// <response code="200">Your current bid.</response>

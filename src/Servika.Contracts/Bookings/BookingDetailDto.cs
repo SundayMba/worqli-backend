@@ -46,4 +46,12 @@ public sealed record BookingDetailDto(
     /// <summary>API path of the customer's short job video, or null.</summary>
     string? VideoUrl,
     /// <summary>Active bids on this request (RemoteQuote + Open only; 0 otherwise).</summary>
-    int BidCount);
+    int BidCount,
+    /// <summary>Labour / materials split of the agreed price, when the accepted
+    /// quote was itemised; null otherwise.</summary>
+    int? AgreedWorkmanshipNaira = null,
+    int? AgreedMaterialsNaira = null,
+    /// <summary>"None" | "Requested" | "Approved" | "Declined": the artisan's request to
+    /// have part of the materials money released from escrow before completion.</summary>
+    string MaterialsAdvanceStatus = "None",
+    int? MaterialsAdvanceNaira = null);

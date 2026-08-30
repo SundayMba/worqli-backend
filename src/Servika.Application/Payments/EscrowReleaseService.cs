@@ -54,14 +54,19 @@ public sealed class EscrowReleaseService
                 $"Commission on booking {booking.Id}", now));
 
         // The artisan's earning — now, and only now, becomes available to withdraw.
-        if (payment.ArtisanId is { } artisanId && payment.ArtisanEarningNaira > 0)
+        // Any materials advance the customer already released comes out of it, so
+        // the artisan receives the agreed total exactly once.
+        var earning = Math.Max(0, payment.ArtisanEarningNaira - booking.ReleasedMaterialsAdvanceNaira);
+        if (payment.ArtisanId is { } artisanId && earning > 0)
             _wallet.Add(WalletTransaction.Create(
                 WalletOwnerType.Artisan, artisanId,
-                WalletTransactionType.ArtisanEarning, payment.ArtisanEarningNaira,
+                WalletTransactionType.ArtisanEarning, earning,
                 booking.Id, payment.Id,
-                $"Earning for booking {booking.Id}", now));
+                booking.ReleasedMaterialsAdvanceNaira > 0
+                    ? $"Earning for booking {booking.Id} (after ₦{booking.ReleasedMaterialsAdvanceNaira:N0} materials advance)"
+                    : $"Earning for booking {booking.Id}", now));
 
         payment.MarkEarningReleased(now);
-        return payment.ArtisanEarningNaira;
+        return earning;
     }
 }

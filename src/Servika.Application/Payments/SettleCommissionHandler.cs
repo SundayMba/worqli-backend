@@ -54,7 +54,8 @@ public sealed class SettleCommissionHandler
 
         var reference = $"svk_fee_{Guid.NewGuid():N}";
         var result = await _gateway.InitializeAsync(
-            new PaymentInitInput(reference, owed, email, null), ct);
+            new PaymentInitInput(
+                reference, owed, email, null, PaymentReturnLinks.ArtisanSettlement), ct);
 
         var payment = Payment.InitiateSettlement(
             artisanUserId: artisanUserId,

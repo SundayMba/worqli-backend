@@ -49,13 +49,16 @@ public sealed class GetAdminBookingHandler
     private readonly IBookingRepository _bookings;
     private readonly IUserRepository _users;
     private readonly ICatalogueRepository _catalogue;
+    private readonly IBidRepository _bids;
 
     public GetAdminBookingHandler(
-        IBookingRepository bookings, IUserRepository users, ICatalogueRepository catalogue)
+        IBookingRepository bookings, IUserRepository users, ICatalogueRepository catalogue,
+        IBidRepository bids)
     {
         _bookings = bookings;
         _users = users;
         _catalogue = catalogue;
+        _bids = bids;
     }
 
     public async Task<AdminBookingDetailDto> HandleAsync(Guid id, CancellationToken ct)
@@ -83,6 +86,15 @@ public sealed class GetAdminBookingHandler
         var amount = b.InitialQuoteAmountNaira;
         var commission = amount is { } a ? (int)Math.Round(a * b.CommissionRate) : 0;
 
+        var bids = (await _bids.ListForBookingAsync(b.Id, ct))
+            .Select(bid => new AdminBidDto(
+                bid.Id, bid.ArtisanName, bid.Status.ToString(), bid.AmountNaira,
+                bid.WorkmanshipNaira, bid.MaterialsNaira,
+                bid.Materials.Select(m => new Contracts.Bookings.BidMaterialLineDto(m.Name, m.Quantity, m.UnitPriceNaira)).ToList(),
+                bid.MaterialsNote, bid.PendingCounterNaira, bid.PendingCounterNote, bid.CounterRounds,
+                bid.UpdatedAt))
+            .ToList();
+
         return new AdminBookingDetailDto(
             b.Id, b.Status.ToString(), b.ServiceName, b.CategorySlug, b.Description,
             customer?.FullName ?? "Customer", customer?.Email ?? "", customer?.PhoneNumber ?? "",
@@ -91,6 +103,9 @@ public sealed class GetAdminBookingHandler
             b.PreferredDate, b.PreferredTimeSlot, b.Urgency.ToString(),
             amount, commission, b.CommissionRate, b.PaymentState.ToString(),
             b.PaymentMethod.ToString(), b.PricingModel.ToString(), b.Assessment.ToString(),
-            b.CreatedAt, b.AcceptedAtUtc, b.WorkSubmittedAtUtc, b.CompletedAtUtc, b.CancelledAtUtc, b.DisputedAtUtc);
+            b.CreatedAt, b.AcceptedAtUtc, b.WorkSubmittedAtUtc, b.CompletedAtUtc, b.CancelledAtUtc, b.DisputedAtUtc,
+            b.AgreedWorkmanshipNaira, b.AgreedMaterialsNaira,
+            b.MaterialsAdvanceStatus.ToString(), b.MaterialsAdvanceNaira,
+            bids);
     }
 }

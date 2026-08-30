@@ -73,7 +73,9 @@ public sealed class InitializePaymentHandler
 
         var reference = $"svk_{Guid.NewGuid():N}";
         var result = await _gateway.InitializeAsync(
-            new PaymentInitInput(reference, amount, email, bookingId), ct);
+            new PaymentInitInput(
+                reference, amount, email, bookingId,
+                PaymentReturnLinks.CustomerBooking(bookingId)), ct);
 
         var payment = Payment.Initiate(
             bookingId: bookingId,

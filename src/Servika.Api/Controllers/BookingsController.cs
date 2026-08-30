@@ -136,6 +136,56 @@ public sealed class BookingsController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), id, request.Method, ct));
     }
 
+    /// <summary>Approve the artisan's request to release part of the materials money
+    /// from escrow now (so they can buy parts). Your workmanship payment stays held.</summary>
+    /// <response code="200">The updated booking; the amount is in the artisan's wallet.</response>
+    /// <response code="404">Not the caller's booking.</response>
+    /// <response code="409">No pending request, or the escrow is no longer held.</response>
+    [HttpPost("{id:guid}/materials-advance/approve")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BookingDetailDto>> ApproveMaterialsAdvance(
+        Guid id, [FromServices] DecideMaterialsAdvanceHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, approve: true, ct));
+    }
+
+    /// <summary>Decline the artisan's materials-advance request.</summary>
+    /// <response code="200">The updated booking.</response>
+    /// <response code="404">Not the caller's booking.</response>
+    /// <response code="409">No pending request.</response>
+    [HttpPost("{id:guid}/materials-advance/decline")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BookingDetailDto>> DeclineMaterialsAdvance(
+        Guid id, [FromServices] DecideMaterialsAdvanceHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, approve: false, ct));
+    }
+
+    /// <summary>Counter an offer's workmanship price (materials stay itemised). The
+    /// artisan accepts, declines, or answers with a new price. Up to 3 rounds.</summary>
+    /// <response code="200">The offer with your pending counter.</response>
+    /// <response code="400">Price out of range / same as the artisan's.</response>
+    /// <response code="404">Not the caller's booking / unknown offer.</response>
+    /// <response code="409">Offer closed, rounds exhausted, or already paid.</response>
+    [HttpPost("{id:guid}/bids/{bidId:guid}/counter")]
+    [ProducesResponseType(typeof(Contracts.Bookings.BidDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<Contracts.Bookings.BidDto>> CounterBid(
+        Guid id,
+        Guid bidId,
+        [FromBody] Contracts.Bookings.CounterBidRequest request,
+        [FromServices] CounterBidHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, bidId, request, ct));
+    }
+
     /// <summary>Accept one bid — assigns that artisan at their offered price.</summary>
     /// <response code="200">The booking, now Accepted with the winning artisan.</response>
     /// <response code="404">Not the caller's booking / unknown bid.</response>

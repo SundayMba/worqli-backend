@@ -43,6 +43,9 @@ public sealed class PaystackPaymentGateway : IPaymentGateway
             email = input.CustomerEmail,
             amount = input.AmountNaira * 100, // Paystack expects kobo
             reference = input.Reference,
+            // Sends the payer back into the app when the charge completes (the app
+            // scheme is registered, so the checkout page hands off to the app).
+            callback_url = input.CallbackUrl,
         });
 
         using var content = new StringContent(body, Encoding.UTF8, "application/json");

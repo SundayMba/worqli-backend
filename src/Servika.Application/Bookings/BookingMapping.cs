@@ -58,7 +58,11 @@ internal static class BookingMapping
             b.Assessment.ToString(),
             b.MediaUrls(),
             b.VideoUrl(),
-            bidCount);
+            bidCount,
+            b.AgreedWorkmanshipNaira,
+            b.AgreedMaterialsNaira,
+            b.MaterialsAdvanceStatus.ToString(),
+            b.MaterialsAdvanceNaira);
 
     /// <summary>API paths of the customer's job photos.</summary>
     private static IReadOnlyList<string> MediaUrls(this Booking b) =>

@@ -55,6 +55,73 @@ public sealed class Booking
     /// is always free; nothing is owed before a price has been agreed.</summary>
     public int? InitialQuoteAmountNaira { get; private set; }
 
+    /// <summary>How the agreed price splits: labour vs itemised materials. Set when a
+    /// quote is accepted (null for fixed-price listings and legacy quotes). The
+    /// materials part is the ceiling for a materials advance.</summary>
+    public int? AgreedWorkmanshipNaira { get; private set; }
+    public int? AgreedMaterialsNaira { get; private set; }
+
+    /// <summary>Materials advance: the artisan may ask for up to the agreed materials
+    /// amount to be released from the paid escrow BEFORE completion, and the customer
+    /// approves or declines. One advance per booking; a decline can be re-asked.</summary>
+    public MaterialsAdvanceStatus MaterialsAdvanceStatus { get; private set; } = MaterialsAdvanceStatus.None;
+    public int? MaterialsAdvanceNaira { get; private set; }
+    public DateTimeOffset? MaterialsAdvanceRequestedAtUtc { get; private set; }
+    public DateTimeOffset? MaterialsAdvanceDecidedAtUtc { get; private set; }
+
+    /// <summary>The advance actually released to the artisan (0 unless Approved).</summary>
+    public int ReleasedMaterialsAdvanceNaira =>
+        MaterialsAdvanceStatus == MaterialsAdvanceStatus.Approved ? MaterialsAdvanceNaira ?? 0 : 0;
+
+    /// <summary>The artisan asks for materials money up front. Only on a booking that
+    /// is paid into escrow (cash jobs: the customer hands over cash directly), with an
+    /// itemised materials amount agreed, while the job is live, and not already
+    /// approved. Capped at the agreed materials total.</summary>
+    public void RequestMaterialsAdvance(int amountNaira, DateTimeOffset now)
+    {
+        if (Status is not (BookingStatus.Accepted or BookingStatus.OnMyWay
+            or BookingStatus.Arrived or BookingStatus.InProgress))
+            throw new InvalidBookingStateException(
+                $"A materials advance can't be requested while the job is {Status}.");
+        if (PaymentState != BookingPaymentState.Paid)
+            throw new InvalidBookingStateException(
+                "The customer hasn't paid into escrow yet, so there is nothing to release. " +
+                "On a cash job, ask the customer for the materials money directly.");
+        if (AgreedMaterialsNaira is not { } materials || materials <= 0)
+            throw new InvalidBookingStateException(
+                "This quote has no itemised materials. Only the materials part of a price can be advanced.");
+        if (MaterialsAdvanceStatus == MaterialsAdvanceStatus.Approved)
+            throw new InvalidBookingStateException("A materials advance was already released for this job.");
+        if (amountNaira <= 0 || amountNaira > materials)
+            throw new ArgumentException(
+                $"Ask for between ₦1 and the agreed materials total (₦{materials:N0}).", nameof(amountNaira));
+
+        MaterialsAdvanceStatus = MaterialsAdvanceStatus.Requested;
+        MaterialsAdvanceNaira = amountNaira;
+        MaterialsAdvanceRequestedAtUtc = now;
+        MaterialsAdvanceDecidedAtUtc = null;
+    }
+
+    /// <summary>The customer releases the requested advance. Guards that escrow is
+    /// still held (a refund in between would have emptied it).</summary>
+    public void ApproveMaterialsAdvance(DateTimeOffset now)
+    {
+        if (MaterialsAdvanceStatus != MaterialsAdvanceStatus.Requested)
+            throw new InvalidBookingStateException("There is no pending materials request to approve.");
+        if (PaymentState != BookingPaymentState.Paid)
+            throw new InvalidBookingStateException("The escrow for this booking is no longer held.");
+        MaterialsAdvanceStatus = MaterialsAdvanceStatus.Approved;
+        MaterialsAdvanceDecidedAtUtc = now;
+    }
+
+    public void DeclineMaterialsAdvance(DateTimeOffset now)
+    {
+        if (MaterialsAdvanceStatus != MaterialsAdvanceStatus.Requested)
+            throw new InvalidBookingStateException("There is no pending materials request to decline.");
+        MaterialsAdvanceStatus = MaterialsAdvanceStatus.Declined;
+        MaterialsAdvanceDecidedAtUtc = now;
+    }
+
     /// <summary>Commission basis recorded at booking time (0 during the launch
     /// window). Stored from day one so monetisation is config, not a redesign.</summary>
     public decimal CommissionRate { get; private set; }
@@ -192,7 +259,16 @@ public sealed class Booking
     /// booking's price and it moves to Accepted — payment happens against this
     /// agreed amount, never before ("pay only when a price has been agreed").
     /// </summary>
-    public void AcceptBid(Guid artisanId, string artisanName, int amountNaira, DateTimeOffset now)
+    public void AcceptBid(
+        Guid artisanId, string artisanName, int amountNaira, DateTimeOffset now,
+        int? workmanshipNaira = null, int? materialsNaira = null)
+    {
+        AcceptBidCore(artisanId, artisanName, amountNaira, now);
+        AgreedWorkmanshipNaira = workmanshipNaira;
+        AgreedMaterialsNaira = materialsNaira;
+    }
+
+    private void AcceptBidCore(Guid artisanId, string artisanName, int amountNaira, DateTimeOffset now)
     {
         // Open broadcast: any bidder can win — acceptance assigns the artisan.
         if (Status is BookingStatus.Open)

@@ -53,4 +53,28 @@ public sealed record AdminBookingDetailDto(
     DateTimeOffset? WorkSubmittedAtUtc,
     DateTimeOffset? CompletedAtUtc,
     DateTimeOffset? CancelledAtUtc,
-    DateTimeOffset? DisputedAtUtc);
+    DateTimeOffset? DisputedAtUtc,
+    /// <summary>Labour / materials split of the agreed price (null when not itemised).</summary>
+    int? AgreedWorkmanshipNaira = null,
+    int? AgreedMaterialsNaira = null,
+    /// <summary>"None" | "Requested" | "Approved" | "Declined" + amount: materials money
+    /// released from escrow before completion.</summary>
+    string MaterialsAdvanceStatus = "None",
+    int? MaterialsAdvanceNaira = null,
+    /// <summary>Every offer on the booking (all statuses), cheapest first, with the
+    /// itemised breakdown and any pending counter-offer.</summary>
+    IReadOnlyList<AdminBidDto>? Bids = null);
+
+public sealed record AdminBidDto(
+    Guid Id,
+    string ArtisanName,
+    string Status,
+    int AmountNaira,
+    int WorkmanshipNaira,
+    int MaterialsNaira,
+    IReadOnlyList<Servika.Contracts.Bookings.BidMaterialLineDto> Materials,
+    string? MaterialsNote,
+    int? PendingCounterNaira,
+    string? PendingCounterNote,
+    int CounterRounds,
+    DateTimeOffset UpdatedAtUtc);

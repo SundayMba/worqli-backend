@@ -54,7 +54,11 @@ public sealed record PaymentInitInput(
     int AmountNaira,
     string CustomerEmail,
     /// <summary>The booking being paid — null for a commission settlement.</summary>
-    Guid? BookingId);
+    Guid? BookingId,
+    /// <summary>Where the hosted checkout sends the payer once the charge completes.
+    /// An app deep link (see <c>PaymentReturnLinks</c>) so the payer lands back in
+    /// the app instead of on a dead gateway page.</summary>
+    string? CallbackUrl = null);
 
 /// <summary>The provider's reference (may differ from ours) and hosted checkout URL.</summary>
 public sealed record PaymentInitResult(string Reference, string? AuthorizationUrl);

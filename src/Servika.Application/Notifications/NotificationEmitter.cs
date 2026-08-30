@@ -223,6 +223,51 @@ public sealed class NotificationEmitter
             booking.Id);
     }
 
+    /// <summary>Tell the artisan the customer countered their workmanship price.</summary>
+    public void CounterOfferMade(Booking booking, Bid bid)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
+        var total = (bid.PendingCounterNaira ?? 0) + bid.MaterialsNaira;
+        var note = string.IsNullOrWhiteSpace(bid.PendingCounterNote) ? string.Empty : $" \"{bid.PendingCounterNote}\"";
+        Add(bid.ArtisanUserId, NotificationType.Booking,
+            "Customer made an offer",
+            $"The customer offered ₦{bid.PendingCounterNaira:N0} for workmanship on the {service} " +
+            $"(₦{total:N0} with materials).{note} Accept it, decline, or send a new price.",
+            booking.Id);
+    }
+
+    /// <summary>Tell the customer the artisan turned down their counter; the quote stands.</summary>
+    public void CounterOfferDeclined(Booking booking, Bid bid, int declinedNaira)
+    {
+        Add(booking.CustomerId, NotificationType.Booking,
+            "Offer declined",
+            $"{bid.ArtisanName} didn't accept ₦{declinedNaira:N0} for workmanship. " +
+            $"Their quote of ₦{bid.AmountNaira:N0} still stands; you can accept it or make another offer.",
+            booking.Id);
+    }
+
+    /// <summary>Tell the customer the artisan took their offer — the price is agreed.</summary>
+    public void CounterOfferAccepted(Booking booking, Bid bid, BookingStatus statusBefore)
+    {
+        var next = statusBefore is BookingStatus.Open or BookingStatus.Pending
+            ? "Pay securely in the app to lock it in."
+            : "Pay securely in the app so the work can start.";
+        Add(booking.CustomerId, NotificationType.Booking,
+            "Your offer was accepted",
+            $"{bid.ArtisanName} accepted your offer. The agreed price is ₦{bid.AmountNaira:N0}. {next}",
+            booking.Id);
+    }
+
+    /// <summary>Tell the customer the artisan answered their counter with a new price.</summary>
+    public void BidRevisedAfterCounter(Booking booking, Bid bid)
+    {
+        Add(booking.CustomerId, NotificationType.Booking,
+            "New price from " + bid.ArtisanName,
+            $"{bid.ArtisanName} came back with ₦{bid.AmountNaira:N0} (₦{bid.WorkmanshipNaira:N0} workmanship). " +
+            "Accept it, or make another offer.",
+            booking.Id);
+    }
+
     /// <summary>Tell the winning artisan the customer accepted their price.
     /// Copy depends on where the job stood when they accepted (acceptance itself
     /// mutates the booking, so the caller passes the pre-acceptance status): a
@@ -252,6 +297,29 @@ public sealed class NotificationEmitter
             "Payment secured",
             $"{amount}for the {service} is held in escrow. You're clear to start the work.", ct);
     }
+
+    /// <summary>Ask the customer to release part of the materials money early.</summary>
+    public void MaterialsAdvanceRequested(Booking booking, int amountNaira)
+    {
+        var who = string.IsNullOrWhiteSpace(booking.ArtisanName) ? "Your artisan" : booking.ArtisanName;
+        Add(booking.CustomerId, NotificationType.Payment,
+            "Materials money requested",
+            $"{who} asked for ₦{amountNaira:N0} of the agreed materials cost to buy parts now. " +
+            "Approve in the app to release it; your workmanship payment stays held until the job is done.",
+            booking.Id);
+    }
+
+    /// <summary>Tell the artisan how the customer answered the materials request.</summary>
+    public Task MaterialsAdvanceDecided(Booking booking, bool approved, int amountNaira, CancellationToken ct) =>
+        approved
+            ? NotifyArtisanAsync(booking,
+                "Materials money released",
+                $"₦{amountNaira:N0} is now in your Servika wallet to buy the materials. " +
+                "The rest of the price is released when the customer confirms the job.", ct)
+            : NotifyArtisanAsync(booking,
+                "Materials request declined",
+                "The customer chose not to release materials money up front. " +
+                "You can ask again with a smaller amount, or discuss it with them in chat.", ct);
 
     /// <summary>Tell the artisan the customer chose to pay cash after service.</summary>
     public Task ArtisanCashChosen(Booking booking, CancellationToken ct)
