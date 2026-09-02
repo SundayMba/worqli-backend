@@ -44,8 +44,30 @@ public sealed record ArtisanDetailDto(
     /// accepts. Empty for quote-only artisans.</summary>
     IReadOnlyList<ArtisanServiceDto>? PricedServices = null);
 
-/// <summary>A fixed-price service on an artisan's profile.</summary>
-public sealed record ArtisanServiceDto(Guid Id, string Name, int PriceNaira);
+/// <summary>A fixed-price service on an artisan's profile. <see cref="PhotoUrl"/>
+/// is the API path of its showcase photo, or null (clients fall back to the
+/// artisan's photo).</summary>
+public sealed record ArtisanServiceDto(Guid Id, string Name, int PriceNaira, string? PhotoUrl = null);
 
-/// <summary>POST /api/v1/artisan/services body. Re-posting a name revises its price.</summary>
-public sealed record SaveArtisanServiceRequest(string Name, int PriceNaira);
+/// <summary>POST /api/v1/artisan/services body. Re-posting a name revises its price
+/// (and replaces the photo when one is sent; omitted = keep the current photo).</summary>
+public sealed record SaveArtisanServiceRequest(string Name, int PriceNaira, string? PhotoBase64 = null);
+
+/// <summary>One card on the Home fixed-price discovery rail (GET /api/v1/services/featured):
+/// a bookable service plus enough of its artisan's reputation to book on the spot.</summary>
+public sealed record FeaturedServiceDto(
+    Guid ServiceId,
+    string Name,
+    int PriceNaira,
+    /// <summary>The service's own showcase photo, or null → clients fall back to
+    /// <see cref="ArtisanPhotoUrl"/>, then initials.</summary>
+    string? PhotoUrl,
+    Guid ArtisanId,
+    string ArtisanName,
+    double Rating,
+    int ReviewCount,
+    bool HasCertificate,
+    string? ArtisanPhotoUrl,
+    bool IsAvailable,
+    /// <summary>Km from the caller's coords when provided; null otherwise.</summary>
+    double? DistanceKm);

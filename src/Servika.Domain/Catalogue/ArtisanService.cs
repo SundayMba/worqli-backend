@@ -20,6 +20,10 @@ public sealed class ArtisanService
     /// <summary>The published all-in price for this service.</summary>
     public int PriceNaira { get; private set; }
 
+    /// <summary>Storage key of the service's showcase photo (the work itself —
+    /// braids done, an installed unit), or null. Drives the Home discovery rail.</summary>
+    public string? PhotoKey { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public const int MaxNameLength = 80;
@@ -47,6 +51,13 @@ public sealed class ArtisanService
             PriceNaira = priceNaira,
             CreatedAt = now,
         };
+    }
+
+    public void SetPhoto(string photoKey)
+    {
+        if (string.IsNullOrWhiteSpace(photoKey))
+            throw new ArgumentException("A photo key is required.", nameof(photoKey));
+        PhotoKey = photoKey;
     }
 
     /// <summary>Updates the published price (re-adding the same name revises it).</summary>

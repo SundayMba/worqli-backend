@@ -14,6 +14,10 @@ public interface IArtisanServiceRepository
     /// re-adding a name revises its price instead of duplicating.</summary>
     Task<ArtisanService?> FindByNameAsync(Guid artisanProfileId, string name, CancellationToken ct);
 
+    /// <summary>Every published service (read-only) — the Home discovery rail
+    /// joins them to verified artisans and ranks client-side (small tables).</summary>
+    Task<IReadOnlyList<ArtisanService>> ListAllAsync(CancellationToken ct);
+
     void Add(ArtisanService service);
     void Remove(ArtisanService service);
 

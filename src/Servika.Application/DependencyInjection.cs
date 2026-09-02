@@ -52,7 +52,11 @@ public static class DependencyInjection
         services.AddScoped<GetMyArtisanProfileHandler>();
         services.AddScoped<GetMyArtisanServicesHandler>();
         services.AddScoped<SaveArtisanServiceHandler>();
+        services.AddScoped<GetServicePhotoHandler>();
+        services.AddScoped<GetFeaturedServicesHandler>();
         services.AddScoped<DeleteArtisanServiceHandler>();
+        services.AddScoped<GetServicePhotoHandler>();
+        services.AddScoped<GetFeaturedServicesHandler>();
         services.AddScoped<SetArtisanAvailabilityHandler>();
         services.AddScoped<SaveArtisanProfileHandler>();
 

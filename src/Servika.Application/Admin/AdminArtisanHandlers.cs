@@ -18,17 +18,20 @@ public sealed class ListAdminArtisansHandler
     private readonly IUserRepository _users;
     private readonly IWalletRepository _wallet;
     private readonly IPlatformSettingsRepository _settings;
+    private readonly IArtisanServiceRepository _artisanServices;
 
     public ListAdminArtisansHandler(
         ICatalogueRepository catalogue,
         IUserRepository users,
         IWalletRepository wallet,
-        IPlatformSettingsRepository settings)
+        IPlatformSettingsRepository settings,
+        IArtisanServiceRepository artisanServices)
     {
         _catalogue = catalogue;
         _users = users;
         _wallet = wallet;
         _settings = settings;
+        _artisanServices = artisanServices;
     }
 
     public async Task<IReadOnlyList<AdminArtisanDto>> HandleAsync(CancellationToken ct)
@@ -37,6 +40,12 @@ public sealed class ListAdminArtisansHandler
         var emails = (await _users.ListAsync(null, ct)).ToDictionary(u => u.Id, u => u.Email);
         var balances = await _wallet.ListBalancesAsync(WalletOwnerType.Artisan, ct);
         var maxDebt = (await _settings.GetOrCreateAsync(ct)).MaxCommissionDebtNaira;
+        // Published fixed-price services, grouped per artisan — these names show on
+        // the customer Home rail, so the directory surfaces them for spot checks.
+        var services = (await _artisanServices.ListAllAsync(ct))
+            .GroupBy(sv => sv.ArtisanProfileId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g
+                .Select(sv => $"{sv.Name} — ₦{sv.PriceNaira:N0}").ToList());
 
         return artisans.Select(a =>
         {
@@ -57,7 +66,8 @@ public sealed class ListAdminArtisansHandler
                 string.IsNullOrEmpty(a.PhotoKey) ? null : $"/api/v1/artisans/{a.Id}/photo",
                 a.GalleryPhotoKeys.Count,
                 owed,
-                balance < -maxDebt);
+                balance < -maxDebt,
+                services.TryGetValue(a.Id, out var sv) ? sv : Array.Empty<string>());
         }).ToList();
     }
 }

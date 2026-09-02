@@ -31,6 +31,9 @@ public sealed class ArtisanServiceRepository : IArtisanServiceRepository
             s => s.ArtisanProfileId == artisanProfileId && s.Name.ToLower() == name.ToLower(),
             ct);
 
+    public async Task<IReadOnlyList<ArtisanService>> ListAllAsync(CancellationToken ct) =>
+        await _db.ArtisanServices.AsNoTracking().ToListAsync(ct);
+
     public void Add(ArtisanService service) => _db.ArtisanServices.Add(service);
     public void Remove(ArtisanService service) => _db.ArtisanServices.Remove(service);
 
