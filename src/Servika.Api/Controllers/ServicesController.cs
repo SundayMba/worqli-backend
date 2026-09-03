@@ -24,7 +24,37 @@ public sealed class ServicesController : ControllerBase
         [FromQuery] double? lat = null,
         [FromQuery] double? lng = null)
     {
-        return Ok(await handler.HandleAsync(lat, lng, ct));
+        return Ok(await handler.HandleAsync(lat, lng, GetFeaturedServicesHandler.MaxFeatured, ct));
+    }
+
+    /// <summary>Every bookable fixed-price service, same ranking as the rail but
+    /// uncapped — the "Services close to you" screen.</summary>
+    /// <response code="200">All bookable services (empty until artisans publish).</response>
+    [HttpGet("nearby")]
+    [ProducesResponseType(typeof(IReadOnlyList<FeaturedServiceDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<FeaturedServiceDto>>> Nearby(
+        [FromServices] GetFeaturedServicesHandler handler,
+        CancellationToken ct,
+        [FromQuery] double? lat = null,
+        [FromQuery] double? lng = null)
+    {
+        return Ok(await handler.HandleAsync(lat, lng, null, ct));
+    }
+
+    /// <summary>One fixed-price service with its provider summary — the service profile page.</summary>
+    /// <response code="200">The service.</response>
+    /// <response code="404">Unknown service, or its provider is not listed.</response>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(FeaturedServiceDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<FeaturedServiceDto>> Get(
+        Guid id,
+        [FromServices] GetServiceHandler handler,
+        CancellationToken ct,
+        [FromQuery] double? lat = null,
+        [FromQuery] double? lng = null)
+    {
+        return Ok(await handler.HandleAsync(id, lat, lng, ct));
     }
 
     /// <summary>A service's showcase photo (image bytes).</summary>

@@ -70,4 +70,7 @@ public sealed record FeaturedServiceDto(
     string? ArtisanPhotoUrl,
     bool IsAvailable,
     /// <summary>Km from the caller's coords when provided; null otherwise.</summary>
-    double? DistanceKm);
+    double? DistanceKm,
+    /// <summary>The artisan's primary category slug — drives the client's
+    /// fallback artwork when the service has no photo.</summary>
+    string? CategorySlug = null);

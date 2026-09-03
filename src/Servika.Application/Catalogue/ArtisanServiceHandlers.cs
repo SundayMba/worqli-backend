@@ -148,17 +148,19 @@ public sealed class GetServicePhotoHandler
 }
 
 /// <summary>
-/// The Home discovery rail: fixed-price services across VERIFIED artisans,
-/// bookable in one tap. Ranked like the catalogue — available artisans first,
-/// then RankScore (rating + certificate), then proximity to the caller's
-/// coords when given. Capped so Home stays a rail, not a feed.
+/// Fixed-price service discovery across VERIFIED artisans, bookable in one tap.
+/// Ranked like the catalogue — available artisans first, then RankScore (rating +
+/// certificate), then proximity to the caller's coords when given. The Home rail
+/// takes the top <see cref="MaxFeatured"/>; the "Services close to you" screen
+/// takes the whole ranked list.
 /// </summary>
 public sealed class GetFeaturedServicesHandler
 {
     private readonly IArtisanServiceRepository _services;
     private readonly ICatalogueRepository _catalogue;
 
-    public const int MaxResults = 12;
+    /// <summary>Cap for the Home rail, so Home stays a rail, not a feed.</summary>
+    public const int MaxFeatured = 12;
 
     public GetFeaturedServicesHandler(
         IArtisanServiceRepository services, ICatalogueRepository catalogue)
@@ -167,8 +169,9 @@ public sealed class GetFeaturedServicesHandler
         _catalogue = catalogue;
     }
 
+    /// <param name="limit">Max results; null = everything.</param>
     public async Task<IReadOnlyList<FeaturedServiceDto>> HandleAsync(
-        double? lat, double? lng, CancellationToken ct)
+        double? lat, double? lng, int? limit, CancellationToken ct)
     {
         var all = await _services.ListAllAsync(ct);
         if (all.Count == 0) return Array.Empty<FeaturedServiceDto>();
@@ -176,29 +179,66 @@ public sealed class GetFeaturedServicesHandler
         // Verified artisans only — the same gate as every public catalogue read.
         var artisans = (await _catalogue.GetArtisansAsync(null, ct)).ToDictionary(a => a.Id);
 
-        return all
+        var ranked = all
             .Where(s => artisans.ContainsKey(s.ArtisanProfileId))
             .Select(s =>
             {
                 var a = artisans[s.ArtisanProfileId];
-                double? distance =
-                    lat is { } la && lng is { } ln && a is { Latitude: { } alat, Longitude: { } alng }
-                        ? Math.Round(GeoDistance.Km(la, ln, alat, alng), 1)
-                        : null;
-                return (service: s, artisan: a, distance);
+                return (service: s, artisan: a, distance: DistanceKm(lat, lng, a));
             })
             .OrderByDescending(x => x.artisan.IsAvailable)
             .ThenByDescending(x => x.artisan.RankScore)
-            .ThenBy(x => x.distance ?? double.MaxValue)
-            .Take(MaxResults)
-            .Select(x => new FeaturedServiceDto(
-                x.service.Id, x.service.Name, x.service.PriceNaira,
-                string.IsNullOrEmpty(x.service.PhotoKey) ? null : $"/api/v1/services/{x.service.Id}/photo",
-                x.artisan.Id, x.artisan.FullName, x.artisan.Rating, x.artisan.ReviewCount,
-                x.artisan.HasCertificate,
-                string.IsNullOrEmpty(x.artisan.PhotoKey) ? null : $"/api/v1/artisans/{x.artisan.Id}/photo",
-                x.artisan.IsAvailable, x.distance))
+            .ThenBy(x => x.distance ?? double.MaxValue);
+
+        return (limit is { } n ? ranked.Take(n) : ranked)
+            .Select(x => ToFeaturedDto(x.service, x.artisan, x.distance))
             .ToList();
+    }
+
+    internal static double? DistanceKm(double? lat, double? lng, ArtisanProfile a) =>
+        lat is { } la && lng is { } ln && a is { Latitude: { } alat, Longitude: { } alng }
+            ? Math.Round(GeoDistance.Km(la, ln, alat, alng), 1)
+            : null;
+
+    internal static FeaturedServiceDto ToFeaturedDto(
+        ArtisanService service, ArtisanProfile artisan, double? distance) =>
+        new(
+            service.Id, service.Name, service.PriceNaira,
+            string.IsNullOrEmpty(service.PhotoKey) ? null : $"/api/v1/services/{service.Id}/photo",
+            artisan.Id, artisan.FullName, artisan.Rating, artisan.ReviewCount,
+            artisan.HasCertificate,
+            string.IsNullOrEmpty(artisan.PhotoKey) ? null : $"/api/v1/artisans/{artisan.Id}/photo",
+            artisan.IsAvailable, distance,
+            artisan.CategorySlugs.FirstOrDefault());
+}
+
+/// <summary>
+/// One fixed-price service with its provider's summary — the service profile
+/// page. Public like the rest of the catalogue; 404 when the service is unknown
+/// or its artisan is no longer verified/listed.
+/// </summary>
+public sealed class GetServiceHandler
+{
+    private readonly IArtisanServiceRepository _services;
+    private readonly ICatalogueRepository _catalogue;
+
+    public GetServiceHandler(IArtisanServiceRepository services, ICatalogueRepository catalogue)
+    {
+        _services = services;
+        _catalogue = catalogue;
+    }
+
+    public async Task<FeaturedServiceDto> HandleAsync(
+        Guid serviceId, double? lat, double? lng, CancellationToken ct)
+    {
+        var service = await _services.FindAsync(serviceId, ct)
+            ?? throw new NotFoundException("Service was not found.");
+        var artisan = await _catalogue.GetArtisanByIdAsync(service.ArtisanProfileId, ct);
+        if (artisan is null || artisan.VerificationStatus != ArtisanVerificationStatus.Verified)
+            throw new NotFoundException("Service was not found.");
+
+        return GetFeaturedServicesHandler.ToFeaturedDto(
+            service, artisan, GetFeaturedServicesHandler.DistanceKm(lat, lng, artisan));
     }
 }
 

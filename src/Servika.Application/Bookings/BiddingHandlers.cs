@@ -49,6 +49,12 @@ public sealed class SubmitBidHandler
         var booking = await _bookings.FindByIdReadOnlyAsync(bookingId, ct)
             ?? throw new NotFoundException("This request was not found.");
 
+        // A fixed-price booking IS the price — no quotes, no bargaining. The
+        // artisan accepts or declines it as published.
+        if (booking.PricingModel == PricingModel.Fixed)
+            throw new ConflictException(
+                "This is a fixed-price booking. Accept or decline it — the price is already set.");
+
         // The assigned artisan can quote on their own direct request before the
         // customer accepts (Pending) — and also en-route/on-site (Accepted →
         // Arrived), which is how an inspect-first visit produces its in-app
