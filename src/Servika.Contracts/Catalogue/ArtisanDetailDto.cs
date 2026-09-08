@@ -47,11 +47,29 @@ public sealed record ArtisanDetailDto(
 /// <summary>A fixed-price service on an artisan's profile. <see cref="PhotoUrl"/>
 /// is the API path of its showcase photo, or null (clients fall back to the
 /// artisan's photo).</summary>
-public sealed record ArtisanServiceDto(Guid Id, string Name, int PriceNaira, string? PhotoUrl = null);
+public sealed record ArtisanServiceDto(
+    Guid Id,
+    string Name,
+    int PriceNaira,
+    string? PhotoUrl = null,
+    /// <summary>Paused listings are returned to the artisan only.</summary>
+    bool IsActive = true,
+    int? DurationMinutes = null,
+    IReadOnlyList<string>? Includes = null,
+    string? Description = null);
 
 /// <summary>POST /api/v1/artisan/services body. Re-posting a name revises its price
 /// (and replaces the photo when one is sent; omitted = keep the current photo).</summary>
-public sealed record SaveArtisanServiceRequest(string Name, int PriceNaira, string? PhotoBase64 = null);
+public sealed record SaveArtisanServiceRequest(
+    string Name,
+    int PriceNaira,
+    string? PhotoBase64 = null,
+    int? DurationMinutes = null,
+    List<string>? Includes = null,
+    string? Description = null);
+
+/// <summary>PUT /api/v1/artisan/services/{id}/active body — pause or resume a listing.</summary>
+public sealed record SetServiceActiveRequest(bool Active);
 
 /// <summary>One card on the Home fixed-price discovery rail (GET /api/v1/services/featured):
 /// a bookable service plus enough of its artisan's reputation to book on the spot.</summary>
@@ -73,4 +91,8 @@ public sealed record FeaturedServiceDto(
     double? DistanceKm,
     /// <summary>The artisan's primary category slug — drives the client's
     /// fallback artwork when the service has no photo.</summary>
-    string? CategorySlug = null);
+    string? CategorySlug = null,
+    /// <summary>What the listing includes, how long it takes, and the artisan's note.</summary>
+    int? DurationMinutes = null,
+    IReadOnlyList<string>? Includes = null,
+    string? Description = null);

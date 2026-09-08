@@ -50,6 +50,20 @@ public sealed class ArtisanServicesController : ControllerBase
     /// <summary>Remove one of the caller's published services.</summary>
     /// <response code="204">Removed.</response>
     /// <response code="404">Not one of the caller's services.</response>
+    /// <summary>Pause or resume a listing. Paused listings leave the customer surfaces
+    /// but stay on your list.</summary>
+    [HttpPut("{id:guid}/active")]
+    [ProducesResponseType(typeof(ArtisanServiceDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ArtisanServiceDto>> SetActive(
+        Guid id,
+        [FromBody] SetServiceActiveRequest request,
+        [FromServices] SetArtisanServiceActiveHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, request.Active, ct));
+    }
+
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

@@ -56,6 +56,9 @@ public static class DependencyInjection
         services.AddScoped<GetFeaturedServicesHandler>();
         services.AddScoped<GetServiceHandler>();
         services.AddScoped<DeleteArtisanServiceHandler>();
+        services.AddScoped<SetArtisanServiceActiveHandler>();
+        services.AddScoped<Bookings.RateCustomerHandler>();
+        services.AddScoped<Bookings.GetCustomerRatingHandler>();
         services.AddScoped<GetServicePhotoHandler>();
         services.AddScoped<GetFeaturedServicesHandler>();
         services.AddScoped<SetArtisanAvailabilityHandler>();

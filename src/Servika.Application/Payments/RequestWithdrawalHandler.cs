@@ -33,6 +33,19 @@ public sealed class RequestWithdrawalHandler
         var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct)
             ?? throw new NotFoundException("No artisan profile is linked to this account.");
 
+        // No bank details in the request → the saved payout account (design 47:
+        // "one saved account"). Explicit details still win, for a one-off.
+        if (string.IsNullOrWhiteSpace(request.AccountNumber) && profile.HasPayoutAccount)
+        {
+            request = request with
+            {
+                BankName = profile.PayoutBankName!,
+                BankCode = profile.PayoutBankCode,
+                AccountNumber = profile.PayoutAccountNumber!,
+                AccountName = profile.PayoutAccountName!,
+            };
+        }
+
         var settings = await _settings.GetOrCreateAsync(ct);
         return await _service.WithdrawAsync(
             WalletOwnerType.Artisan, profile.Id, artisanUserId,

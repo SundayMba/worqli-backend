@@ -160,6 +160,35 @@ public sealed class ArtisanController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
     }
 
+    /// <summary>Rate the customer after a job (private to Servika, never shown to them).</summary>
+    /// <response code="201">Rated.</response>
+    /// <response code="409">Job not done yet, or already rated.</response>
+    [HttpPost("{id:guid}/rate-customer")]
+    [ProducesResponseType(typeof(CustomerRatingDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<CustomerRatingDto>> RateCustomer(
+        Guid id,
+        [FromBody] RateCustomerRequest request,
+        [FromServices] RateCustomerHandler handler,
+        CancellationToken ct)
+    {
+        var result = await handler.HandleAsync(CurrentUserId(), id, request, ct);
+        return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    /// <summary>Your rating of the customer for this job (404 = not rated yet).</summary>
+    [HttpGet("{id:guid}/customer-rating")]
+    [ProducesResponseType(typeof(CustomerRatingDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CustomerRatingDto>> GetCustomerRating(
+        Guid id,
+        [FromServices] GetCustomerRatingHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
     /// <summary>One OPEN request in full, for deciding whether to claim or quote it.</summary>
     /// <response code="200">The request (with customer name + completed-job count).</response>
     /// <response code="404">Not open, not in your categories, or you are not verified.</response>

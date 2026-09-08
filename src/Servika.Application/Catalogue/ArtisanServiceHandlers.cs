@@ -91,7 +91,38 @@ public sealed class SaveArtisanServiceHandler
             _services.Add(service);
         }
         if (photoKey is not null) service.SetPhoto(photoKey);
+        if (request.DurationMinutes is not null || request.Includes is not null || request.Description is not null)
+            service.UpdateDetails(
+                request.DurationMinutes ?? service.DurationMinutes,
+                request.Includes ?? service.Includes,
+                request.Description ?? service.Description);
 
+        await _services.SaveChangesAsync(ct);
+        return service.ToDto();
+    }
+}
+
+/// <summary>Pauses or resumes one of the caller's listings (design 48). Paused
+/// listings leave the customer surfaces but stay on the artisan's own list.</summary>
+public sealed class SetArtisanServiceActiveHandler
+{
+    private readonly ICatalogueRepository _catalogue;
+    private readonly IArtisanServiceRepository _services;
+
+    public SetArtisanServiceActiveHandler(ICatalogueRepository catalogue, IArtisanServiceRepository services)
+    {
+        _catalogue = catalogue;
+        _services = services;
+    }
+
+    public async Task<ArtisanServiceDto> HandleAsync(Guid artisanUserId, Guid serviceId, bool active, CancellationToken ct)
+    {
+        var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct)
+            ?? throw new NotFoundException("No artisan profile is linked to this account.");
+        var service = await _services.FindAsync(serviceId, ct);
+        if (service is null || service.ArtisanProfileId != profile.Id)
+            throw new NotFoundException("That service was not found on your profile.");
+        service.SetActive(active);
         await _services.SaveChangesAsync(ct);
         return service.ToDto();
     }
@@ -180,7 +211,7 @@ public sealed class GetFeaturedServicesHandler
         var artisans = (await _catalogue.GetArtisansAsync(null, ct)).ToDictionary(a => a.Id);
 
         var ranked = all
-            .Where(s => artisans.ContainsKey(s.ArtisanProfileId))
+            .Where(s => s.IsActive && artisans.ContainsKey(s.ArtisanProfileId))
             .Select(s =>
             {
                 var a = artisans[s.ArtisanProfileId];
@@ -209,7 +240,8 @@ public sealed class GetFeaturedServicesHandler
             artisan.HasCertificate,
             string.IsNullOrEmpty(artisan.PhotoKey) ? null : $"/api/v1/artisans/{artisan.Id}/photo",
             artisan.IsAvailable, distance,
-            artisan.CategorySlugs.FirstOrDefault());
+            artisan.CategorySlugs.FirstOrDefault(),
+            service.DurationMinutes, service.Includes, service.Description);
 }
 
 /// <summary>
@@ -246,5 +278,6 @@ internal static class ArtisanServiceMapping
 {
     public static ArtisanServiceDto ToDto(this ArtisanService s) =>
         new(s.Id, s.Name, s.PriceNaira,
-            string.IsNullOrEmpty(s.PhotoKey) ? null : $"/api/v1/services/{s.Id}/photo");
+            string.IsNullOrEmpty(s.PhotoKey) ? null : $"/api/v1/services/{s.Id}/photo",
+            s.IsActive, s.DurationMinutes, s.Includes, s.Description);
 }

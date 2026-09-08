@@ -24,6 +24,6 @@ public sealed class GetArtisanByIdHandler
 
         var priced = await _services.ListForArtisanAsync(artisan.Id, ct);
         return artisan.ToDetailDto(
-            priced.Select(s => s.ToDto()).ToList());
+            priced.Where(s => s.IsActive).Select(s => s.ToDto()).ToList());
     }
 }

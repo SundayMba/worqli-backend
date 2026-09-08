@@ -69,6 +69,9 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "artisan_kyc" table — one KYC submission per artisan account.</summary>
     public DbSet<ArtisanKyc> ArtisanKycSubmissions => Set<ArtisanKyc>();
 
+    /// <summary>The "customer_ratings" table — the artisan's private rating of a customer, per job.</summary>
+    public DbSet<CustomerRating> CustomerRatings => Set<CustomerRating>();
+
     /// <summary>The "artisan_guarantors" table — people who vouch for an artisan.</summary>
     public DbSet<ArtisanGuarantor> ArtisanGuarantors => Set<ArtisanGuarantor>();
 
@@ -198,6 +201,9 @@ public sealed class ServikaDbContext : DbContext
             service.HasKey(s => s.Id);
             service.Property(s => s.Name).IsRequired()
                 .HasMaxLength(ArtisanService.MaxNameLength);
+            service.Property(s => s.IsActive).HasDefaultValue(true);
+            service.Property(s => s.Description).HasMaxLength(600);
+            service.Property(s => s.Includes).Metadata.SetValueComparer(stringListComparer);
             service.HasIndex(s => s.ArtisanProfileId);
             service.HasOne<ArtisanProfile>()
                    .WithMany()
@@ -493,6 +499,20 @@ public sealed class ServikaDbContext : DbContext
             kyc.HasOne<User>()
                .WithMany()
                .HasForeignKey(k => k.UserId)
+               .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CustomerRating>(r =>
+        {
+            r.ToTable("customer_ratings");
+            r.HasKey(x => x.Id);
+            r.HasIndex(x => x.BookingId).IsUnique();
+            r.HasIndex(x => x.CustomerId);
+            r.Property(x => x.Tags).Metadata.SetValueComparer(stringListComparer);
+            r.Property(x => x.PrivateNote).HasMaxLength(600);
+            r.HasOne<Booking>()
+               .WithMany()
+               .HasForeignKey(x => x.BookingId)
                .OnDelete(DeleteBehavior.Cascade);
         });
 

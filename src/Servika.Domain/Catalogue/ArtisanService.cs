@@ -26,6 +26,31 @@ public sealed class ArtisanService
 
     public DateTimeOffset CreatedAt { get; private set; }
 
+    // ── Pro redesign (2026-09): the listing as the customer reads it ──
+
+    /// <summary>Paused listings stay visible to the artisan only (design 48).</summary>
+    public bool IsActive { get; private set; } = true;
+    /// <summary>"How long", e.g. 180 for about 3 hours; null = not stated.</summary>
+    public int? DurationMinutes { get; private set; }
+    /// <summary>"What it includes" lines, in the artisan's own words (max 6).</summary>
+    public List<string> Includes { get; private set; } = new();
+    /// <summary>Optional free text shown on the customer's service page.</summary>
+    public string? Description { get; private set; }
+
+    public void SetActive(bool active) => IsActive = active;
+
+    public void UpdateDetails(int? durationMinutes, IEnumerable<string>? includes, string? description)
+    {
+        DurationMinutes = durationMinutes is > 0 ? Math.Min(durationMinutes.Value, 24 * 60 * 7) : null;
+        Includes = (includes ?? Enumerable.Empty<string>())
+            .Select(i => (i ?? string.Empty).Trim())
+            .Where(i => i.Length > 0)
+            .Select(i => i.Length > 80 ? i[..80] : i)
+            .Take(6)
+            .ToList();
+        Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim()[..Math.Min(description.Trim().Length, 600)];
+    }
+
     public const int MaxNameLength = 80;
 
     private ArtisanService() { }
