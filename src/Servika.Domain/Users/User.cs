@@ -62,7 +62,7 @@ public sealed class User
         Guid id,
         string fullName,
         string email,
-        string phoneNumber,
+        string? phoneNumber,
         string passwordHash,
         Role role,
         DateTimeOffset createdAt)
@@ -100,7 +100,7 @@ public sealed class User
             id: Guid.NewGuid(),
             fullName: fullName.Trim(),
             email: email.Trim().ToLowerInvariant(),
-            phoneNumber: phoneNumber.Trim(),
+            phoneNumber: (phoneNumber ?? string.Empty).Trim(),
             passwordHash: passwordHash,
             role: role,
             createdAt: createdAt);
