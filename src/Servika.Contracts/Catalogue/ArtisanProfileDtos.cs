@@ -27,7 +27,11 @@ public sealed record MyArtisanProfileDto(
     /// <summary>API paths of the uploaded work-gallery photos, newest first.</summary>
     IReadOnlyList<string> GalleryUrls,
     /// <summary>True when a work certificate was uploaded.</summary>
-    bool HasCertificate);
+    bool HasCertificate,
+    /// <summary>The artisan's base pin (set during onboarding), or null. The Pro
+    /// app uses it to show distance to each job.</summary>
+    double? Latitude = null,
+    double? Longitude = null);
 
 /// <summary>
 /// Create or update the signed-in artisan's profile (POST/PUT /api/v1/artisan/profile),

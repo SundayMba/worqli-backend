@@ -54,4 +54,7 @@ public sealed record BookingDetailDto(
     /// <summary>"None" | "Requested" | "Approved" | "Declined": the artisan's request to
     /// have part of the materials money released from escrow before completion.</summary>
     string MaterialsAdvanceStatus = "None",
-    int? MaterialsAdvanceNaira = null);
+    int? MaterialsAdvanceNaira = null,
+    /// <summary>How many jobs this customer has completed on Servika — the
+    /// artisan-side "7 jobs booked" trust line. Null on customer-side responses.</summary>
+    int? CustomerCompletedJobs = null);

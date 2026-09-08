@@ -23,10 +23,12 @@ internal static class BookingMapping
             b.CreatedAt,
             b.Assessment.ToString(),
             b.MediaUrls(),
-            b.VideoUrl());
+            b.VideoUrl(),
+            b.LocationLat,
+            b.LocationLng);
 
     public static BookingDetailDto ToDetailDto(
-        this Booking b, int bidCount = 0, string? customerName = null) =>
+        this Booking b, int bidCount = 0, string? customerName = null, int? customerCompletedJobs = null) =>
         new(
             b.Id,
             b.Status.ToString(),
@@ -62,7 +64,8 @@ internal static class BookingMapping
             b.AgreedWorkmanshipNaira,
             b.AgreedMaterialsNaira,
             b.MaterialsAdvanceStatus.ToString(),
-            b.MaterialsAdvanceNaira);
+            b.MaterialsAdvanceNaira,
+            customerCompletedJobs);
 
     /// <summary>API paths of the customer's job photos.</summary>
     private static IReadOnlyList<string> MediaUrls(this Booking b) =>

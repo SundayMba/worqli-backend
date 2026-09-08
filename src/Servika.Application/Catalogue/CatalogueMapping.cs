@@ -31,7 +31,8 @@ internal static class CatalogueMapping
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
             a.IsAvailable, a.VerificationStatus.ToString(), a.ExperienceYears,
             a.Location, a.InspectionFeeNaira, a.About, a.CategorySlugs, a.Services,
-            a.PhotoUrl(), a.CoverPhotoUrl(), a.GalleryUrls(), a.HasCertificate);
+            a.PhotoUrl(), a.CoverPhotoUrl(), a.GalleryUrls(), a.HasCertificate,
+            a.Latitude, a.Longitude);
 
     /// <summary>API path the clients load the uploaded photo from, or null if
     /// none was uploaded (clients fall back to the bundled ImageKey art).</summary>

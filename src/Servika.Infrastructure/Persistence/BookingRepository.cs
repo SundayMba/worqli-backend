@@ -109,5 +109,8 @@ public sealed class BookingRepository : IBookingRepository
                         && b.WorkSubmittedAtUtc < cutoffUtc)
             .ToListAsync(ct);
 
+    public Task<int> CountCompletedForCustomerAsync(Guid customerId, CancellationToken ct) =>
+        _db.Bookings.CountAsync(b => b.CustomerId == customerId && b.Status == BookingStatus.Completed, ct);
+
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }

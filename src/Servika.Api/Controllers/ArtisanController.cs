@@ -160,6 +160,34 @@ public sealed class ArtisanController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
     }
 
+    /// <summary>One OPEN request in full, for deciding whether to claim or quote it.</summary>
+    /// <response code="200">The request (with customer name + completed-job count).</response>
+    /// <response code="404">Not open, not in your categories, or you are not verified.</response>
+    [HttpGet("open/{id:guid}")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<BookingDetailDto>> GetOpenJob(
+        Guid id,
+        [FromServices] GetOpenJobDetailHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>The proof-of-work you sent for one of your jobs (note + photos as data URIs).</summary>
+    /// <response code="200">The completion proof (empty photos if none submitted).</response>
+    /// <response code="404">No such job assigned to this artisan.</response>
+    [HttpGet("{id:guid}/completion")]
+    [ProducesResponseType(typeof(JobCompletionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<JobCompletionDto>> GetCompletion(
+        Guid id,
+        [FromServices] GetArtisanJobCompletionHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
     /// <summary>Get one of the current artisan's assigned jobs in full.</summary>
     /// <response code="200">The job.</response>
     /// <response code="401">Not signed in.</response>

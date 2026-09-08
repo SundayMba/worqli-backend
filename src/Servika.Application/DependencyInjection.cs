@@ -93,6 +93,8 @@ public static class DependencyInjection
 
         // Open (unassigned) requests: the pool a matching artisan can browse + claim.
         services.AddScoped<GetOpenJobsHandler>();
+        services.AddScoped<GetOpenJobDetailHandler>();
+        services.AddScoped<GetArtisanJobCompletionHandler>();
         services.AddScoped<ClaimOpenJobHandler>();
 
         // Live tracking (SignalR hub + stale-cleanup worker both call this).

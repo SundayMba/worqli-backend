@@ -56,6 +56,9 @@ public interface IBookingRepository
 
     /// <summary>Bookings stuck AwaitingConfirmation since before <paramref name="cutoffUtc"/>
     /// — for the auto-confirm sweep. Tracked so the transition persists.</summary>
+    /// <summary>How many bookings this customer has completed — the artisan-side trust line.</summary>
+    Task<int> CountCompletedForCustomerAsync(Guid customerId, CancellationToken ct);
+
     Task<IReadOnlyList<Booking>> ListAwaitingConfirmationBeforeAsync(
         DateTimeOffset cutoffUtc, CancellationToken ct);
 

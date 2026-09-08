@@ -21,4 +21,8 @@ public sealed record BookingSummaryDto(
     /// <summary>API paths of the customer's job photos (context for artisans).</summary>
     IReadOnlyList<string> MediaUrls,
     /// <summary>API path of the customer's short job video, or null.</summary>
-    string? VideoUrl);
+    string? VideoUrl,
+    /// <summary>Job coordinates, when the customer pinned one — lets the Pro app
+    /// show distance from the artisan's base on list cards.</summary>
+    double? LocationLat = null,
+    double? LocationLng = null);

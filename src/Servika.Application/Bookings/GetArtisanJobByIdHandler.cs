@@ -35,7 +35,8 @@ public sealed class GetArtisanJobByIdHandler
         // The artisan is heading to a person, not a "Customer" — resolve the
         // name for the job screen + the live map's destination tag.
         var customer = await _users.FindByIdAsync(booking.CustomerId, ct);
+        var completed = await _bookings.CountCompletedForCustomerAsync(booking.CustomerId, ct);
 
-        return booking.ToDetailDto(customerName: customer?.FullName);
+        return booking.ToDetailDto(customerName: customer?.FullName, customerCompletedJobs: completed);
     }
 }
