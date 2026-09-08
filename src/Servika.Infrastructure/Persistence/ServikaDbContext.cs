@@ -203,6 +203,8 @@ public sealed class ServikaDbContext : DbContext
                 .HasMaxLength(ArtisanService.MaxNameLength);
             service.Property(s => s.IsActive).HasDefaultValue(true);
             service.Property(s => s.Description).HasMaxLength(600);
+            // text[] columns need an explicit default or existing rows fail the NOT NULL add.
+            service.Property(s => s.Includes).HasDefaultValueSql("'{}'");
             service.Property(s => s.Includes).Metadata.SetValueComparer(stringListComparer);
             service.HasIndex(s => s.ArtisanProfileId);
             service.HasOne<ArtisanProfile>()

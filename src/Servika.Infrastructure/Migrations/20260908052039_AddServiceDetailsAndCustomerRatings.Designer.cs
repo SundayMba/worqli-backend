@@ -570,7 +570,8 @@ namespace Servika.Infrastructure.Migrations
 
                     b.PrimitiveCollection<List<string>>("Includes")
                         .IsRequired()
-                        .HasColumnType("text[]");
+                        .HasColumnType("text[]")
+                        .HasDefaultValueSql("'{}'");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()

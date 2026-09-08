@@ -29,7 +29,8 @@ namespace Servika.Infrastructure.Migrations
                 name: "Includes",
                 table: "artisan_services",
                 type: "text[]",
-                nullable: false);
+                nullable: false,
+                defaultValueSql: "'{}'");
 
             migrationBuilder.AddColumn<bool>(
                 name: "IsActive",
