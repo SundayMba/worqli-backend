@@ -246,6 +246,52 @@ public sealed class ArtisanProfile
         if (longitude.HasValue) Longitude = longitude;
     }
 
+    // ── Pro redesign (2026-09): payout account, work preferences, away mode ──
+
+    /// <summary>Saved payout account (bank code + NUBAN + account name). Set once
+    /// during verification; withdrawals default to it. Null until saved.</summary>
+    public string? PayoutBankCode { get; private set; }
+    public string? PayoutBankName { get; private set; }
+    public string? PayoutAccountNumber { get; private set; }
+    public string? PayoutAccountName { get; private set; }
+    public bool HasPayoutAccount => !string.IsNullOrEmpty(PayoutAccountNumber);
+
+    /// <summary>How far the artisan will travel for open jobs (km). Informational
+    /// at launch; the customer search still uses proximity ranking.</summary>
+    public int WorkRadiusKm { get; private set; } = 8;
+    /// <summary>Opted in to urgent ("emergency") requests.</summary>
+    public bool AcceptsEmergency { get; private set; }
+    /// <summary>Working hours as a small JSON blob the apps own (per weekday).</summary>
+    public string? WorkingHoursJson { get; private set; }
+    /// <summary>Away mode: hidden from search until this instant. Null = not away.</summary>
+    public DateTimeOffset? AwayUntilUtc { get; private set; }
+    public bool IsAway(DateTimeOffset now) => AwayUntilUtc is { } u && u > now;
+
+    public void SetPayoutAccount(string bankCode, string bankName, string accountNumber, string accountName)
+    {
+        var digits = new string((accountNumber ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (digits.Length != 10)
+            throw new ArgumentException("A Nigerian account number has 10 digits.", nameof(accountNumber));
+        if (string.IsNullOrWhiteSpace(bankCode) || string.IsNullOrWhiteSpace(bankName))
+            throw new ArgumentException("Pick the bank from the list.", nameof(bankName));
+        if (string.IsNullOrWhiteSpace(accountName))
+            throw new ArgumentException("Enter the account name exactly as the bank has it.", nameof(accountName));
+        PayoutBankCode = bankCode.Trim();
+        PayoutBankName = bankName.Trim();
+        PayoutAccountNumber = digits;
+        PayoutAccountName = accountName.Trim();
+    }
+
+    public void SetWorkPreferences(int radiusKm, bool acceptsEmergency, string? workingHoursJson)
+    {
+        WorkRadiusKm = Math.Clamp(radiusKm, 1, 100);
+        AcceptsEmergency = acceptsEmergency;
+        WorkingHoursJson = string.IsNullOrWhiteSpace(workingHoursJson) ? null : workingHoursJson;
+    }
+
+    /// <summary>Away until a date (hidden from search; accepted jobs untouched), or null to come back.</summary>
+    public void SetAway(DateTimeOffset? untilUtc) => AwayUntilUtc = untilUtc;
+
     /// <summary>Points the profile at a newly uploaded photo (storage key).</summary>
     public void SetPhoto(string photoKey)
     {

@@ -37,7 +37,7 @@ public sealed class GetOpenJobDetailHandler
         Guid artisanUserId, Guid bookingId, CancellationToken ct)
     {
         var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct);
-        if (profile is null || profile.VerificationStatus != ArtisanVerificationStatus.Verified)
+        if (profile is null || profile.VerificationStatus == ArtisanVerificationStatus.Rejected)
             throw new NotFoundException("This request was not found.");
 
         var booking = await _bookings.FindByIdReadOnlyAsync(bookingId, ct);

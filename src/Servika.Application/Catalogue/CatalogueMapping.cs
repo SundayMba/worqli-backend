@@ -27,12 +27,17 @@ internal static class CatalogueMapping
             a.Services, a.GalleryKeys, a.CategorySlugs, a.PhotoUrl(), a.CoverPhotoUrl(),
             a.GalleryUrls(), a.HasCertificate, pricedServices ?? Array.Empty<ArtisanServiceDto>());
 
-    public static MyArtisanProfileDto ToMyProfileDto(this ArtisanProfile a) =>
+    public static MyArtisanProfileDto ToMyProfileDto(this ArtisanProfile a, int guarantorCount = 0) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
             a.IsAvailable, a.VerificationStatus.ToString(), a.ExperienceYears,
             a.Location, a.InspectionFeeNaira, a.About, a.CategorySlugs, a.Services,
             a.PhotoUrl(), a.CoverPhotoUrl(), a.GalleryUrls(), a.HasCertificate,
-            a.Latitude, a.Longitude);
+            a.Latitude, a.Longitude,
+            a.PayoutBankCode, a.PayoutBankName,
+            a.PayoutAccountNumber is { Length: >= 4 } acct ? $"••••{acct[^4..]}" : null,
+            a.PayoutAccountName,
+            a.WorkRadiusKm, a.AcceptsEmergency, a.WorkingHoursJson, a.AwayUntilUtc,
+            guarantorCount);
 
     /// <summary>API path the clients load the uploaded photo from, or null if
     /// none was uploaded (clients fall back to the bundled ImageKey art).</summary>

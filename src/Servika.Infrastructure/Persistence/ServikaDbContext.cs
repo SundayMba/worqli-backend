@@ -69,6 +69,9 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "artisan_kyc" table — one KYC submission per artisan account.</summary>
     public DbSet<ArtisanKyc> ArtisanKycSubmissions => Set<ArtisanKyc>();
 
+    /// <summary>The "artisan_guarantors" table — people who vouch for an artisan.</summary>
+    public DbSet<ArtisanGuarantor> ArtisanGuarantors => Set<ArtisanGuarantor>();
+
     /// <summary>The "referrals" table — one row per referred user.</summary>
     public DbSet<Referral> Referrals => Set<Referral>();
 
@@ -217,6 +220,13 @@ public sealed class ServikaDbContext : DbContext
             artisan.Property(a => a.ResponseTime).HasMaxLength(40);
             artisan.Property(a => a.JobsCount).HasMaxLength(20);
             artisan.Property(a => a.About).HasMaxLength(1000);
+            artisan.Property(a => a.PayoutBankCode).HasMaxLength(10);
+            artisan.Property(a => a.PayoutBankName).HasMaxLength(80);
+            artisan.Property(a => a.PayoutAccountNumber).HasMaxLength(10);
+            artisan.Property(a => a.PayoutAccountName).HasMaxLength(120);
+            artisan.Property(a => a.WorkRadiusKm).HasDefaultValue(8);
+            artisan.Property(a => a.AcceptsEmergency).HasDefaultValue(false);
+            artisan.Property(a => a.WorkingHoursJson).HasMaxLength(2000);
 
             // List<string> properties map to native Postgres text[] columns
             // (Npgsql). CategorySlugs is queried with array containment, so index it.
@@ -483,6 +493,23 @@ public sealed class ServikaDbContext : DbContext
             kyc.HasOne<User>()
                .WithMany()
                .HasForeignKey(k => k.UserId)
+               .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ArtisanGuarantor>(g =>
+        {
+            g.ToTable("artisan_guarantors");
+            g.HasKey(x => x.Id);
+            g.HasIndex(x => x.ArtisanUserId);
+            g.Property(x => x.FullName).IsRequired().HasMaxLength(120);
+            g.Property(x => x.Phone).IsRequired().HasMaxLength(30);
+            g.Property(x => x.Relationship).IsRequired().HasMaxLength(60);
+            g.Property(x => x.Occupation).HasMaxLength(120);
+            g.Property(x => x.Address).HasMaxLength(300);
+            g.Property(x => x.IdPhotoKey).HasMaxLength(80);
+            g.HasOne<User>()
+               .WithMany()
+               .HasForeignKey(x => x.ArtisanUserId)
                .OnDelete(DeleteBehavior.Cascade);
         });
 

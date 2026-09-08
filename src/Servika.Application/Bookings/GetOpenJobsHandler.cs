@@ -28,8 +28,10 @@ public sealed class GetOpenJobsHandler
     public async Task<IReadOnlyList<BookingSummaryDto>> HandleAsync(
         Guid artisanUserId, CancellationToken ct)
     {
+        // A pending artisan may READ the pool (real jobs, real prices, actions locked
+        // in the app); claiming/quoting still requires Verified server-side.
         var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct);
-        if (profile is null || profile.VerificationStatus != ArtisanVerificationStatus.Verified)
+        if (profile is null || profile.VerificationStatus == ArtisanVerificationStatus.Rejected)
             return Array.Empty<BookingSummaryDto>();
 
         // Past the commission-debt limit → no new requests until settled (the

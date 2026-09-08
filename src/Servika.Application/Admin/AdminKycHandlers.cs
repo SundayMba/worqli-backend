@@ -54,13 +54,18 @@ public sealed class GetKycSubmissionHandler
     private readonly IArtisanKycRepository _kyc;
     private readonly IUserRepository _users;
     private readonly IFileStorage _storage;
+    private readonly IArtisanGuarantorRepository _guarantors;
+    private readonly ICatalogueRepository _catalogue;
 
     public GetKycSubmissionHandler(
-        IArtisanKycRepository kyc, IUserRepository users, IFileStorage storage)
+        IArtisanKycRepository kyc, IUserRepository users, IFileStorage storage,
+        IArtisanGuarantorRepository guarantors, ICatalogueRepository catalogue)
     {
         _kyc = kyc;
         _users = users;
         _storage = storage;
+        _guarantors = guarantors;
+        _catalogue = catalogue;
     }
 
     public async Task<KycSubmissionDetailDto> HandleAsync(Guid id, CancellationToken ct)
@@ -69,12 +74,31 @@ public sealed class GetKycSubmissionHandler
             ?? throw new NotFoundException($"KYC submission '{id}' was not found.");
 
         var user = await _users.FindByIdAsync(k.UserId, ct);
+        // Everything the applicant handed over, on one screen: identity images,
+        // the people who vouch for them, and where the money would land.
+        var profile = await _catalogue.GetArtisanByUserIdAsync(k.UserId, ct);
+        var guarantors = new List<AdminGuarantorDto>();
+        foreach (var g in await _guarantors.ListForUserAsync(k.UserId, ct))
+        {
+            guarantors.Add(new AdminGuarantorDto(
+                g.Id, g.FullName, g.Phone, g.Relationship, g.YearsKnown, g.Occupation, g.Address,
+                g.IdPhotoKey is null ? null : await DataUriAsync(g.IdPhotoKey, ct)));
+        }
+
         return new KycSubmissionDetailDto(
             k.Id, k.UserId, user?.FullName ?? "Artisan", user?.Email ?? "",
             k.IdType.ToString(), k.IdNumber, k.Status.ToString(),
             k.SubmittedAtUtc, k.ReviewedAtUtc, k.ReviewNote,
             await DataUriAsync(k.SelfieKey, ct),
-            await DataUriAsync(k.IdDocumentKey, ct));
+            await DataUriAsync(k.IdDocumentKey, ct),
+            guarantors,
+            profile?.PayoutBankName,
+            profile?.PayoutAccountNumber is { Length: >= 4 } acct ? $"••••{acct[^4..]}" : null,
+            profile?.PayoutAccountName,
+            profile?.Specialty,
+            profile?.Location,
+            profile is null || string.IsNullOrEmpty(profile.PhotoKey) ? null : $"/api/v1/artisans/{profile.Id}/photo",
+            profile?.HasCertificate ?? false);
     }
 
     private async Task<string?> DataUriAsync(string key, CancellationToken ct)

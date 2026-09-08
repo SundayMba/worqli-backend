@@ -59,6 +59,12 @@ public static class DependencyInjection
         services.AddScoped<GetServicePhotoHandler>();
         services.AddScoped<GetFeaturedServicesHandler>();
         services.AddScoped<SetArtisanAvailabilityHandler>();
+        services.AddScoped<SetPayoutAccountHandler>();
+        services.AddScoped<SetWorkPreferencesHandler>();
+        services.AddScoped<SetAwayHandler>();
+        services.AddScoped<ListGuarantorsHandler>();
+        services.AddScoped<AddGuarantorHandler>();
+        services.AddScoped<RemoveGuarantorHandler>();
         services.AddScoped<SaveArtisanProfileHandler>();
 
         // Artisan KYC (submit documents, read status).

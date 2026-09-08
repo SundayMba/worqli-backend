@@ -31,7 +31,19 @@ public sealed record MyArtisanProfileDto(
     /// <summary>The artisan's base pin (set during onboarding), or null. The Pro
     /// app uses it to show distance to each job.</summary>
     double? Latitude = null,
-    double? Longitude = null);
+    double? Longitude = null,
+    /// <summary>Saved payout account, masked ("••••4471"); nulls until saved.</summary>
+    string? PayoutBankCode = null,
+    string? PayoutBankName = null,
+    string? PayoutAccountMasked = null,
+    string? PayoutAccountName = null,
+    /// <summary>Work preferences (design 49) and away mode (design 64).</summary>
+    int WorkRadiusKm = 8,
+    bool AcceptsEmergency = false,
+    string? WorkingHoursJson = null,
+    DateTimeOffset? AwayUntilUtc = null,
+    /// <summary>How many guarantors are on file (verification hub progress).</summary>
+    int GuarantorCount = 0);
 
 /// <summary>
 /// Create or update the signed-in artisan's profile (POST/PUT /api/v1/artisan/profile),

@@ -89,6 +89,44 @@ public sealed class ArtisanProfileController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), request.Available, ct));
     }
 
+    /// <summary>Save the payout account withdrawals default to (bank code from GET /banks).</summary>
+    /// <response code="200">The updated profile (account masked).</response>
+    /// <response code="400">Not a 10-digit account, or bank/name missing.</response>
+    [HttpPut("payout-account")]
+    [ProducesResponseType(typeof(MyArtisanProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<MyArtisanProfileDto>> SetPayoutAccount(
+        [FromBody] SetPayoutAccountRequest request,
+        [FromServices] SetPayoutAccountHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), request, ct));
+    }
+
+    /// <summary>Radius, emergency opt-in and working hours.</summary>
+    [HttpPut("work-preferences")]
+    [ProducesResponseType(typeof(MyArtisanProfileDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MyArtisanProfileDto>> SetWorkPreferences(
+        [FromBody] SetWorkPreferencesRequest request,
+        [FromServices] SetWorkPreferencesHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), request, ct));
+    }
+
+    /// <summary>Away mode: hidden from search until a date (null = come back).
+    /// Accepted jobs are never moved by this.</summary>
+    [HttpPut("away")]
+    [ProducesResponseType(typeof(MyArtisanProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<MyArtisanProfileDto>> SetAway(
+        [FromBody] SetAwayRequest request,
+        [FromServices] SetAwayHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), request, ct));
+    }
+
     private Guid CurrentUserId()
     {
         var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
