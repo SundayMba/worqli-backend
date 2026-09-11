@@ -110,6 +110,7 @@ public static class DependencyInjection
 
         // Artisan KYC (submission store + file storage + verification provider).
         services.AddScoped<IArtisanKycRepository, ArtisanKycRepository>();
+        services.AddScoped<IVerificationEventRepository, VerificationEventRepository>();
         services.AddScoped<IArtisanGuarantorRepository, ArtisanGuarantorRepository>();
         services.AddScoped<ICustomerRatingRepository, CustomerRatingRepository>();
         // File storage: S3 when a bucket is configured (production — uploads survive

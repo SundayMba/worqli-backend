@@ -9,10 +9,12 @@ namespace Servika.Application.Catalogue;
 /// </summary>
 public sealed class GetKycStatusHandler
 {
+    private readonly IVerificationEventRepository _events;
     private readonly IArtisanKycRepository _kyc;
 
-    public GetKycStatusHandler(IArtisanKycRepository kyc)
+    public GetKycStatusHandler(IArtisanKycRepository kyc, IVerificationEventRepository events)
     {
+        _events = events;
         _kyc = kyc;
     }
 
@@ -21,6 +23,6 @@ public sealed class GetKycStatusHandler
         var submission = await _kyc.GetForUserAsync(artisanUserId, ct);
         return submission is null
             ? new KycStatusDto("NotSubmitted", null, null, null, null, null)
-            : submission.ToStatusDto();
+            : submission.ToStatusDto((await _events.ListForKycAsync(submission.Id, ct)).ToArtisanDtos());
     }
 }

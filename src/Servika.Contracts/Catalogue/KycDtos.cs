@@ -21,7 +21,41 @@ public sealed record KycStatusDto(
     string? IdNumber,
     string? ReviewNote,
     DateTimeOffset? SubmittedAtUtc,
-    DateTimeOffset? ReviewedAtUtc);
+    DateTimeOffset? ReviewedAtUtc,
+    /// <summary>The check the reviewer asked to be fixed (Trade | Photo | Identity | Selfie | Guarantors | Payout | Documents), or null.</summary>
+    string? OpenCheck = null,
+    string? OpenReasonCode = null,
+    string? OpenNote = null,
+    int ResubmissionCount = 0,
+    /// <summary>The application's history, newest first. Reviewer identities are not exposed to the artisan.</summary>
+    IReadOnlyList<VerificationEventDto>? Events = null);
+
+/// <summary>One line of an application's history.</summary>
+public sealed record VerificationEventDto(
+    Guid Id,
+    /// <summary>Submitted | Resubmitted | ChangesRequested | Approved | Declined.</summary>
+    string Action,
+    string? Check,
+    string? ReasonCode,
+    string? Note,
+    /// <summary>"You" for the artisan's own actions; the reviewer's name on the admin side, "Reviewer" on the artisan side.</summary>
+    string Actor,
+    DateTimeOffset CreatedAtUtc);
+
+/// <summary>Reason codes the review desk uses. Both apps map them to labels; the note carries the specifics.</summary>
+public static class VerificationReasonCodes
+{
+    public const string DocumentUnreadable = "document_unreadable";
+    public const string NameMismatch = "name_mismatch";
+    public const string PhotoNotAFace = "photo_not_a_face";
+    public const string SelfieDoesNotMatch = "selfie_does_not_match";
+    public const string NumberDoesNotMatchDocument = "number_does_not_match_document";
+    public const string GuarantorUnreachable = "guarantor_unreachable";
+    public const string GuarantorIdMissing = "guarantor_id_missing";
+    public const string PayoutNameDiffers = "payout_name_differs";
+    public const string TradeUnclear = "trade_unclear";
+    public const string Other = "other";
+}
 
 /// <summary>POST /api/v1/artisan/kyc/nin/verify body.</summary>
 public sealed record VerifyNinRequest(string Nin);

@@ -75,6 +75,9 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "artisan_guarantors" table — people who vouch for an artisan.</summary>
     public DbSet<ArtisanGuarantor> ArtisanGuarantors => Set<ArtisanGuarantor>();
 
+    /// <summary>The "verification_events" table — append-only history of each application.</summary>
+    public DbSet<VerificationEvent> VerificationEvents => Set<VerificationEvent>();
+
     /// <summary>The "referrals" table — one row per referred user.</summary>
     public DbSet<Referral> Referrals => Set<Referral>();
 
@@ -490,6 +493,9 @@ public sealed class ServikaDbContext : DbContext
 
             // One submission per artisan account.
             kyc.HasIndex(k => k.UserId).IsUnique();
+            kyc.Property(k => k.OpenCheck).HasConversion<string>().HasMaxLength(32);
+            kyc.Property(k => k.OpenReasonCode).HasMaxLength(64);
+            kyc.Property(k => k.OpenNote).HasMaxLength(1000);
 
             kyc.Property(k => k.IdType).HasConversion<string>().HasMaxLength(20);
             kyc.Property(k => k.Status).HasConversion<string>().HasMaxLength(20);
@@ -516,6 +522,18 @@ public sealed class ServikaDbContext : DbContext
                .WithMany()
                .HasForeignKey(x => x.BookingId)
                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<VerificationEvent>(e =>
+        {
+            e.ToTable("verification_events");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.KycId, x.CreatedAtUtc });
+            e.Property(x => x.Action).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Check).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.ReasonCode).HasMaxLength(64);
+            e.Property(x => x.Note).HasMaxLength(1000);
+            e.HasOne<ArtisanKyc>().WithMany().HasForeignKey(x => x.KycId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ArtisanGuarantor>(g =>

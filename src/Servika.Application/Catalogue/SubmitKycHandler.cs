@@ -23,6 +23,7 @@ public sealed class SubmitKycHandler
     private readonly IKycVerificationProvider _provider;
     private readonly IArtisanGuarantorRepository _guarantors;
     private readonly IPlatformSettingsRepository _settings;
+    private readonly IVerificationEventRepository _events;
     private readonly IClock _clock;
 
     public SubmitKycHandler(
@@ -32,8 +33,10 @@ public sealed class SubmitKycHandler
         IKycVerificationProvider provider,
         IClock clock,
         IArtisanGuarantorRepository guarantors,
-        IPlatformSettingsRepository settings)
+        IPlatformSettingsRepository settings,
+        IVerificationEventRepository events)
     {
+        _events = events;
         _kyc = kyc;
         _catalogue = catalogue;
         _storage = storage;
@@ -71,13 +74,17 @@ public sealed class SubmitKycHandler
         ArtisanKyc submission;
         if (existing is not null)
         {
+            var wasOpen = existing.OpenCheck;
             existing.Resubmit(idType, request.IdNumber, selfieKey, idKey, now);
             submission = existing;
+            _events.Add(VerificationEvent.Create(submission.Id, artisanUserId, null, VerificationEventAction.Resubmitted,
+                wasOpen ?? VerificationCheck.Identity, null, null, now));
         }
         else
         {
             submission = ArtisanKyc.Submit(artisanUserId, idType, request.IdNumber, selfieKey, idKey, now);
             _kyc.Add(submission);
+            _events.Add(VerificationEvent.Create(submission.Id, artisanUserId, null, VerificationEventAction.Submitted, null, null, null, now));
         }
 
         // Decide (manual → Pending; dev auto-approve / automated → resolved).

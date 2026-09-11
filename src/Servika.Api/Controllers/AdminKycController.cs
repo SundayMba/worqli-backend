@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Servika.Application.Admin;
@@ -57,7 +58,7 @@ public sealed class AdminKycController : ControllerBase
         [FromServices] ReviewKycHandler handler,
         CancellationToken ct)
     {
-        return Ok(await handler.HandleAsync(id, approve: true, reason: null, ct));
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, approve: true, reason: null, check: null, reasonCode: null, ct));
     }
 
     /// <summary>Reject a submission with a reason → the artisan stays off the catalogue.</summary>
@@ -72,6 +73,28 @@ public sealed class AdminKycController : ControllerBase
         [FromServices] ReviewKycHandler handler,
         CancellationToken ct)
     {
-        return Ok(await handler.HandleAsync(id, approve: false, reason: request.Reason, ct));
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, approve: false, reason: request.Reason, check: request.Check, reasonCode: request.ReasonCode, ct));
+    }
+
+    /// <summary>Ask the artisan to fix one check. The application stays Pending; only that check reopens.</summary>
+    [HttpPost("{id:guid}/request-changes")]
+    [ProducesResponseType(typeof(KycSubmissionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<KycSubmissionDto>> RequestChanges(
+        Guid id,
+        [FromBody] RequestChangesRequest request,
+        [FromServices] RequestKycChangesHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, request, ct));
+    }
+
+    private Guid CurrentUserId()
+    {
+        var sub = User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
+        return Guid.TryParse(sub, out var userId) ? userId : Guid.Empty;
     }
 }

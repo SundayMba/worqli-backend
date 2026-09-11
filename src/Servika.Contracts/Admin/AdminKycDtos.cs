@@ -11,7 +11,12 @@ public sealed record KycSubmissionDto(
     string Status,
     DateTimeOffset SubmittedAtUtc,
     DateTimeOffset? ReviewedAtUtc,
-    string? ReviewNote);
+    string? ReviewNote,
+    /// <summary>The check waiting on the artisan, if the reviewer asked for a change.</summary>
+    string? OpenCheck = null,
+    /// <summary>Set when the artisan sent a fix back; these rows go to the front of the queue.</summary>
+    DateTimeOffset? ResubmittedAtUtc = null,
+    int ResubmissionCount = 0);
 
 /// <summary>
 /// A KYC submission with the document images inlined as base64 data URIs, for the
@@ -49,7 +54,14 @@ public sealed record KycSubmissionDetailDto(
     /// <summary>What the NIN register said when the artisan checked their number: Matched | NameMismatch | NotFound | Failed | null.</summary>
     string? NinLookupStatus = null,
     string? NinLookupName = null,
-    DateTimeOffset? NinLookupCheckedAtUtc = null);
+    DateTimeOffset? NinLookupCheckedAtUtc = null,
+    string? OpenCheck = null,
+    string? OpenReasonCode = null,
+    string? OpenNote = null,
+    DateTimeOffset? ResubmittedAtUtc = null,
+    int ResubmissionCount = 0,
+    /// <summary>Full history with reviewer names, newest first.</summary>
+    IReadOnlyList<Servika.Contracts.Catalogue.VerificationEventDto>? Events = null);
 
 /// <summary>A guarantor as the admin sees it during review.</summary>
 public sealed record AdminGuarantorDto(
@@ -63,7 +75,10 @@ public sealed record AdminGuarantorDto(
     string? IdPhotoDataUri);
 
 /// <summary>Reject a KYC submission with a reason (POST /admin/kyc/{id}/reject).</summary>
-public sealed record RejectKycRequest(string? Reason);
+public sealed record RejectKycRequest(string? Reason, string? Check = null, string? ReasonCode = null);
+
+/// <summary>Ask the artisan to fix one check without declining (POST /admin/kyc/{id}/request-changes).</summary>
+public sealed record RequestChangesRequest(string Check, string? ReasonCode, string Note);
 
 /// <summary>Turn the guarantor requirement off (or back on) for one artisan (POST /admin/artisans/{id}/guarantor-waiver).</summary>
 public sealed record GuarantorWaiverRequest(bool Waived);

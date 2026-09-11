@@ -67,6 +67,18 @@ public sealed class ArtisanKycController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), request, ct));
     }
 
+    /// <summary>The artisan fixed the check the reviewer flagged and sends the application back (front of the queue).</summary>
+    /// <response code="409">Nothing is waiting on the artisan.</response>
+    [HttpPost("resubmit")]
+    [ProducesResponseType(typeof(KycStatusDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<KycStatusDto>> Resubmit(
+        [FromServices] ResubmitKycCheckHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), ct));
+    }
+
     private Guid CurrentUserId()
     {
         var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)

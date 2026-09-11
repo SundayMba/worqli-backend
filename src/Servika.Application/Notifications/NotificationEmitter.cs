@@ -369,6 +369,35 @@ public sealed class NotificationEmitter
             null);
     }
 
+    /// <summary>The reviewer asked for one check to be fixed; the note is quoted word for word.</summary>
+    public void KycChangesRequested(Guid artisanUserId, string check, string note)
+    {
+        var what = check switch
+        {
+            "Trade" => "your trade and work area",
+            "Photo" => "your profile photo",
+            "Identity" => "your ID",
+            "Selfie" => "your selfie",
+            "Guarantors" => "your guarantors",
+            "Payout" => "your payout account",
+            "Documents" => "your documents",
+            _ => "one check",
+        };
+        Add(artisanUserId, NotificationType.System,
+            $"One change needed: {what}",
+            $"{note} Fix it in Get verified and tap Send again; you go to the front of the queue.",
+            null);
+    }
+
+    /// <summary>Tell the admins an artisan sent a fix back, so the desk sees it without refreshing.</summary>
+    public async Task KycResubmittedAsync(string artisanName, string check, CancellationToken ct)
+    {
+        var admins = await _users.ListAsync(Domain.Users.Role.Admin, ct);
+        var superAdmins = await _users.ListAsync(Domain.Users.Role.SuperAdmin, ct);
+        foreach (var admin in admins.Concat(superAdmins))
+            Add(admin.Id, NotificationType.System, "Resubmission to review", $"{artisanName} fixed {check.ToLowerInvariant()} and sent their application back.", null);
+    }
+
     /// <summary>Tell the payout requester the transfer failed and funds were returned.</summary>
     public void PayoutFailed(Guid userId, int amountNaira)
     {

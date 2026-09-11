@@ -1,6 +1,7 @@
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Storage;
 using Servika.Application.Abstractions.Time;
+using Servika.Application.Catalogue;
 using Servika.Application.Common;
 using Servika.Application.Notifications;
 using Servika.Contracts.Admin;
@@ -43,7 +44,8 @@ public sealed class ListKycSubmissionsHandler
             list.Add(new KycSubmissionDto(
                 k.Id, k.UserId, user?.FullName ?? "Artisan", user?.Email ?? "",
                 k.IdType.ToString(), k.IdNumber, k.Status.ToString(),
-                k.SubmittedAtUtc, k.ReviewedAtUtc, k.ReviewNote));
+                k.SubmittedAtUtc, k.ReviewedAtUtc, k.ReviewNote,
+                k.OpenCheck?.ToString(), k.ResubmittedAtUtc, k.ResubmissionCount));
         }
         return list;
     }
@@ -58,12 +60,15 @@ public sealed class GetKycSubmissionHandler
     private readonly IArtisanGuarantorRepository _guarantors;
     private readonly ICatalogueRepository _catalogue;
     private readonly IPlatformSettingsRepository _settings;
+    private readonly IVerificationEventRepository _events;
 
     public GetKycSubmissionHandler(
         IArtisanKycRepository kyc, IUserRepository users, IFileStorage storage,
         IArtisanGuarantorRepository guarantors, ICatalogueRepository catalogue,
-        IPlatformSettingsRepository settings)
+        IPlatformSettingsRepository settings,
+        IVerificationEventRepository events)
     {
+        _events = events;
         _kyc = kyc;
         _users = users;
         _storage = storage;
@@ -110,7 +115,13 @@ public sealed class GetKycSubmissionHandler
             settings.RequiredGuarantorCount,
             profile?.NinLookupStatus,
             profile?.NinLookupName,
-            profile?.NinLookupCheckedAtUtc);
+            profile?.NinLookupCheckedAtUtc,
+            k.OpenCheck?.ToString(),
+            k.OpenReasonCode,
+            k.OpenNote,
+            k.ResubmittedAtUtc,
+            k.ResubmissionCount,
+            await (await _events.ListForKycAsync(k.Id, ct)).ToAdminDtosAsync(_users, user?.FullName ?? "Artisan", ct));
     }
 
     private async Task<string?> DataUriAsync(string key, CancellationToken ct)
@@ -127,26 +138,32 @@ public sealed class ReviewKycHandler
     private readonly IArtisanKycRepository _kyc;
     private readonly ICatalogueRepository _catalogue;
     private readonly NotificationEmitter _notifications;
+    private readonly IVerificationEventRepository _events;
     private readonly IClock _clock;
 
     public ReviewKycHandler(
-        IArtisanKycRepository kyc, ICatalogueRepository catalogue, NotificationEmitter notifications, IClock clock)
+        IArtisanKycRepository kyc, ICatalogueRepository catalogue, NotificationEmitter notifications,
+        IVerificationEventRepository events, IClock clock)
     {
         _kyc = kyc;
         _catalogue = catalogue;
         _notifications = notifications;
+        _events = events;
         _clock = clock;
     }
 
     public async Task<KycSubmissionDto> HandleAsync(
-        Guid id, bool approve, string? reason, CancellationToken ct)
+        Guid adminUserId, Guid id, bool approve, string? reason, string? check, string? reasonCode, CancellationToken ct)
     {
         var submission = await _kyc.GetByIdForUpdateAsync(id, ct)
             ?? throw new NotFoundException($"KYC submission '{id}' was not found.");
 
         var now = _clock.UtcNow;
+        VerificationCheck? failed = string.IsNullOrWhiteSpace(check) ? null : VerificationEventMapping.ParseCheck(check);
         if (approve) submission.Approve(now);
         else submission.Reject(reason, now);
+        _events.Add(VerificationEvent.Create(submission.Id, submission.UserId, adminUserId,
+            approve ? VerificationEventAction.Approved : VerificationEventAction.Declined, failed, reasonCode, approve ? null : reason, now));
 
         // Keep the artisan's profile in sync (they may not have onboarded a profile).
         var profile = await _catalogue.GetArtisanByUserIdForUpdateAsync(submission.UserId, ct);
@@ -164,6 +181,56 @@ public sealed class ReviewKycHandler
         return new KycSubmissionDto(
             submission.Id, submission.UserId, string.Empty, string.Empty,
             submission.IdType.ToString(), submission.IdNumber, submission.Status.ToString(),
-            submission.SubmittedAtUtc, submission.ReviewedAtUtc, submission.ReviewNote);
+            submission.SubmittedAtUtc, submission.ReviewedAtUtc, submission.ReviewNote,
+            submission.OpenCheck?.ToString(), submission.ResubmittedAtUtc, submission.ResubmissionCount);
+    }
+}
+
+/// <summary>
+/// The third outcome: ask the artisan to fix one check. The application stays Pending,
+/// the artisan keeps every other check, and the note is what they read word for word.
+/// </summary>
+public sealed class RequestKycChangesHandler
+{
+    private readonly IArtisanKycRepository _kyc;
+    private readonly NotificationEmitter _notifications;
+    private readonly IVerificationEventRepository _events;
+    private readonly IClock _clock;
+
+    public RequestKycChangesHandler(IArtisanKycRepository kyc, NotificationEmitter notifications, IVerificationEventRepository events, IClock clock)
+    {
+        _kyc = kyc;
+        _notifications = notifications;
+        _events = events;
+        _clock = clock;
+    }
+
+    public async Task<KycSubmissionDto> HandleAsync(Guid adminUserId, Guid id, RequestChangesRequest request, CancellationToken ct)
+    {
+        var submission = await _kyc.GetByIdForUpdateAsync(id, ct)
+            ?? throw new NotFoundException($"KYC submission '{id}' was not found.");
+        if (string.IsNullOrWhiteSpace(request.Note) || request.Note.Trim().Length < 10)
+            throw new ArgumentException("Write at least ten characters so the artisan knows what to fix.");
+        var check = VerificationEventMapping.ParseCheck(request.Check);
+
+        var now = _clock.UtcNow;
+        try
+        {
+            submission.RequestChanges(check, request.ReasonCode, request.Note, now);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new ConflictException(ex.Message);
+        }
+        _events.Add(VerificationEvent.Create(submission.Id, submission.UserId, adminUserId,
+            VerificationEventAction.ChangesRequested, check, request.ReasonCode, request.Note, now));
+        _notifications.KycChangesRequested(submission.UserId, check.ToString(), request.Note.Trim());
+
+        await _kyc.SaveChangesAsync(ct);
+        return new KycSubmissionDto(
+            submission.Id, submission.UserId, string.Empty, string.Empty,
+            submission.IdType.ToString(), submission.IdNumber, submission.Status.ToString(),
+            submission.SubmittedAtUtc, submission.ReviewedAtUtc, submission.ReviewNote,
+            submission.OpenCheck?.ToString(), submission.ResubmittedAtUtc, submission.ResubmissionCount);
     }
 }

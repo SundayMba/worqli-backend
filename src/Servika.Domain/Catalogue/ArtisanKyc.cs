@@ -36,6 +36,45 @@ public sealed class ArtisanKyc
     public DateTimeOffset SubmittedAtUtc { get; private set; }
     public DateTimeOffset? ReviewedAtUtc { get; private set; }
 
+    // ── Changes requested (the application stays Pending, one check reopens) ──
+    /// <summary>The check the reviewer asked the artisan to fix, or null when nothing is open.</summary>
+    public VerificationCheck? OpenCheck { get; private set; }
+    public string? OpenReasonCode { get; private set; }
+    public string? OpenNote { get; private set; }
+    /// <summary>When the artisan last sent a fix back; resubmissions go to the front of the queue.</summary>
+    public DateTimeOffset? ResubmittedAtUtc { get; private set; }
+    public int ResubmissionCount { get; private set; }
+
+    public bool HasOpenCheck => OpenCheck is not null;
+
+    /// <summary>Reviewer asks for one thing to be fixed. The application stays Pending; only that check reopens.</summary>
+    public void RequestChanges(VerificationCheck check, string? reasonCode, string note, DateTimeOffset now)
+    {
+        if (Status == ArtisanVerificationStatus.Verified)
+            throw new InvalidOperationException("An approved application cannot have changes requested.");
+        if (string.IsNullOrWhiteSpace(note))
+            throw new ArgumentException("Say what needs to change.", nameof(note));
+        Status = ArtisanVerificationStatus.Pending;
+        OpenCheck = check;
+        OpenReasonCode = string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim();
+        OpenNote = note.Trim();
+        ReviewNote = note.Trim();
+        ReviewedAtUtc = now;
+    }
+
+    /// <summary>The artisan sent the fix back: the open check closes and the application returns to the queue, at the front.</summary>
+    public void MarkResubmitted(DateTimeOffset now)
+    {
+        OpenCheck = null;
+        OpenReasonCode = null;
+        OpenNote = null;
+        ReviewNote = null;
+        ReviewedAtUtc = null;
+        Status = ArtisanVerificationStatus.Pending;
+        ResubmittedAtUtc = now;
+        ResubmissionCount += 1;
+    }
+
     private ArtisanKyc() { }
 
     public static ArtisanKyc Submit(
@@ -81,8 +120,13 @@ public sealed class ArtisanKyc
         IdDocumentKey = idDocumentKey;
         Status = ArtisanVerificationStatus.Pending;
         ReviewNote = null;
-        SubmittedAtUtc = now;
         ReviewedAtUtc = null;
+        // A fresh identity upload counts as the fix for an open identity/selfie check.
+        OpenCheck = null;
+        OpenReasonCode = null;
+        OpenNote = null;
+        ResubmittedAtUtc = now;
+        ResubmissionCount += 1;
     }
 
     public void Approve(DateTimeOffset now)
@@ -90,6 +134,9 @@ public sealed class ArtisanKyc
         Status = ArtisanVerificationStatus.Verified;
         ReviewedAtUtc = now;
         ReviewNote = null;
+        OpenCheck = null;
+        OpenReasonCode = null;
+        OpenNote = null;
     }
 
     public void Reject(string? reason, DateTimeOffset now)
@@ -97,5 +144,8 @@ public sealed class ArtisanKyc
         Status = ArtisanVerificationStatus.Rejected;
         ReviewedAtUtc = now;
         ReviewNote = reason;
+        OpenCheck = null;
+        OpenReasonCode = null;
+        OpenNote = null;
     }
 }
