@@ -56,7 +56,11 @@ public sealed class SubmitJobCompletionHandler
             keys.Add(await _storage.SaveAsync(bytes, "image/jpeg", ct));
         }
 
-        booking.SubmitCompletion(keys, request.Note, now);
+        string? receiptKey = null;
+        if (!string.IsNullOrWhiteSpace(request.ReceiptPhotoBase64))
+            receiptKey = await _storage.SaveAsync(DecodeImage(request.ReceiptPhotoBase64), "image/jpeg", ct);
+
+        booking.SubmitCompletion(keys, request.Note, now, receiptKey);
         _notifications.WorkSubmitted(booking);
         await _bookings.SaveChangesAsync(ct);
 

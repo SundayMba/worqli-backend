@@ -153,6 +153,8 @@ public sealed class Booking
 
     /// <summary>Storage keys for the artisan's proof-of-work photos.</summary>
     public List<string> CompletionPhotoKeys { get; private set; } = new();
+    /// <summary>The materials receipt the artisan attached with the proof, kept apart from the work photos so it never lands in a public gallery.</summary>
+    public string? CompletionReceiptKey { get; private set; }
 
     /// <summary>When the customer raised a dispute (→ Disputed), if any.</summary>
     public DateTimeOffset? DisputedAtUtc { get; private set; }
@@ -464,7 +466,7 @@ public sealed class Booking
     /// unresponsive customer fair). The customer then confirms, or it auto-confirms
     /// after the window.
     /// </summary>
-    public void SubmitCompletion(IReadOnlyList<string> photoKeys, string? note, DateTimeOffset now)
+    public void SubmitCompletion(IReadOnlyList<string> photoKeys, string? note, DateTimeOffset now, string? receiptKey = null)
     {
         if (Status is not BookingStatus.InProgress)
             throw new InvalidBookingStateException(
@@ -473,6 +475,7 @@ public sealed class Booking
             throw new InvalidBookingStateException("At least one proof-of-work photo is required.");
 
         CompletionPhotoKeys = photoKeys.ToList();
+        CompletionReceiptKey = string.IsNullOrWhiteSpace(receiptKey) ? null : receiptKey;
         CompletionNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
         WorkSubmittedAtUtc = now;
         Status = BookingStatus.AwaitingConfirmation;

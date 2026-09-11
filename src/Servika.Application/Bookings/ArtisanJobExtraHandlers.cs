@@ -91,7 +91,14 @@ public sealed class GetArtisanJobCompletionHandler
                 photos.Add($"data:{file.ContentType};base64,{Convert.ToBase64String(file.Content)}");
         }
 
+        string? receipt = null;
+        if (booking.CompletionReceiptKey is not null)
+        {
+            var r = await _storage.GetAsync(booking.CompletionReceiptKey, ct);
+            if (r is not null) receipt = $"data:{r.ContentType};base64,{Convert.ToBase64String(r.Content)}";
+        }
+
         return new JobCompletionDto(
-            booking.Status.ToString(), booking.CompletionNote, booking.WorkSubmittedAtUtc, photos);
+            booking.Status.ToString(), booking.CompletionNote, booking.WorkSubmittedAtUtc, photos, receipt);
     }
 }

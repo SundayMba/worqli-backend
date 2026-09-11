@@ -6,7 +6,9 @@ namespace Servika.Contracts.Bookings;
 /// </summary>
 public sealed record SubmitCompletionRequest(
     string? Note,
-    IReadOnlyList<string> PhotosBase64);
+    IReadOnlyList<string> PhotosBase64,
+    /// <summary>Optional materials receipt, sent apart from the work photos.</summary>
+    string? ReceiptPhotoBase64 = null);
 
 /// <summary>
 /// The artisan's completion proof for a booking (GET /api/v1/bookings/{id}/completion).
@@ -16,4 +18,6 @@ public sealed record JobCompletionDto(
     string Status,
     string? Note,
     DateTimeOffset? SubmittedAtUtc,
-    IReadOnlyList<string> Photos);
+    IReadOnlyList<string> Photos,
+    /// <summary>The materials receipt as a data URI, or null when none was attached.</summary>
+    string? ReceiptPhoto = null);

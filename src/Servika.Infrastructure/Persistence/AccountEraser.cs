@@ -56,13 +56,14 @@ public sealed class AccountEraser : IAccountEraser
         // assigned artisan — carries media we must remove.
         var bookingMedia = await _db.Bookings.AsNoTracking()
             .Where(b => b.CustomerId == userId || (profileId != null && b.ArtisanId == profileId))
-            .Select(b => new { b.MediaKeys, b.VideoKey, b.CompletionPhotoKeys })
+            .Select(b => new { b.MediaKeys, b.VideoKey, b.CompletionPhotoKeys, b.CompletionReceiptKey })
             .ToListAsync(ct);
         foreach (var b in bookingMedia)
         {
             keys.AddRange(b.MediaKeys);
             if (!string.IsNullOrWhiteSpace(b.VideoKey)) keys.Add(b.VideoKey);
             keys.AddRange(b.CompletionPhotoKeys);
+            if (b.CompletionReceiptKey is not null) keys.Add(b.CompletionReceiptKey);
         }
 
         // ── 2. Delete rows in one transaction. ──
