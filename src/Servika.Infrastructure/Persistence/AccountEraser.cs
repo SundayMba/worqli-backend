@@ -44,12 +44,19 @@ public sealed class AccountEraser : IAccountEraser
 
         var kycKeys = await _db.ArtisanKycSubmissions.AsNoTracking()
             .Where(k => k.UserId == userId)
-            .Select(k => new { k.SelfieKey, k.IdDocumentKey })
+            .Select(k => new { k.SelfieKey, k.IdDocumentKey, k.PoseSelfiesJson })
             .ToListAsync(ct);
         foreach (var k in kycKeys)
         {
             if (!string.IsNullOrWhiteSpace(k.SelfieKey)) keys.Add(k.SelfieKey);
             if (!string.IsNullOrWhiteSpace(k.IdDocumentKey)) keys.Add(k.IdDocumentKey);
+            if (string.IsNullOrWhiteSpace(k.PoseSelfiesJson)) continue;
+            try
+            {
+                foreach (var p in System.Text.Json.JsonSerializer.Deserialize<List<Servika.Application.Catalogue.PoseShot>>(k.PoseSelfiesJson) ?? new())
+                    if (!string.IsNullOrWhiteSpace(p.Key)) keys.Add(p.Key);
+            }
+            catch (System.Text.Json.JsonException) { /* unreadable list: nothing more to delete */ }
         }
 
         // Every booking the account touches — as customer OR (if artisan) as the
