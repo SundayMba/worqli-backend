@@ -9,7 +9,7 @@ public sealed record PlatformSettingsDto(
     int ReferralRewardNaira,
     int MaxCommissionDebtNaira,
     DateTimeOffset UpdatedAtUtc,
-    bool RequireGuarantors = true,
+    bool RequireGuarantors = false,
     int RequiredGuarantorCount = 2);
 
 /// <summary>Update the platform settings (PUT /api/v1/admin/settings). All fields required.</summary>
@@ -20,5 +20,5 @@ public sealed record UpdatePlatformSettingsRequest(
     int MinWithdrawalNaira,
     int ReferralRewardNaira,
     int MaxCommissionDebtNaira,
-    bool RequireGuarantors = true,
+    bool RequireGuarantors = false,
     int RequiredGuarantorCount = 2);

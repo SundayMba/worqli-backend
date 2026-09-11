@@ -32,8 +32,8 @@ public sealed class PlatformSettings
     /// they stop receiving new job requests (the enforcement floor).</summary>
     public int MaxCommissionDebtNaira { get; private set; }
 
-    /// <summary>Whether an artisan must add guarantors before their application can be sent. Admin can waive it per artisan.</summary>
-    public bool RequireGuarantors { get; private set; } = true;
+    /// <summary>Whether an artisan must add guarantors before their application can be sent (off by default: recommended, not required). Admin can switch it on, or waive per artisan when on.</summary>
+    public bool RequireGuarantors { get; private set; }
     /// <summary>How many guarantors count as complete when they are required.</summary>
     public int RequiredGuarantorCount { get; private set; } = 2;
 
@@ -51,7 +51,7 @@ public sealed class PlatformSettings
         MinWithdrawalNaira = 1000,
         ReferralRewardNaira = 500,
         MaxCommissionDebtNaira = 2000,
-        RequireGuarantors = true,
+        RequireGuarantors = false,
         RequiredGuarantorCount = 2,
         UpdatedAtUtc = now,
     };
@@ -66,7 +66,7 @@ public sealed class PlatformSettings
         int referralRewardNaira,
         int maxCommissionDebtNaira,
         DateTimeOffset now,
-        bool requireGuarantors = true,
+        bool requireGuarantors = false,
         int requiredGuarantorCount = 2)
     {
         CommissionRate = Rate(commissionRate, nameof(commissionRate));
