@@ -56,15 +56,18 @@ public sealed class GetKycSubmissionHandler
     private readonly IFileStorage _storage;
     private readonly IArtisanGuarantorRepository _guarantors;
     private readonly ICatalogueRepository _catalogue;
+    private readonly IPlatformSettingsRepository _settings;
 
     public GetKycSubmissionHandler(
         IArtisanKycRepository kyc, IUserRepository users, IFileStorage storage,
-        IArtisanGuarantorRepository guarantors, ICatalogueRepository catalogue)
+        IArtisanGuarantorRepository guarantors, ICatalogueRepository catalogue,
+        IPlatformSettingsRepository settings)
     {
         _kyc = kyc;
         _users = users;
         _storage = storage;
         _guarantors = guarantors;
+        _settings = settings;
         _catalogue = catalogue;
     }
 
@@ -77,6 +80,7 @@ public sealed class GetKycSubmissionHandler
         // Everything the applicant handed over, on one screen: identity images,
         // the people who vouch for them, and where the money would land.
         var profile = await _catalogue.GetArtisanByUserIdAsync(k.UserId, ct);
+        var settings = await _settings.GetOrCreateAsync(ct);
         var guarantors = new List<AdminGuarantorDto>();
         foreach (var g in await _guarantors.ListForUserAsync(k.UserId, ct))
         {
@@ -98,7 +102,14 @@ public sealed class GetKycSubmissionHandler
             profile?.Specialty,
             profile?.Location,
             profile is null || string.IsNullOrEmpty(profile.PhotoKey) ? null : $"/api/v1/artisans/{profile.Id}/photo",
-            profile?.HasCertificate ?? false);
+            profile?.HasCertificate ?? false,
+            profile?.Id,
+            settings.RequireGuarantors && !(profile?.GuarantorsWaived ?? false),
+            profile?.GuarantorsWaived ?? false,
+            settings.RequiredGuarantorCount,
+            profile?.NinLookupStatus,
+            profile?.NinLookupName,
+            profile?.NinLookupCheckedAtUtc);
     }
 
     private async Task<string?> DataUriAsync(string key, CancellationToken ct)

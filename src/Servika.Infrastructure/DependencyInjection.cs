@@ -10,6 +10,8 @@ using Servika.Application.Abstractions.Storage;
 using Servika.Application.Abstractions.Time;
 using Servika.Application.Abstractions.Verification;
 using Servika.Infrastructure.Directions;
+using Servika.Application.Abstractions.Kyc;
+using Servika.Infrastructure.Kyc;
 using Servika.Infrastructure.Notifications;
 using Servika.Infrastructure.Payments;
 using Servika.Infrastructure.Persistence;
@@ -201,6 +203,20 @@ public static class DependencyInjection
         else
         {
             services.AddSingleton<IPhoneOtpSender, StubPhoneOtpSender>();
+        }
+
+        // NIN register lookup: Dojah when `Nin:ApiKey` (+ `Nin:AppId`) is set, else the
+        // offline stub so the identity screen behaves the same locally.
+        var ninOptions = configuration.GetSection(NinOptions.SectionName).Get<NinOptions>() ?? new NinOptions();
+        services.AddSingleton(ninOptions);
+        if (ninOptions.IsConfigured)
+        {
+            services.AddHttpClient("dojah");
+            services.AddSingleton<INinLookupProvider, DojahNinLookupProvider>();
+        }
+        else
+        {
+            services.AddSingleton<INinLookupProvider, StubNinLookupProvider>();
         }
 
         return services;

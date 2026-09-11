@@ -40,7 +40,16 @@ public sealed record KycSubmissionDetailDto(
     string? Specialty = null,
     string? Location = null,
     string? ProfilePhotoUrl = null,
-    bool HasCertificate = false);
+    bool HasCertificate = false,
+    /// <summary>The artisan profile id (for the per-artisan actions such as the guarantor waiver).</summary>
+    Guid? ArtisanId = null,
+    bool GuarantorsRequired = true,
+    bool GuarantorsWaived = false,
+    int RequiredGuarantorCount = 2,
+    /// <summary>What the NIN register said when the artisan checked their number: Matched | NameMismatch | NotFound | Failed | null.</summary>
+    string? NinLookupStatus = null,
+    string? NinLookupName = null,
+    DateTimeOffset? NinLookupCheckedAtUtc = null);
 
 /// <summary>A guarantor as the admin sees it during review.</summary>
 public sealed record AdminGuarantorDto(
@@ -55,3 +64,6 @@ public sealed record AdminGuarantorDto(
 
 /// <summary>Reject a KYC submission with a reason (POST /admin/kyc/{id}/reject).</summary>
 public sealed record RejectKycRequest(string? Reason);
+
+/// <summary>Turn the guarantor requirement off (or back on) for one artisan (POST /admin/artisans/{id}/guarantor-waiver).</summary>
+public sealed record GuarantorWaiverRequest(bool Waived);

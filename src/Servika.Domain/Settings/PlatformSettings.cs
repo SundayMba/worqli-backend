@@ -32,6 +32,11 @@ public sealed class PlatformSettings
     /// they stop receiving new job requests (the enforcement floor).</summary>
     public int MaxCommissionDebtNaira { get; private set; }
 
+    /// <summary>Whether an artisan must add guarantors before their application can be sent. Admin can waive it per artisan.</summary>
+    public bool RequireGuarantors { get; private set; } = true;
+    /// <summary>How many guarantors count as complete when they are required.</summary>
+    public int RequiredGuarantorCount { get; private set; } = 2;
+
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     private PlatformSettings() { }
@@ -46,6 +51,8 @@ public sealed class PlatformSettings
         MinWithdrawalNaira = 1000,
         ReferralRewardNaira = 500,
         MaxCommissionDebtNaira = 2000,
+        RequireGuarantors = true,
+        RequiredGuarantorCount = 2,
         UpdatedAtUtc = now,
     };
 
@@ -58,7 +65,9 @@ public sealed class PlatformSettings
         int minWithdrawalNaira,
         int referralRewardNaira,
         int maxCommissionDebtNaira,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        bool requireGuarantors = true,
+        int requiredGuarantorCount = 2)
     {
         CommissionRate = Rate(commissionRate, nameof(commissionRate));
         EmergencyCommissionRate = Rate(emergencyCommissionRate, nameof(emergencyCommissionRate));
@@ -75,7 +84,12 @@ public sealed class PlatformSettings
         AutoConfirmHours = autoConfirmHours;
         MinWithdrawalNaira = minWithdrawalNaira;
         ReferralRewardNaira = referralRewardNaira;
+        if (requiredGuarantorCount is < 1 or > 5)
+            throw new ArgumentException("Required guarantors must be between 1 and 5.", nameof(requiredGuarantorCount));
+
         MaxCommissionDebtNaira = maxCommissionDebtNaira;
+        RequireGuarantors = requireGuarantors;
+        RequiredGuarantorCount = requiredGuarantorCount;
         UpdatedAtUtc = now;
     }
 

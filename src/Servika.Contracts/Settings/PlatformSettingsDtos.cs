@@ -8,7 +8,9 @@ public sealed record PlatformSettingsDto(
     int MinWithdrawalNaira,
     int ReferralRewardNaira,
     int MaxCommissionDebtNaira,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    bool RequireGuarantors = true,
+    int RequiredGuarantorCount = 2);
 
 /// <summary>Update the platform settings (PUT /api/v1/admin/settings). All fields required.</summary>
 public sealed record UpdatePlatformSettingsRequest(
@@ -17,4 +19,6 @@ public sealed record UpdatePlatformSettingsRequest(
     int AutoConfirmHours,
     int MinWithdrawalNaira,
     int ReferralRewardNaira,
-    int MaxCommissionDebtNaira);
+    int MaxCommissionDebtNaira,
+    bool RequireGuarantors = true,
+    int RequiredGuarantorCount = 2);

@@ -50,6 +50,23 @@ public sealed class ArtisanKycController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), request, ct));
     }
 
+    /// <summary>Checks a NIN against the register and records the outcome for the reviewer.</summary>
+    /// <response code="200">Matched | NameMismatch | NotFound | Failed | Unavailable, with lookups left today.</response>
+    /// <response code="400">Not eleven digits.</response>
+    /// <response code="404">No artisan profile yet.</response>
+    /// <response code="429">Three lookups today already.</response>
+    [HttpPost("nin/verify")]
+    [ProducesResponseType(typeof(NinVerifyResultDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<NinVerifyResultDto>> VerifyNin(
+        [FromBody] VerifyNinRequest request,
+        [FromServices] VerifyNinHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), request, ct));
+    }
+
     private Guid CurrentUserId()
     {
         var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)

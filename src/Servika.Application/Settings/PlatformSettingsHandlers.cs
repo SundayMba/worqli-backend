@@ -10,7 +10,8 @@ internal static class PlatformSettingsMapping
 {
     public static PlatformSettingsDto ToDto(this PlatformSettings s) =>
         new(s.CommissionRate, s.EmergencyCommissionRate, s.AutoConfirmHours,
-            s.MinWithdrawalNaira, s.ReferralRewardNaira, s.MaxCommissionDebtNaira, s.UpdatedAtUtc);
+            s.MinWithdrawalNaira, s.ReferralRewardNaira, s.MaxCommissionDebtNaira, s.UpdatedAtUtc,
+            s.RequireGuarantors, s.RequiredGuarantorCount);
 }
 
 /// <summary>Reads the current platform settings (admin).</summary>
@@ -50,7 +51,9 @@ public sealed class UpdatePlatformSettingsHandler
             request.MinWithdrawalNaira,
             request.ReferralRewardNaira,
             request.MaxCommissionDebtNaira,
-            _clock.UtcNow);
+            _clock.UtcNow,
+            request.RequireGuarantors,
+            request.RequiredGuarantorCount);
         await _settings.SaveChangesAsync(ct);
         return settings.ToDto();
     }

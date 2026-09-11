@@ -26,7 +26,9 @@ public sealed record AdminArtisanDto(
     bool IsRestricted,
     /// <summary>The artisan's published fixed-price services ("Name — ₦X"), for
     /// admin spot checks — these names render on the customer Home rail.</summary>
-    IReadOnlyList<string>? PricedServices = null);
+    IReadOnlyList<string>? PricedServices = null,
+    /// <summary>Admin waived the guarantor requirement for this artisan.</summary>
+    bool GuarantorsWaived = false);
 
 /// <summary>An artisan's uploaded work certificate, inlined as a base64 data URI
 /// (like the KYC document images) so the admin can view it in the browser.</summary>

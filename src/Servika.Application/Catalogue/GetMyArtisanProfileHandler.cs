@@ -13,11 +13,13 @@ public sealed class GetMyArtisanProfileHandler
 {
     private readonly ICatalogueRepository _catalogue;
     private readonly IArtisanGuarantorRepository _guarantors;
+    private readonly IPlatformSettingsRepository _settings;
 
-    public GetMyArtisanProfileHandler(ICatalogueRepository catalogue, IArtisanGuarantorRepository guarantors)
+    public GetMyArtisanProfileHandler(ICatalogueRepository catalogue, IArtisanGuarantorRepository guarantors, IPlatformSettingsRepository settings)
     {
         _catalogue = catalogue;
         _guarantors = guarantors;
+        _settings = settings;
     }
 
     public async Task<MyArtisanProfileDto> HandleAsync(Guid artisanUserId, CancellationToken ct)
@@ -25,6 +27,10 @@ public sealed class GetMyArtisanProfileHandler
         var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct)
             ?? throw new NotFoundException("You haven't set up your artisan profile yet.");
 
-        return profile.ToMyProfileDto(await _guarantors.CountForUserAsync(artisanUserId, ct));
+        var settings = await _settings.GetOrCreateAsync(ct);
+        return profile.ToMyProfileDto(
+            await _guarantors.CountForUserAsync(artisanUserId, ct),
+            settings.RequireGuarantors && !profile.GuarantorsWaived,
+            settings.RequiredGuarantorCount);
     }
 }

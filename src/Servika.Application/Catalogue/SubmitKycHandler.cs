@@ -21,6 +21,8 @@ public sealed class SubmitKycHandler
     private readonly ICatalogueRepository _catalogue;
     private readonly IFileStorage _storage;
     private readonly IKycVerificationProvider _provider;
+    private readonly IArtisanGuarantorRepository _guarantors;
+    private readonly IPlatformSettingsRepository _settings;
     private readonly IClock _clock;
 
     public SubmitKycHandler(
@@ -28,12 +30,16 @@ public sealed class SubmitKycHandler
         ICatalogueRepository catalogue,
         IFileStorage storage,
         IKycVerificationProvider provider,
-        IClock clock)
+        IClock clock,
+        IArtisanGuarantorRepository guarantors,
+        IPlatformSettingsRepository settings)
     {
         _kyc = kyc;
         _catalogue = catalogue;
         _storage = storage;
         _provider = provider;
+        _guarantors = guarantors;
+        _settings = settings;
         _clock = clock;
     }
 
@@ -42,6 +48,17 @@ public sealed class SubmitKycHandler
     {
         if (!Enum.TryParse<KycIdType>(request.IdType, ignoreCase: true, out var idType))
             throw new ArgumentException($"Unknown ID type '{request.IdType}'.");
+
+        // Guarantors are required unless the admin switched the rule off or waived it for this artisan.
+        var settings = await _settings.GetOrCreateAsync(ct);
+        var profileForPolicy = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct);
+        if (settings.RequireGuarantors && !(profileForPolicy?.GuarantorsWaived ?? false))
+        {
+            var have = await _guarantors.CountForUserAsync(artisanUserId, ct);
+            if (have < settings.RequiredGuarantorCount)
+                throw new ConflictException(
+                    $"Add {settings.RequiredGuarantorCount} guarantor{(settings.RequiredGuarantorCount == 1 ? "" : "s")} before sending your application. You have {have}.");
+        }
 
         var selfie = DecodeImage(request.SelfieBase64, "selfie");
         var idImage = DecodeImage(request.IdImageBase64, "ID document");

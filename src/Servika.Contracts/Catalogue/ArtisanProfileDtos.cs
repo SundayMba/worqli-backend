@@ -43,7 +43,13 @@ public sealed record MyArtisanProfileDto(
     string? WorkingHoursJson = null,
     DateTimeOffset? AwayUntilUtc = null,
     /// <summary>How many guarantors are on file (verification hub progress).</summary>
-    int GuarantorCount = 0);
+    int GuarantorCount = 0,
+    /// <summary>Whether guarantors must be added before the application can be sent (global rule minus any admin waiver).</summary>
+    bool GuarantorsRequired = true,
+    int RequiredGuarantorCount = 2,
+    /// <summary>Last NIN register check: Matched | NameMismatch | NotFound | Failed | null.</summary>
+    string? NinLookupStatus = null,
+    string? NinLookupName = null);
 
 /// <summary>
 /// Create or update the signed-in artisan's profile (POST/PUT /api/v1/artisan/profile),

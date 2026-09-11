@@ -292,6 +292,43 @@ public sealed class ArtisanProfile
     /// <summary>Away until a date (hidden from search; accepted jobs untouched), or null to come back.</summary>
     public void SetAway(DateTimeOffset? untilUtc) => AwayUntilUtc = untilUtc;
 
+    // ── Guarantor policy ───────────────────────────────────────────────────
+    /// <summary>Admin waived the guarantor requirement for this artisan alone.</summary>
+    public bool GuarantorsWaived { get; private set; }
+    public void SetGuarantorsWaived(bool waived) => GuarantorsWaived = waived;
+
+    // ── NIN lookup (register check the artisan runs from the identity screen) ──
+    /// <summary>The NIN that was last checked against the register.</summary>
+    public string? NinLookupNumber { get; private set; }
+    /// <summary>Matched | NameMismatch | NotFound | Failed, or null when never checked.</summary>
+    public string? NinLookupStatus { get; private set; }
+    /// <summary>The name the register returned, for the reviewer to compare.</summary>
+    public string? NinLookupName { get; private set; }
+    public DateTimeOffset? NinLookupCheckedAtUtc { get; private set; }
+    /// <summary>Lookups made in the current UTC day (they cost money; three a day).</summary>
+    public int NinLookupAttemptsToday { get; private set; }
+    public DateTimeOffset? NinLookupAttemptsDayUtc { get; private set; }
+
+    public const int MaxNinLookupsPerDay = 3;
+
+    public int NinLookupsLeft(DateTimeOffset now)
+    {
+        var sameDay = NinLookupAttemptsDayUtc is { } d && d.UtcDateTime.Date == now.UtcDateTime.Date;
+        return Math.Max(0, MaxNinLookupsPerDay - (sameDay ? NinLookupAttemptsToday : 0));
+    }
+
+    /// <summary>Records one register lookup and its outcome. Callers check <see cref="NinLookupsLeft"/> first.</summary>
+    public void RecordNinLookup(string nin, string status, string? registerName, DateTimeOffset now)
+    {
+        var sameDay = NinLookupAttemptsDayUtc is { } d && d.UtcDateTime.Date == now.UtcDateTime.Date;
+        NinLookupAttemptsToday = sameDay ? NinLookupAttemptsToday + 1 : 1;
+        NinLookupAttemptsDayUtc = now;
+        NinLookupNumber = nin;
+        NinLookupStatus = status;
+        NinLookupName = registerName;
+        NinLookupCheckedAtUtc = now;
+    }
+
     /// <summary>Points the profile at a newly uploaded photo (storage key).</summary>
     public void SetPhoto(string photoKey)
     {

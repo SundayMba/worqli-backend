@@ -43,4 +43,19 @@ public sealed class AdminArtisansController : ControllerBase
     {
         return Ok(await handler.HandleAsync(id, ct));
     }
+
+    /// <summary>Waive (or restore) the guarantor requirement for one artisan.</summary>
+    [HttpPost("{id:guid}/guarantor-waiver")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetGuarantorWaiver(
+        Guid id,
+        [FromBody] GuarantorWaiverRequest request,
+        [FromServices] SetGuarantorWaiverHandler handler,
+        CancellationToken ct)
+    {
+        await handler.HandleAsync(id, request, ct);
+        return NoContent();
+    }
 }

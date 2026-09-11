@@ -22,3 +22,13 @@ public sealed record KycStatusDto(
     string? ReviewNote,
     DateTimeOffset? SubmittedAtUtc,
     DateTimeOffset? ReviewedAtUtc);
+
+/// <summary>POST /api/v1/artisan/kyc/nin/verify body.</summary>
+public sealed record VerifyNinRequest(string Nin);
+
+/// <summary>
+/// Outcome of a NIN register check. Status: Matched (register name matches the account
+/// name), NameMismatch, NotFound, Failed (provider error), Unavailable (no provider
+/// configured, the reviewer will check by hand). The name is masked to initials.
+/// </summary>
+public sealed record NinVerifyResultDto(string Status, string? RegisterName, int LookupsLeft);

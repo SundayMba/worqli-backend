@@ -67,7 +67,8 @@ public sealed class ListAdminArtisansHandler
                 a.GalleryPhotoKeys.Count,
                 owed,
                 balance < -maxDebt,
-                services.TryGetValue(a.Id, out var sv) ? sv : Array.Empty<string>());
+                services.TryGetValue(a.Id, out var sv) ? sv : Array.Empty<string>(),
+                a.GuarantorsWaived);
         }).ToList();
     }
 }
