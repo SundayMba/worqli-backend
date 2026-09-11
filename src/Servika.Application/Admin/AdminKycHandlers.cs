@@ -2,6 +2,7 @@ using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Storage;
 using Servika.Application.Abstractions.Time;
 using Servika.Application.Common;
+using Servika.Application.Notifications;
 using Servika.Contracts.Admin;
 using Servika.Domain.Catalogue;
 
@@ -125,13 +126,15 @@ public sealed class ReviewKycHandler
 {
     private readonly IArtisanKycRepository _kyc;
     private readonly ICatalogueRepository _catalogue;
+    private readonly NotificationEmitter _notifications;
     private readonly IClock _clock;
 
     public ReviewKycHandler(
-        IArtisanKycRepository kyc, ICatalogueRepository catalogue, IClock clock)
+        IArtisanKycRepository kyc, ICatalogueRepository catalogue, NotificationEmitter notifications, IClock clock)
     {
         _kyc = kyc;
         _catalogue = catalogue;
+        _notifications = notifications;
         _clock = clock;
     }
 
@@ -152,6 +155,9 @@ public sealed class ReviewKycHandler
             if (approve) profile.MarkVerified();
             else profile.MarkRejected();
         }
+
+        // In-app + push, in the same transaction as the decision.
+        _notifications.KycReviewed(submission.UserId, approve, reason);
 
         await _kyc.SaveChangesAsync(ct);
 

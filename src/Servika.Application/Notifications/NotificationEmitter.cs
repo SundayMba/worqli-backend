@@ -350,6 +350,25 @@ public sealed class NotificationEmitter
             null);
     }
 
+    /// <summary>The reviewer decided on the artisan's verification. A decline carries the
+    /// reviewer's note word for word, so the artisan knows exactly what to fix.</summary>
+    public void KycReviewed(Guid artisanUserId, bool approved, string? note)
+    {
+        if (approved)
+        {
+            Add(artisanUserId, NotificationType.System,
+                "You are verified",
+                "Your checks passed. Your profile now carries the verified badge and you can take jobs.",
+                null);
+            return;
+        }
+        var reason = string.IsNullOrWhiteSpace(note) ? "The reviewer could not match your documents." : note.Trim();
+        Add(artisanUserId, NotificationType.System,
+            "Your verification needs another look",
+            $"{reason} Fix it in Get verified and send again; it goes to the front of the queue.",
+            null);
+    }
+
     /// <summary>Tell the payout requester the transfer failed and funds were returned.</summary>
     public void PayoutFailed(Guid userId, int amountNaira)
     {
