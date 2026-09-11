@@ -17,6 +17,7 @@ namespace Servika.Application.Payments;
 /// </summary>
 public sealed class WithdrawalService
 {
+    private readonly BankAccountResolver _resolver;
     /// <summary>Default smallest payout we'll process (artisan earnings).</summary>
     public const int DefaultMinWithdrawalNaira = 1000;
 
@@ -29,8 +30,10 @@ public sealed class WithdrawalService
         IWalletRepository wallet,
         IWithdrawalRepository withdrawals,
         IPayoutGateway payouts,
-        IClock clock)
+        IClock clock,
+        BankAccountResolver resolver)
     {
+        _resolver = resolver;
         _wallet = wallet;
         _withdrawals = withdrawals;
         _payouts = payouts;
@@ -65,10 +68,20 @@ public sealed class WithdrawalService
         if (request.AmountNaira > available)
             throw new ConflictException($"Insufficient balance. Available: ₦{available:N0}.");
 
+        // With a bank code we can ask the bank whose account it is; the stored and paid
+        // name is then the bank's, not the typed one.
+        var accountName = request.AccountName;
+        if (!string.IsNullOrWhiteSpace(request.BankCode))
+        {
+            var resolved = await _resolver.ResolveAsync(userId, request.BankCode, request.AccountNumber, request.AccountName, ct)
+                ?? throw new ArgumentException($"No account with that number at {request.BankName}. Check the digits.");
+            accountName = resolved.AccountName;
+        }
+
         var now = _clock.UtcNow;
         var withdrawal = Withdrawal.Request(
             ownerType, ownerId, userId, request.AmountNaira,
-            request.BankName, request.AccountNumber, request.AccountName, now);
+            request.BankName, request.AccountNumber, accountName, now);
         _withdrawals.Add(withdrawal);
 
         // Reserve the funds immediately with an append-only ledger debit.
@@ -82,7 +95,7 @@ public sealed class WithdrawalService
         // webhook (HandleTransferWebhookHandler), which finalises the ledger.
         var result = await _payouts.DisburseAsync(
             new PayoutInput(withdrawal.Id.ToString(), request.AmountNaira,
-                request.BankName, request.BankCode, request.AccountNumber, request.AccountName), ct);
+                request.BankName, request.BankCode, request.AccountNumber, accountName), ct);
 
         switch (result.Outcome)
         {

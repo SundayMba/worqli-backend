@@ -28,4 +28,24 @@ public sealed class BanksController : ControllerBase
     {
         return Ok(await handler.HandleAsync(ct));
     }
+
+    /// <summary>Whose name is on an account. Cached per bank+number; ten lookups a day per user.</summary>
+    /// <response code="404">No account with that number at that bank.</response>
+    /// <response code="429">Daily cap reached.</response>
+    [HttpGet("resolve")]
+    [ProducesResponseType(typeof(Servika.Contracts.Payments.BankAccountResolutionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<Servika.Contracts.Payments.BankAccountResolutionDto>> Resolve(
+        [FromQuery] string bankCode,
+        [FromQuery] string accountNumber,
+        [FromServices] Servika.Application.Payments.ResolveBankAccountHandler handler,
+        CancellationToken ct)
+    {
+        var sub = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
+                  ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = Guid.TryParse(sub, out var id) ? id : Guid.Empty;
+        return Ok(await handler.HandleAsync(userId, bankCode, accountNumber, ct));
+    }
 }

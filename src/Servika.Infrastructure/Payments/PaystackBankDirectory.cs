@@ -72,4 +72,30 @@ public sealed class PaystackBankDirectory : IBankDirectory
             return await _fallback.ListBanksAsync(ct);
         }
     }
+
+    /// <summary>
+    /// Paystack <c>GET /bank/resolve</c>. Billed per successful resolution (a few naira); a 422
+    /// means the account does not exist at that bank and is not billed.
+    /// </summary>
+    public async Task<ResolvedBankAccount?> ResolveAccountAsync(string bankCode, string accountNumber, string? hintName, CancellationToken ct)
+    {
+        var client = _httpClientFactory.CreateClient("paystack");
+        client.BaseAddress ??= new Uri(_options.BaseUrl);
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.SecretKey);
+        using var response = await client.GetAsync(
+            $"/bank/resolve?account_number={Uri.EscapeDataString(accountNumber)}&bank_code={Uri.EscapeDataString(bankCode)}", ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.UnprocessableEntity || response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            return null;
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Paystack /bank/resolve failed ({Status}).", response.StatusCode);
+            throw new HttpRequestException($"Paystack returned {(int)response.StatusCode}.");
+        }
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != System.Text.Json.JsonValueKind.Object) return null;
+        var name = data.TryGetProperty("account_name", out var n) ? n.GetString() : null;
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        return new ResolvedBankAccount(bankCode, accountNumber, name.Trim());
+    }
 }

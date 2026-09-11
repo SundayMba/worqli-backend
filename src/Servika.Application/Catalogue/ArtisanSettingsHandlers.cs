@@ -12,11 +12,15 @@ public sealed class SetPayoutAccountHandler
 {
     private readonly ICatalogueRepository _catalogue;
     private readonly IArtisanGuarantorRepository _guarantors;
+    private readonly Payments.BankAccountResolver _resolver;
+    private readonly IUserRepository _users;
 
-    public SetPayoutAccountHandler(ICatalogueRepository catalogue, IArtisanGuarantorRepository guarantors)
+    public SetPayoutAccountHandler(ICatalogueRepository catalogue, IArtisanGuarantorRepository guarantors, Payments.BankAccountResolver resolver, IUserRepository users)
     {
         _catalogue = catalogue;
         _guarantors = guarantors;
+        _resolver = resolver;
+        _users = users;
     }
 
     public async Task<MyArtisanProfileDto> HandleAsync(
@@ -24,7 +28,11 @@ public sealed class SetPayoutAccountHandler
     {
         var profile = await _catalogue.GetArtisanByUserIdForUpdateAsync(artisanUserId, ct)
             ?? throw new NotFoundException("Set up your Pro profile first.");
-        profile.SetPayoutAccount(request.BankCode, request.BankName, request.AccountNumber, request.AccountName);
+        // The bank's name for the account is what gets stored, never the typed one.
+        var user = await _users.FindByIdAsync(artisanUserId, ct);
+        var resolved = await _resolver.ResolveAsync(artisanUserId, request.BankCode, request.AccountNumber, user?.FullName, ct)
+            ?? throw new ArgumentException($"No account with that number at {request.BankName}. Check the digits.");
+        profile.SetPayoutAccount(request.BankCode, request.BankName, resolved.AccountNumber, resolved.AccountName);
         await _catalogue.SaveChangesAsync(ct);
         return profile.ToMyProfileDto(await _guarantors.CountForUserAsync(artisanUserId, ct));
     }

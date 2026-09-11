@@ -33,4 +33,13 @@ public sealed class StubBankDirectory : IBankDirectory
 
     public Task<IReadOnlyList<BankInfo>> ListBanksAsync(CancellationToken ct) =>
         Task.FromResult(Banks);
+
+    /// <summary>Offline stand-in: any ten digits resolve to the caller's own name (or a stub name);
+    /// a number ending in 0000 is "no such account".</summary>
+    public Task<ResolvedBankAccount?> ResolveAccountAsync(string bankCode, string accountNumber, string? hintName, CancellationToken ct)
+    {
+        if (accountNumber.EndsWith("0000")) return Task.FromResult<ResolvedBankAccount?>(null);
+        var name = string.IsNullOrWhiteSpace(hintName) ? $"STUB ACCOUNT {accountNumber[^4..]}" : hintName.Trim().ToUpperInvariant();
+        return Task.FromResult<ResolvedBankAccount?>(new ResolvedBankAccount(bankCode, accountNumber, name));
+    }
 }
