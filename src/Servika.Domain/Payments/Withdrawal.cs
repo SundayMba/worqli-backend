@@ -27,6 +27,15 @@ public sealed class Withdrawal
 
     public int AmountNaira { get; private set; }
 
+    /// <summary>The bank-transfer charge on this payout (whole Naira).</summary>
+    public int FeeNaira { get; private set; }
+
+    /// <summary>Who paid <see cref="FeeNaira"/>: Servika (launch window) or the owner (taken out of the amount).</summary>
+    public FeeBearer FeeBearer { get; private set; } = FeeBearer.Platform;
+
+    /// <summary>What actually reaches the bank: the amount less the charge when the owner bears it.</summary>
+    public int NetNaira => FeeBearer == FeeBearer.User ? AmountNaira - FeeNaira : AmountNaira;
+
     public WithdrawalStatus Status { get; private set; }
 
     /// <summary>Payout method, e.g. "bank".</summary>
@@ -60,8 +69,14 @@ public sealed class Withdrawal
         string bankName,
         string accountNumber,
         string accountName,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        int feeNaira = 0,
+        FeeBearer feeBearer = FeeBearer.Platform)
     {
+        if (feeNaira < 0)
+            throw new ArgumentException("Fee can't be negative.", nameof(feeNaira));
+        if (feeBearer == FeeBearer.User && feeNaira >= amountNaira)
+            throw new ArgumentException("The transfer charge would swallow the whole amount.", nameof(feeNaira));
         if (ownerId == Guid.Empty)
             throw new ArgumentException("Owner is required.", nameof(ownerId));
         if (userId == Guid.Empty)
@@ -76,6 +91,8 @@ public sealed class Withdrawal
             OwnerId = ownerId,
             UserId = userId,
             AmountNaira = amountNaira,
+            FeeNaira = feeNaira,
+            FeeBearer = feeBearer,
             Status = WithdrawalStatus.Pending,
             Method = "bank",
             BankName = bankName?.Trim() ?? string.Empty,

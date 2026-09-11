@@ -60,7 +60,7 @@ public sealed class HandleTransferWebhookHandler
         {
             withdrawal.MarkPaid(_gateway.Provider, null, now);
             _notifications.PayoutSent(
-                withdrawal.UserId, withdrawal.AmountNaira, withdrawal.AccountNumberMasked);
+                withdrawal.UserId, withdrawal.NetNaira, withdrawal.AccountNumberMasked);
         }
         else
         {
@@ -70,6 +70,7 @@ public sealed class HandleTransferWebhookHandler
                 withdrawal.OwnerType, withdrawal.OwnerId, WalletTransactionType.Adjustment,
                 withdrawal.AmountNaira, null, null,
                 $"Reversal for failed payout {withdrawal.Id}", now));
+            WithdrawalService.RecordTransferFee(_wallet, withdrawal, reverse: true, now);
             _notifications.PayoutFailed(withdrawal.UserId, withdrawal.AmountNaira);
         }
 

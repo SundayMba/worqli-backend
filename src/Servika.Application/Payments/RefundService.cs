@@ -80,10 +80,25 @@ public sealed class RefundService
                     booking.Id, payment.Id, $"Earning reversal for the refund on booking {booking.Id}", now));
         }
 
+        // The payment fee the customer paid on top comes back with a full refund: the
+        // dispute went their way, so they should not be out of pocket for paying online.
+        // Servika absorbs it (the gateway keeps its cut regardless).
+        if (payment.ServiceFeeNaira > 0)
+        {
+            _wallet.Add(WalletTransaction.Create(
+                WalletOwnerType.Customer, payment.CustomerId,
+                WalletTransactionType.ServiceFee, payment.ServiceFeeNaira,
+                booking.Id, payment.Id, "Payment fee returned with the refund", now));
+            _wallet.Add(WalletTransaction.Create(
+                WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
+                WalletTransactionType.ServiceFee, -payment.ServiceFeeNaira,
+                booking.Id, payment.Id, $"Payment fee returned on booking {booking.Id}", now));
+        }
+
         payment.MarkRefunded(now);
         booking.MarkRefunded(payment.AmountNaira);
         _notifications.RefundIssued(booking, payment.AmountNaira);
-        await _gateway.RefundAsync(payment.Reference, payment.AmountNaira, ct);
+        await _gateway.RefundAsync(payment.Reference, payment.ChargedNaira, ct);
 
         return payment.AmountNaira;
     }

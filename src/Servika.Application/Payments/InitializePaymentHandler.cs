@@ -20,6 +20,7 @@ public sealed class InitializePaymentHandler
     private readonly IPaymentRepository _payments;
     private readonly IUserRepository _users;
     private readonly IPaymentGateway _gateway;
+    private readonly IPlatformSettingsRepository _settings;
     private readonly IClock _clock;
 
     public InitializePaymentHandler(
@@ -27,12 +28,14 @@ public sealed class InitializePaymentHandler
         IPaymentRepository payments,
         IUserRepository users,
         IPaymentGateway gateway,
+        IPlatformSettingsRepository settings,
         IClock clock)
     {
         _bookings = bookings;
         _payments = payments;
         _users = users;
         _gateway = gateway;
+        _settings = settings;
         _clock = clock;
     }
 
@@ -71,10 +74,19 @@ public sealed class InitializePaymentHandler
             ? "customer@servika.app"
             : user!.Email;
 
+        // Transaction fee: 0 while Servika covers it (launch window); once users bear
+        // fees, the gateway's charge is added ON TOP so the escrow still holds the
+        // full agreed price. Computed here, from settings, never from the client.
+        var settings = await _settings.GetOrCreateAsync(ct);
+        var now = _clock.UtcNow;
+        var serviceFee = FeePolicy.UsersBearFees(settings, now)
+            ? FeePolicy.CustomerServiceFee(amount, settings)
+            : 0;
+
         var reference = $"svk_{Guid.NewGuid():N}";
         var result = await _gateway.InitializeAsync(
             new PaymentInitInput(
-                reference, amount, email, bookingId,
+                reference, amount + serviceFee, email, bookingId,
                 PaymentReturnLinks.CustomerBooking(bookingId)), ct);
 
         var payment = Payment.Initiate(
@@ -86,7 +98,8 @@ public sealed class InitializePaymentHandler
             provider: _gateway.Provider,
             reference: result.Reference,
             authorizationUrl: result.AuthorizationUrl,
-            now: _clock.UtcNow);
+            now: now,
+            serviceFeeNaira: serviceFee);
 
         _payments.Add(payment);
         booking.MarkPaymentPending();
@@ -96,5 +109,5 @@ public sealed class InitializePaymentHandler
     }
 
     private static PaymentInitResponse ToResponse(Payment p) =>
-        new(p.Id, p.Status.ToString(), p.Reference, p.AuthorizationUrl, p.AmountNaira);
+        new(p.Id, p.Status.ToString(), p.Reference, p.AuthorizationUrl, p.AmountNaira, p.ServiceFeeNaira, p.ChargedNaira);
 }

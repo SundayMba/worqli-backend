@@ -1,3 +1,4 @@
+using Servika.Application.Abstractions.Payments;
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Time;
 using Servika.Contracts.Admin;
@@ -18,15 +19,17 @@ public sealed class GetAdminPaymentsHandler
     private readonly IWalletRepository _wallet;
     private readonly IWithdrawalRepository _withdrawals;
     private readonly IPaymentRepository _payments;
+    private readonly IPayoutGateway _payouts;
     private readonly IClock _clock;
 
     public GetAdminPaymentsHandler(
         IWalletRepository wallet, IWithdrawalRepository withdrawals,
-        IPaymentRepository payments, IClock clock)
+        IPaymentRepository payments, IPayoutGateway payouts, IClock clock)
     {
         _wallet = wallet;
         _withdrawals = withdrawals;
         _payments = payments;
+        _payouts = payouts;
         _clock = clock;
     }
 
@@ -82,8 +85,37 @@ public sealed class GetAdminPaymentsHandler
             .ThenBy(r => r.RequestedAtUtc)
             .ToList();
 
+        // ── Fees: what users paid Servika vs what the gateway charged Servika ──
+        long feesCollected = entries
+            .Where(e => e.OwnerType == WalletOwnerType.Platform
+                        && e.Type is WalletTransactionType.ServiceFee or WalletTransactionType.TransferFee)
+            .Sum(e => (long)e.AmountNaira);
+        long gatewayCosts = entries
+            .Where(e => e.OwnerType == WalletOwnerType.Platform && e.Type == WalletTransactionType.GatewayCost)
+            .Sum(e => (long)-e.AmountNaira);
+        long absorbed = Math.Max(0, gatewayCosts - feesCollected);
+
+        // ── Float health: does the gateway balance cover everything Servika owes out? ──
+        // Liabilities = escrow still held for live jobs (less any materials advance
+        // already released from it) + every positive artisan / referrer balance.
+        var held = await _payments.ListHeldEscrowAsync(ct);
+        long heldEscrow = held.Sum(p => (long)p.AmountNaira);
+        var heldBookings = held.Where(p => p.BookingId is not null).Select(p => p.BookingId!.Value).ToHashSet();
+        heldEscrow -= entries
+            .Where(e => e.Type == WalletTransactionType.MaterialsAdvance && e.BookingId is { } b && heldBookings.Contains(b))
+            .Sum(e => (long)e.AmountNaira);
+        heldEscrow = Math.Max(0, heldEscrow);
+        long artisanBalances = (await _wallet.ListBalancesAsync(WalletOwnerType.Artisan, ct)).Values.Where(v => v > 0).Sum(v => (long)v);
+        long referrerBalances = (await _wallet.ListBalancesAsync(WalletOwnerType.Referrer, ct)).Values.Where(v => v > 0).Sum(v => (long)v);
+        long liabilities = heldEscrow + artisanBalances + referrerBalances;
+        var balance = await _payouts.GetBalanceNairaAsync(ct);
+        bool? healthy = balance is { } b2 ? b2 >= liabilities : null;
+        long shortfall = balance is { } b3 && b3 < liabilities ? liabilities - b3 : 0;
+
         return new AdminPaymentsDto(
             revenue, commission, artisanEarnings, pending, refunds,
-            payoutSummary, series, recent, refundAttention);
+            payoutSummary, series, recent, refundAttention,
+            feesCollected, gatewayCosts, absorbed,
+            balance, liabilities, heldEscrow, artisanBalances, referrerBalances, healthy, shortfall);
     }
 }

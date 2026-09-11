@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Servika.Application.Settings;
@@ -39,6 +40,13 @@ public sealed class AdminSettingsController : ControllerBase
         [FromServices] UpdatePlatformSettingsHandler handler,
         CancellationToken ct)
     {
-        return Ok(await handler.HandleAsync(request, ct));
+        return Ok(await handler.HandleAsync(CurrentUserId(), request, ct));
+    }
+
+    private Guid CurrentUserId()
+    {
+        var sub = User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
+        return Guid.TryParse(sub, out var id) ? id : Guid.Empty;
     }
 }

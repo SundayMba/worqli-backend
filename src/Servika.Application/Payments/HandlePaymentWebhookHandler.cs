@@ -22,6 +22,7 @@ public sealed class HandlePaymentWebhookHandler
     private readonly IBookingRepository _bookings;
     private readonly IPaymentGateway _gateway;
     private readonly NotificationEmitter _notifications;
+    private readonly IPlatformSettingsRepository _settings;
     private readonly IClock _clock;
 
     public HandlePaymentWebhookHandler(
@@ -30,6 +31,7 @@ public sealed class HandlePaymentWebhookHandler
         IBookingRepository bookings,
         IPaymentGateway gateway,
         NotificationEmitter notifications,
+        IPlatformSettingsRepository settings,
         IClock clock)
     {
         _payments = payments;
@@ -37,6 +39,7 @@ public sealed class HandlePaymentWebhookHandler
         _bookings = bookings;
         _gateway = gateway;
         _notifications = notifications;
+        _settings = settings;
         _clock = clock;
     }
 
@@ -62,8 +65,50 @@ public sealed class HandlePaymentWebhookHandler
             return;
         }
 
+        // Security: never settle for less than we asked, or in another currency. A
+        // forged or tampered "success" for ₦1 must not mark a ₦50,000 booking paid.
+        // The payment is failed (a fresh init can be started) and every admin is told.
+        if (evt.Currency is { } currency && !string.Equals(currency, "NGN", StringComparison.OrdinalIgnoreCase)
+            || evt.AmountKobo is { } paidKobo && paidKobo < (long)payment.ChargedNaira * 100)
+        {
+            payment.MarkFailed(now);
+            await _notifications.PaymentAmountMismatchAsync(
+                payment.BookingId, payment.Reference, payment.ChargedNaira,
+                evt.AmountKobo is { } k ? (int)(k / 100) : null, evt.Currency, ct);
+            await _payments.SaveChangesAsync(ct);
+            return;
+        }
+
         // Succeeded → settle + record the ledger split.
         payment.MarkSucceeded(now);
+
+        // What the gateway kept: reported on the webhook (kobo), else our own estimate.
+        var settings = await _settings.GetOrCreateAsync(ct);
+        var gatewayFee = evt.FeesKobo is { } feesKobo
+            ? (int)Math.Round(feesKobo / 100m, MidpointRounding.AwayFromZero)
+            : FeePolicy.CardFee(payment.ChargedNaira, settings);
+        payment.RecordGatewayFee(gatewayFee);
+        if (gatewayFee > 0)
+            _wallet.Add(WalletTransaction.Create(
+                WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
+                WalletTransactionType.GatewayCost, -gatewayFee,
+                payment.BookingId, payment.Id,
+                $"Gateway charge on payment {payment.Reference}", now));
+
+        // The fee the customer paid on top (only once users bear fees): theirs out,
+        // Servika's in. It is never escrow and never the artisan's.
+        if (payment.ServiceFeeNaira > 0)
+        {
+            _wallet.Add(WalletTransaction.Create(
+                WalletOwnerType.Customer, payment.CustomerId,
+                WalletTransactionType.ServiceFee, -payment.ServiceFeeNaira,
+                payment.BookingId, payment.Id, "Payment fee", now));
+            _wallet.Add(WalletTransaction.Create(
+                WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
+                WalletTransactionType.ServiceFee, payment.ServiceFeeNaira,
+                payment.BookingId, payment.Id,
+                $"Payment fee collected on {payment.Reference}", now));
+        }
 
         // A commission settlement has no booking and no split — it simply
         // credits the artisan's ledger, which clears the debt (and any standing

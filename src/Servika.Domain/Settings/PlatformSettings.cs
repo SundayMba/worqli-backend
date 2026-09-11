@@ -37,6 +37,33 @@ public sealed class PlatformSettings
     /// <summary>How many guarantors count as complete when they are required.</summary>
     public int RequiredGuarantorCount { get; private set; } = 2;
 
+    // ── Transaction fees (the gateway's charges and who pays them) ──
+    /// <summary>When customers and artisans start paying their own transaction fees.
+    /// Null = not scheduled: Servika absorbs every fee (the launch window).</summary>
+    public DateTimeOffset? FeesStartAtUtc { get; private set; }
+    /// <summary>Gateway percentage on a payment, as a fraction (Paystack local: 0.015).</summary>
+    public decimal CardFeeRate { get; private set; } = 0.015m;
+    /// <summary>Flat gateway amount added on payments of at least <see cref="CardFeeFlatFromNaira"/> (Paystack: ₦100 from ₦2,500).</summary>
+    public int CardFeeFlatNaira { get; private set; } = 100;
+    public int CardFeeFlatFromNaira { get; private set; } = 2500;
+    /// <summary>Cap on the gateway's payment fee (Paystack: ₦2,000). 0 = no cap.</summary>
+    public int CardFeeCapNaira { get; private set; } = 2000;
+    /// <summary>Transfer-out charge bands (Paystack: ₦10 up to ₦5,000, ₦25 up to ₦50,000, ₦50 above).</summary>
+    public int TransferFeeTier1Naira { get; private set; } = 10;
+    public int TransferFeeTier1MaxNaira { get; private set; } = 5000;
+    public int TransferFeeTier2Naira { get; private set; } = 25;
+    public int TransferFeeTier2MaxNaira { get; private set; } = 50000;
+    public int TransferFeeTier3Naira { get; private set; } = 50;
+    /// <summary>Highest advance-notice stage already sent for the current <see cref="FeesStartAtUtc"/>
+    /// (0 none, 1 = 30 days, 2 = 7 days, 3 = 1 day, 4 = live). Resets when the date changes.</summary>
+    public int FeeNoticeStage { get; private set; }
+    public DateTimeOffset? FeeNoticeSentAtUtc { get; private set; }
+
+    public const int FeeNotice30Days = 1, FeeNotice7Days = 2, FeeNotice1Day = 3, FeeNoticeLive = 4;
+
+    /// <summary>The admin who last changed the settings (audit).</summary>
+    public Guid? UpdatedByUserId { get; private set; }
+
     public DateTimeOffset UpdatedAtUtc { get; private set; }
 
     private PlatformSettings() { }
@@ -91,6 +118,68 @@ public sealed class PlatformSettings
         RequireGuarantors = requireGuarantors;
         RequiredGuarantorCount = requiredGuarantorCount;
         UpdatedAtUtc = now;
+    }
+
+    /// <summary>Records who made the change (audit trail for a money lever).</summary>
+    public void StampUpdatedBy(Guid? adminUserId) => UpdatedByUserId = adminUserId;
+
+    /// <summary>
+    /// Sets the transaction-fee schedule. Rates are range-guarded (a percentage over
+    /// 10% or a transfer charge over ₦1,000 is a typo, not a policy). Changing the
+    /// start date resets the advance-notice stages so users are warned again for the
+    /// new date; clearing it (null) returns to Servika absorbing every fee.
+    /// </summary>
+    public void UpdateFees(
+        DateTimeOffset? feesStartAtUtc,
+        decimal cardFeeRate,
+        int cardFeeFlatNaira,
+        int cardFeeFlatFromNaira,
+        int cardFeeCapNaira,
+        int transferFeeTier1Naira,
+        int transferFeeTier1MaxNaira,
+        int transferFeeTier2Naira,
+        int transferFeeTier2MaxNaira,
+        int transferFeeTier3Naira,
+        DateTimeOffset now)
+    {
+        if (cardFeeRate is < 0m or > 0.10m)
+            throw new ArgumentException("The payment fee rate must be between 0% and 10%.", nameof(cardFeeRate));
+        if (cardFeeFlatNaira is < 0 or > 5000)
+            throw new ArgumentException("The flat payment fee must be between ₦0 and ₦5,000.", nameof(cardFeeFlatNaira));
+        if (cardFeeFlatFromNaira < 0)
+            throw new ArgumentException("The flat-fee threshold can't be negative.", nameof(cardFeeFlatFromNaira));
+        if (cardFeeCapNaira < 0)
+            throw new ArgumentException("The payment fee cap can't be negative.", nameof(cardFeeCapNaira));
+        foreach (var (v, n) in new[] { (transferFeeTier1Naira, nameof(transferFeeTier1Naira)), (transferFeeTier2Naira, nameof(transferFeeTier2Naira)), (transferFeeTier3Naira, nameof(transferFeeTier3Naira)) })
+            if (v is < 0 or > 1000)
+                throw new ArgumentException("A transfer charge must be between ₦0 and ₦1,000.", n);
+        if (transferFeeTier1MaxNaira <= 0 || transferFeeTier2MaxNaira <= transferFeeTier1MaxNaira)
+            throw new ArgumentException("Transfer charge bands must increase: band 1 max below band 2 max.", nameof(transferFeeTier2MaxNaira));
+
+        if (feesStartAtUtc != FeesStartAtUtc)
+        {
+            FeeNoticeStage = 0;
+            FeeNoticeSentAtUtc = null;
+        }
+        FeesStartAtUtc = feesStartAtUtc;
+        CardFeeRate = cardFeeRate;
+        CardFeeFlatNaira = cardFeeFlatNaira;
+        CardFeeFlatFromNaira = cardFeeFlatFromNaira;
+        CardFeeCapNaira = cardFeeCapNaira;
+        TransferFeeTier1Naira = transferFeeTier1Naira;
+        TransferFeeTier1MaxNaira = transferFeeTier1MaxNaira;
+        TransferFeeTier2Naira = transferFeeTier2Naira;
+        TransferFeeTier2MaxNaira = transferFeeTier2MaxNaira;
+        TransferFeeTier3Naira = transferFeeTier3Naira;
+        UpdatedAtUtc = now;
+    }
+
+    /// <summary>Records that an advance-notice stage went out (monotonic).</summary>
+    public void MarkFeeNoticeSent(int stage, DateTimeOffset now)
+    {
+        if (stage <= FeeNoticeStage) return;
+        FeeNoticeStage = stage;
+        FeeNoticeSentAtUtc = now;
     }
 
     private static decimal Rate(decimal value, string name) =>

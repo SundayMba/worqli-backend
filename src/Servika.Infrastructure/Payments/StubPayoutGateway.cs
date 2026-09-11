@@ -65,4 +65,7 @@ public sealed class StubPayoutGateway : IPayoutGateway
             return null;
         }
     }
+
+    // The stub has no balance to check.
+    public Task<long?> GetBalanceNairaAsync(CancellationToken ct) => Task.FromResult<long?>(null);
 }

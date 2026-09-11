@@ -24,12 +24,14 @@ public sealed class WithdrawalService
     private readonly IWalletRepository _wallet;
     private readonly IWithdrawalRepository _withdrawals;
     private readonly IPayoutGateway _payouts;
+    private readonly IPlatformSettingsRepository _settings;
     private readonly IClock _clock;
 
     public WithdrawalService(
         IWalletRepository wallet,
         IWithdrawalRepository withdrawals,
         IPayoutGateway payouts,
+        IPlatformSettingsRepository settings,
         IClock clock,
         BankAccountResolver resolver)
     {
@@ -37,6 +39,7 @@ public sealed class WithdrawalService
         _wallet = wallet;
         _withdrawals = withdrawals;
         _payouts = payouts;
+        _settings = settings;
         _clock = clock;
     }
 
@@ -79,22 +82,35 @@ public sealed class WithdrawalService
         }
 
         var now = _clock.UtcNow;
+
+        // The bank-transfer charge. Servika pays it during the launch window; after
+        // FeesStartAtUtc it comes out of the amount, so the owner receives amount − fee.
+        // Either way the true gateway cost is booked on the platform ledger.
+        var settings = await _settings.GetOrCreateAsync(ct);
+        var fee = FeePolicy.TransferFee(request.AmountNaira, settings);
+        var bearer = FeePolicy.UsersBearFees(settings, now) ? FeeBearer.User : FeeBearer.Platform;
+        if (bearer == FeeBearer.User && request.AmountNaira - fee < 100)
+            throw new ConflictException($"After the ₦{fee:N0} transfer charge too little would reach your bank. Withdraw at least ₦{Math.Max(minNaira, fee + 100):N0}.");
+
         var withdrawal = Withdrawal.Request(
             ownerType, ownerId, userId, request.AmountNaira,
-            request.BankName, request.AccountNumber, accountName, now);
+            request.BankName, request.AccountNumber, accountName, now, fee, bearer);
         _withdrawals.Add(withdrawal);
 
         // Reserve the funds immediately with an append-only ledger debit.
         _wallet.Add(WalletTransaction.Create(
             ownerType, ownerId, WalletTransactionType.PayoutRequest,
             -request.AmountNaira, null, null,
-            $"Payout to {withdrawal.BankName} {withdrawal.AccountNumberMasked}", now));
+            bearer == FeeBearer.User && fee > 0
+                ? $"Payout to {withdrawal.BankName} {withdrawal.AccountNumberMasked} (₦{withdrawal.NetNaira:N0} after ₦{fee:N0} transfer charge)"
+                : $"Payout to {withdrawal.BankName} {withdrawal.AccountNumberMasked}", now));
+        RecordTransferFee(_wallet, withdrawal, reverse: false, now);
 
-        // Disburse. The stub succeeds synchronously; Paystack Transfers accepts the
-        // transfer and returns Pending — the real result then arrives on the transfer
-        // webhook (HandleTransferWebhookHandler), which finalises the ledger.
+        // Disburse the NET amount. The stub succeeds synchronously; Paystack Transfers
+        // accepts the transfer and returns Pending — the real result then arrives on
+        // the transfer webhook (HandleTransferWebhookHandler), which finalises the ledger.
         var result = await _payouts.DisburseAsync(
-            new PayoutInput(withdrawal.Id.ToString(), request.AmountNaira,
+            new PayoutInput(withdrawal.Id.ToString(), withdrawal.NetNaira,
                 request.BankName, request.BankCode, request.AccountNumber, accountName), ct);
 
         switch (result.Outcome)
@@ -116,10 +132,34 @@ public sealed class WithdrawalService
                     ownerType, ownerId, WalletTransactionType.Adjustment,
                     request.AmountNaira, null, null,
                     $"Reversal for failed payout {withdrawal.Id}", now));
+                RecordTransferFee(_wallet, withdrawal, reverse: true, now);
                 break;
         }
 
         await _withdrawals.SaveChangesAsync(ct);
         return withdrawal.ToDto();
+    }
+
+    /// <summary>
+    /// Books the transfer charge on the platform ledger: the gateway's cost always
+    /// (<see cref="WalletTransactionType.GatewayCost"/>), and, when the owner bore it,
+    /// the matching <see cref="WalletTransactionType.TransferFee"/> income so Servika
+    /// nets to zero. <paramref name="reverse"/> writes the negated pair when a transfer
+    /// fails (the gateway does not charge for a failed transfer).
+    /// </summary>
+    public static void RecordTransferFee(IWalletRepository wallet, Withdrawal w, bool reverse, DateTimeOffset now)
+    {
+        if (w.FeeNaira <= 0) return;
+        var sign = reverse ? -1 : 1;
+        var suffix = reverse ? $" (reversed, payout {w.Id} failed)" : "";
+        wallet.Add(WalletTransaction.Create(
+            WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
+            WalletTransactionType.GatewayCost, -w.FeeNaira * sign, null, null,
+            $"Transfer charge on payout {w.Id}{suffix}", now));
+        if (w.FeeBearer == FeeBearer.User)
+            wallet.Add(WalletTransaction.Create(
+                WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
+                WalletTransactionType.TransferFee, w.FeeNaira * sign, null, null,
+                $"Transfer charge collected on payout {w.Id}{suffix}", now));
     }
 }

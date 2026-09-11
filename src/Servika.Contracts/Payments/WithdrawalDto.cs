@@ -14,7 +14,13 @@ public sealed record WithdrawalDto(
     string AccountNumberMasked,
     string AccountName,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? ProcessedAtUtc);
+    DateTimeOffset? ProcessedAtUtc,
+    /// <summary>The bank-transfer charge on this payout.</summary>
+    int FeeNaira = 0,
+    /// <summary>"Platform" (Servika paid the charge) or "User" (taken out of the amount).</summary>
+    string FeeBearer = "Platform",
+    /// <summary>What reaches the bank: amount less the charge when the user bears it.</summary>
+    int NetNaira = 0);
 
 /// <summary>
 /// Request an artisan payout (POST /api/v1/artisan/withdrawals). The amount is

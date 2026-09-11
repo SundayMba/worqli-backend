@@ -70,4 +70,13 @@ public enum PaymentWebhookOutcome
 }
 
 /// <summary>A normalized payment webhook: which reference, and how it resolved.</summary>
-public sealed record PaymentWebhookEvent(string Reference, PaymentWebhookOutcome Outcome);
+public sealed record PaymentWebhookEvent(
+    string Reference,
+    PaymentWebhookOutcome Outcome,
+    /// <summary>What the payer was actually charged, in kobo, when the provider reports it.
+    /// The handler refuses to settle a payment for less than we asked.</summary>
+    long? AmountKobo = null,
+    /// <summary>The provider's own fee on this charge, in kobo, when reported.</summary>
+    long? FeesKobo = null,
+    /// <summary>ISO currency the charge was made in, when reported (we only settle NGN).</summary>
+    string? Currency = null);

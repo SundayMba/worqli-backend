@@ -39,4 +39,17 @@ public enum WalletTransactionType
     /// parts. Comes out of the same escrow: the earning released at completion is
     /// reduced by exactly this amount.</summary>
     MaterialsAdvance = 10,
+
+    /// <summary>The payment fee a CUSTOMER paid on top of the price at checkout
+    /// (customer −fee, platform +fee). Only written once users bear fees.</summary>
+    ServiceFee = 11,
+
+    /// <summary>The transfer charge taken out of an artisan's or referrer's
+    /// withdrawal (platform +fee). Only written once users bear fees.</summary>
+    TransferFee = 12,
+
+    /// <summary>What the gateway actually charged Servika for a payment or a
+    /// transfer (platform −cost). Written on every gateway movement, whoever bore
+    /// the fee, so the admin sees the true cost of running money through Paystack.</summary>
+    GatewayCost = 13,
 }

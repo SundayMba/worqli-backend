@@ -327,6 +327,7 @@ public sealed class ServikaDbContext : DbContext
             // Default backfills pre-purpose rows (they were all booking escrow).
             payment.Property(p => p.Purpose).HasConversion<string>().HasMaxLength(24)
                 .HasDefaultValue(PaymentPurpose.BookingEscrow);
+            payment.Property(p => p.ServiceFeeNaira).HasDefaultValue(0);
 
             // BookingId is null for commission settlements (no booking involved).
             payment.HasOne<Booking>()
@@ -377,6 +378,9 @@ public sealed class ServikaDbContext : DbContext
                       .WithMany()
                       .HasForeignKey(w => w.UserId)
                       .OnDelete(DeleteBehavior.Cascade);
+
+            withdrawal.Property(w => w.FeeNaira).HasDefaultValue(0);
+            withdrawal.Property(w => w.FeeBearer).HasConversion<string>().HasMaxLength(16).HasDefaultValue(FeeBearer.Platform);
         });
 
         modelBuilder.Entity<TrackingSession>(session =>
@@ -641,6 +645,16 @@ public sealed class ServikaDbContext : DbContext
             settings.HasKey(s => s.Id);
             settings.Property(s => s.CommissionRate).HasPrecision(5, 4);
             settings.Property(s => s.EmergencyCommissionRate).HasPrecision(5, 4);
+            settings.Property(s => s.CardFeeRate).HasPrecision(5, 4).HasDefaultValue(0.015m);
+            settings.Property(s => s.CardFeeFlatNaira).HasDefaultValue(100);
+            settings.Property(s => s.CardFeeFlatFromNaira).HasDefaultValue(2500);
+            settings.Property(s => s.CardFeeCapNaira).HasDefaultValue(2000);
+            settings.Property(s => s.TransferFeeTier1Naira).HasDefaultValue(10);
+            settings.Property(s => s.TransferFeeTier1MaxNaira).HasDefaultValue(5000);
+            settings.Property(s => s.TransferFeeTier2Naira).HasDefaultValue(25);
+            settings.Property(s => s.TransferFeeTier2MaxNaira).HasDefaultValue(50000);
+            settings.Property(s => s.TransferFeeTier3Naira).HasDefaultValue(50);
+            settings.Property(s => s.FeeNoticeStage).HasDefaultValue(0);
         });
 
         modelBuilder.Entity<PushToken>(pt =>

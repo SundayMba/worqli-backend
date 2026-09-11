@@ -12,7 +12,24 @@ public sealed record AdminPaymentsDto(
     IReadOnlyList<LedgerEntryDto> RecentTransactions,
     /// <summary>Refunds that failed at the gateway or are still settling — the ones
     /// an admin may need to chase. Empty when everything has landed.</summary>
-    IReadOnlyList<AdminRefundDto> RefundsNeedingAttention);
+    IReadOnlyList<AdminRefundDto> RefundsNeedingAttention,
+    /// <summary>Fees collected from users (payment fees + transfer charges), net of reversals.</summary>
+    long FeesCollectedNaira = 0,
+    /// <summary>What the gateway charged Servika for payments and transfers, net of reversals.</summary>
+    long GatewayCostsNaira = 0,
+    /// <summary>Gateway costs Servika absorbed rather than passed on (costs − collected, floored at 0).</summary>
+    long FeesAbsorbedNaira = 0,
+    /// <summary>The provider balance transfers are paid from; null when not connected (stub) or unreadable.</summary>
+    long? GatewayBalanceNaira = null,
+    /// <summary>Everything Servika owes out of that balance: held escrow + artisan and referrer balances.</summary>
+    long LiabilitiesNaira = 0,
+    long HeldEscrowNaira = 0,
+    long ArtisanBalancesNaira = 0,
+    long ReferrerBalancesNaira = 0,
+    /// <summary>True when the gateway balance covers the liabilities; null when the balance is unknown.</summary>
+    bool? FloatHealthy = null,
+    /// <summary>How much to top up so the balance covers the liabilities (0 when healthy or unknown).</summary>
+    long FloatShortfallNaira = 0);
 
 /// <summary>A refund's settlement state for the admin refunds view.</summary>
 public sealed record AdminRefundDto(

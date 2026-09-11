@@ -11,4 +11,9 @@ public sealed record PaymentInitResponse(
     string Status,
     string Reference,
     string? AuthorizationUrl,
-    int AmountNaira);
+    /// <summary>The agreed price going into escrow.</summary>
+    int AmountNaira,
+    /// <summary>The payment fee added on top (0 while Servika covers fees).</summary>
+    int ServiceFeeNaira = 0,
+    /// <summary>What the card is charged: amount + service fee.</summary>
+    int TotalNaira = 0);

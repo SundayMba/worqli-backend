@@ -143,6 +143,54 @@ public sealed class NotificationEmitter
             Add(admin.Id, NotificationType.System, "Refund failed", body, bookingId);
     }
 
+    /// <summary>A webhook reported a successful charge for LESS than we asked (or in
+    /// another currency). The payment was failed, nothing was settled; every admin is
+    /// told because this is either a gateway fault or an attack.</summary>
+    public async Task PaymentAmountMismatchAsync(
+        Guid? bookingId, string reference, int expectedNaira, int? paidNaira, string? currency, CancellationToken ct)
+    {
+        var admins = await _users.ListAsync(Domain.Users.Role.Admin, ct);
+        var superAdmins = await _users.ListAsync(Domain.Users.Role.SuperAdmin, ct);
+        var what = paidNaira is { } p ? $"₦{p:N0}" : "an unknown amount";
+        var cur = currency is { } c && !string.Equals(c, "NGN", StringComparison.OrdinalIgnoreCase) ? $" in {c}" : "";
+        var body = $"Payment {reference} reported {what}{cur} against ₦{expectedNaira:N0} due. " +
+                   "It was NOT settled and the booking stays unpaid. Check the transaction in Paystack.";
+        foreach (var admin in admins.Concat(superAdmins))
+            Add(admin.Id, NotificationType.System, "Payment amount mismatch", body, bookingId);
+    }
+
+    /// <summary>Advance notice that transaction fees are about to start (or just did).
+    /// Customers hear about the payment fee; artisans about the transfer charge.</summary>
+    public void FeeNotice(Guid userId, bool isArtisan, int stage, DateTimeOffset startAtUtc, Domain.Settings.PlatformSettings s)
+    {
+        var date = startAtUtc.ToOffset(TimeSpan.FromHours(1)).ToString("d MMMM yyyy"); // Lagos time
+        var pct = (s.CardFeeRate * 100).ToString("0.##");
+        var when = stage switch
+        {
+            Domain.Settings.PlatformSettings.FeeNoticeLive => "from today",
+            Domain.Settings.PlatformSettings.FeeNotice1Day => "from tomorrow",
+            _ => $"from {date}",
+        };
+        string title, body;
+        if (isArtisan)
+        {
+            title = stage == Domain.Settings.PlatformSettings.FeeNoticeLive ? "Transfer charges now apply" : $"Transfer charges start {date}";
+            body = $"Servika has been covering the bank transfer charge on your withdrawals. {Cap(when)}, the charge comes off each withdrawal: " +
+                   $"₦{s.TransferFeeTier1Naira:N0} up to ₦{s.TransferFeeTier1MaxNaira:N0}, ₦{s.TransferFeeTier2Naira:N0} up to ₦{s.TransferFeeTier2MaxNaira:N0}, ₦{s.TransferFeeTier3Naira:N0} above that. " +
+                   "Withdraw less often to pay fewer charges. Your earnings themselves are not affected.";
+        }
+        else
+        {
+            title = stage == Domain.Settings.PlatformSettings.FeeNoticeLive ? "Payment fees now apply" : $"Payment fees start {date}";
+            body = $"Servika has been covering the card and transfer fee on online payments. {Cap(when)}, a payment fee of {pct}% " +
+                   (s.CardFeeFlatNaira > 0 ? $"(plus ₦{s.CardFeeFlatNaira:N0} on payments of ₦{s.CardFeeFlatFromNaira:N0} or more" + (s.CardFeeCapNaira > 0 ? $", never more than ₦{s.CardFeeCapNaira:N0}" : "") + ") " : "") +
+                   "is shown and added when you pay online. The agreed price itself does not change, and cash jobs are unaffected.";
+        }
+        Add(userId, NotificationType.System, title, body, null);
+
+        static string Cap(string t) => char.ToUpperInvariant(t[0]) + t[1..];
+    }
+
     /// <summary>Confirm to the customer that their payment settled.</summary>
     public void PaymentReceived(Guid customerId, Guid bookingId, string serviceName)
     {

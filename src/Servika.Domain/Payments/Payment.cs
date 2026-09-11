@@ -31,6 +31,16 @@ public sealed class Payment
 
     public int AmountNaira { get; private set; }
 
+    /// <summary>The payment fee charged to the customer ON TOP of <see cref="AmountNaira"/>
+    /// (0 while Servika absorbs fees). Never part of the escrow or the artisan's earning.</summary>
+    public int ServiceFeeNaira { get; private set; }
+
+    /// <summary>What the customer's card was actually charged: price + service fee.</summary>
+    public int ChargedNaira => AmountNaira + ServiceFeeNaira;
+
+    /// <summary>What the gateway reported it kept (whole Naira), once the webhook told us.</summary>
+    public int? GatewayFeeNaira { get; private set; }
+
     /// <summary>Commission fraction (0–1) captured from the booking at init time.</summary>
     public decimal CommissionRate { get; private set; }
 
@@ -95,8 +105,11 @@ public sealed class Payment
         string provider,
         string reference,
         string? authorizationUrl,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        int serviceFeeNaira = 0)
     {
+        if (serviceFeeNaira < 0)
+            throw new ArgumentException("Service fee can't be negative.", nameof(serviceFeeNaira));
         if (bookingId == Guid.Empty)
             throw new ArgumentException("Booking is required.", nameof(bookingId));
         if (amountNaira <= 0)
@@ -113,6 +126,7 @@ public sealed class Payment
             CustomerId = customerId,
             ArtisanId = artisanId,
             AmountNaira = amountNaira,
+            ServiceFeeNaira = serviceFeeNaira,
             CommissionRate = commissionRate,
             Provider = provider,
             Reference = reference,
@@ -167,6 +181,13 @@ public sealed class Payment
                 $"Payment {Id} is {Status}; only a Pending payment can succeed.");
         Status = PaymentStatus.Succeeded;
         PaidAtUtc = now;
+    }
+
+    /// <summary>Records the gateway's own fee as reported on the webhook.</summary>
+    public void RecordGatewayFee(int feeNaira)
+    {
+        if (feeNaira < 0) return;
+        GatewayFeeNaira = feeNaira;
     }
 
     public void MarkFailed(DateTimeOffset now)

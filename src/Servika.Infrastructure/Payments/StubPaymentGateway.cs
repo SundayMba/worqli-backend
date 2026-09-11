@@ -97,7 +97,12 @@ public sealed class StubPaymentGateway : IPaymentGateway
                 ? PaymentWebhookOutcome.Succeeded
                 : PaymentWebhookOutcome.Failed;
 
-            return new PaymentWebhookEvent(reference, outcome);
+            // Optional, so a test can replay a short-paid or foreign-currency charge.
+            long? amount = root.TryGetProperty("amountKobo", out var am) && am.ValueKind == JsonValueKind.Number ? am.GetInt64() : null;
+            long? fees = root.TryGetProperty("feesKobo", out var fe) && fe.ValueKind == JsonValueKind.Number ? fe.GetInt64() : null;
+            var currency = root.TryGetProperty("currency", out var cu) ? cu.GetString() : null;
+
+            return new PaymentWebhookEvent(reference, outcome, amount, fees, currency);
         }
         catch (JsonException)
         {

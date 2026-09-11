@@ -15,6 +15,7 @@ public static class BackgroundJobsExtensions
         services.AddHostedService<TrackingCleanupService>();
         services.AddHostedService<CompletionAutoConfirmService>();
         services.AddHostedService<AccountPurgeService>();
+        services.AddHostedService<FeeNoticeService>();
         return services;
     }
 }

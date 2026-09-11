@@ -182,7 +182,11 @@ public sealed class PaystackPaymentGateway : IPaymentGateway
                 ? PaymentWebhookOutcome.Succeeded
                 : PaymentWebhookOutcome.Failed;
 
-            return new PaymentWebhookEvent(reference, outcome);
+            long? amount = data.TryGetProperty("amount", out var am) && am.ValueKind == JsonValueKind.Number ? am.GetInt64() : null;
+            long? fees = data.TryGetProperty("fees", out var fe) && fe.ValueKind == JsonValueKind.Number ? fe.GetInt64() : null;
+            var currency = data.TryGetProperty("currency", out var cu) ? cu.GetString() : null;
+
+            return new PaymentWebhookEvent(reference, outcome, amount, fees, currency);
         }
         catch (JsonException)
         {

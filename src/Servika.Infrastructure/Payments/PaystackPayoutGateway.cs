@@ -156,4 +156,33 @@ public sealed class PaystackPayoutGateway : IPayoutGateway
             return null;
         }
     }
+
+    /// <summary>GET /balance: the NGN balance transfers are paid from, in whole Naira.
+    /// Best-effort (null on any error) so an admin page never fails because Paystack is slow.</summary>
+    public async Task<long?> GetBalanceNairaAsync(CancellationToken ct)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient("paystack");
+            client.BaseAddress = new Uri(_options.BaseUrl);
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.SecretKey);
+            using var response = await client.GetAsync("/balance", ct);
+            if (!response.IsSuccessStatusCode) return null;
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+            if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array) return null;
+            foreach (var item in data.EnumerateArray())
+            {
+                var currency = item.TryGetProperty("currency", out var c) ? c.GetString() : null;
+                if (currency is not null && !string.Equals(currency, "NGN", StringComparison.OrdinalIgnoreCase)) continue;
+                if (item.TryGetProperty("balance", out var b) && b.ValueKind == JsonValueKind.Number)
+                    return b.GetInt64() / 100; // kobo → naira
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not read the Paystack balance.");
+            return null;
+        }
+    }
 }

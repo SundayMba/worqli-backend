@@ -24,6 +24,11 @@ public interface IPayoutGateway
     /// <summary>Parses a verified transfer webhook into a normalized event, or null
     /// if it isn't a transfer event we care about.</summary>
     TransferWebhookEvent? ParseTransferWebhook(string rawBody);
+
+    /// <summary>The provider balance transfers are paid from, in whole Naira, or null
+    /// when the provider has no such notion (the stub) or the call failed. Read-only;
+    /// powers the admin float-health check.</summary>
+    Task<long?> GetBalanceNairaAsync(CancellationToken ct);
 }
 
 /// <summary>A normalized transfer webhook: our payout reference + how it resolved.</summary>
