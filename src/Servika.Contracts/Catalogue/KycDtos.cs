@@ -9,7 +9,11 @@ public sealed record SubmitKycRequest(
     string IdType,
     string? IdNumber,
     string SelfieBase64,
-    string IdImageBase64);
+    string IdImageBase64,
+    /// <summary>Extra live selfies in poses the app asked for ("left", "right"), so the reviewer can tell a live face from a photo of a photo.</summary>
+    IReadOnlyList<PoseSelfieRequest>? PoseSelfies = null);
+
+public sealed record PoseSelfieRequest(string Pose, string ImageBase64);
 
 /// <summary>
 /// The artisan's KYC status (GET /api/v1/artisan/kyc). <see cref="Status"/> is

@@ -121,7 +121,19 @@ public sealed class GetKycSubmissionHandler
             k.OpenNote,
             k.ResubmittedAtUtc,
             k.ResubmissionCount,
-            await (await _events.ListForKycAsync(k.Id, ct)).ToAdminDtosAsync(_users, user?.FullName ?? "Artisan", ct));
+            await (await _events.ListForKycAsync(k.Id, ct)).ToAdminDtosAsync(_users, user?.FullName ?? "Artisan", ct),
+            await PoseSelfiesAsync(k.PoseSelfiesJson, ct));
+    }
+
+    private async Task<IReadOnlyList<AdminPoseSelfieDto>> PoseSelfiesAsync(string? json, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<AdminPoseSelfieDto>();
+        List<Catalogue.PoseShot>? shots;
+        try { shots = System.Text.Json.JsonSerializer.Deserialize<List<Catalogue.PoseShot>>(json); }
+        catch (System.Text.Json.JsonException) { return Array.Empty<AdminPoseSelfieDto>(); }
+        var list = new List<AdminPoseSelfieDto>();
+        foreach (var s in shots ?? new()) list.Add(new AdminPoseSelfieDto(s.Pose, await DataUriAsync(s.Key, ct)));
+        return list;
     }
 
     private async Task<string?> DataUriAsync(string key, CancellationToken ct)

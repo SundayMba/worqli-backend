@@ -61,7 +61,11 @@ public sealed record KycSubmissionDetailDto(
     DateTimeOffset? ResubmittedAtUtc = null,
     int ResubmissionCount = 0,
     /// <summary>Full history with reviewer names, newest first.</summary>
-    IReadOnlyList<Servika.Contracts.Catalogue.VerificationEventDto>? Events = null);
+    IReadOnlyList<Servika.Contracts.Catalogue.VerificationEventDto>? Events = null,
+    /// <summary>Live pose selfies (left / right) as data URIs, for the liveness comparison.</summary>
+    IReadOnlyList<AdminPoseSelfieDto>? PoseSelfies = null);
+
+public sealed record AdminPoseSelfieDto(string Pose, string? DataUri);
 
 /// <summary>A guarantor as the admin sees it during review.</summary>
 public sealed record AdminGuarantorDto(

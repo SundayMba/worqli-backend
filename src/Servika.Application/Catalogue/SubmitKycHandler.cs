@@ -70,12 +70,24 @@ public sealed class SubmitKycHandler
         var selfieKey = await _storage.SaveAsync(selfie, "image/jpeg", ct);
         var idKey = await _storage.SaveAsync(idImage, "image/jpeg", ct);
 
+        // Pose selfies (left / right): decoded and stored beside the straight one.
+        var poseShots = new List<PoseShot>();
+        foreach (var p in (request.PoseSelfies ?? Array.Empty<PoseSelfieRequest>()).Take(3))
+        {
+            var pose = (p.Pose ?? "").Trim().ToLowerInvariant();
+            if (pose is not ("left" or "right" or "up")) throw new ArgumentException($"Unknown pose '{p.Pose}'.");
+            var bytes = DecodeImage(p.ImageBase64, $"{pose} pose selfie");
+            poseShots.Add(new PoseShot(pose, await _storage.SaveAsync(bytes, "image/jpeg", ct)));
+        }
+        var poseJson = poseShots.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(poseShots);
+
         var existing = await _kyc.GetForUserAsync(artisanUserId, ct);
         ArtisanKyc submission;
         if (existing is not null)
         {
             var wasOpen = existing.OpenCheck;
             existing.Resubmit(idType, request.IdNumber, selfieKey, idKey, now);
+            existing.SetPoseSelfies(poseJson);
             submission = existing;
             _events.Add(VerificationEvent.Create(submission.Id, artisanUserId, null, VerificationEventAction.Resubmitted,
                 wasOpen ?? VerificationCheck.Identity, null, null, now));
@@ -83,6 +95,7 @@ public sealed class SubmitKycHandler
         else
         {
             submission = ArtisanKyc.Submit(artisanUserId, idType, request.IdNumber, selfieKey, idKey, now);
+            submission.SetPoseSelfies(poseJson);
             _kyc.Add(submission);
             _events.Add(VerificationEvent.Create(submission.Id, artisanUserId, null, VerificationEventAction.Submitted, null, null, null, now));
         }
@@ -124,3 +137,6 @@ public sealed class SubmitKycHandler
         }
     }
 }
+
+/// <summary>Stored shape of one pose selfie: which pose the app asked for and the storage key.</summary>
+public sealed record PoseShot(string Pose, string Key);

@@ -28,6 +28,10 @@ public sealed class ArtisanKyc
     /// <summary>Storage key for the ID document image.</summary>
     public string IdDocumentKey { get; private set; } = string.Empty;
 
+    /// <summary>JSON list of {pose, key}: the extra live selfies (head turned left / right).</summary>
+    public string? PoseSelfiesJson { get; private set; }
+    public void SetPoseSelfies(string? json) => PoseSelfiesJson = string.IsNullOrWhiteSpace(json) ? null : json;
+
     /// <summary>Review state (Pending → Verified/Rejected), same vocabulary as the profile.</summary>
     public ArtisanVerificationStatus Status { get; private set; }
 

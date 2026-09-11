@@ -496,6 +496,7 @@ public sealed class ServikaDbContext : DbContext
             kyc.Property(k => k.OpenCheck).HasConversion<string>().HasMaxLength(32);
             kyc.Property(k => k.OpenReasonCode).HasMaxLength(64);
             kyc.Property(k => k.OpenNote).HasMaxLength(1000);
+            kyc.Property(k => k.PoseSelfiesJson).HasColumnType("jsonb");
 
             kyc.Property(k => k.IdType).HasConversion<string>().HasMaxLength(20);
             kyc.Property(k => k.Status).HasConversion<string>().HasMaxLength(20);
