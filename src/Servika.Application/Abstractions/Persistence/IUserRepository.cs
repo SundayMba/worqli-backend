@@ -44,5 +44,9 @@ public interface IUserRepository
 
     void AddRefreshToken(RefreshToken token);
 
+    /// <summary>Revokes every active refresh token the user holds (password change:
+    /// other devices must sign in again). Executes immediately, outside change tracking.</summary>
+    Task<int> RevokeAllRefreshTokensAsync(Guid userId, DateTimeOffset now, CancellationToken ct);
+
     Task<int> SaveChangesAsync(CancellationToken ct);
 }

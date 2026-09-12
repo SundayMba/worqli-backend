@@ -299,6 +299,24 @@ public sealed class AuthController : ControllerBase
     /// <response code="400">Missing full name.</response>
     /// <response code="401">Not signed in.</response>
     [Authorize]
+    /// <summary>Change your own password. Signs out every other device.</summary>
+    /// <response code="200">Changed.</response>
+    /// <response code="400">Too short, no number, mismatch, or same as before.</response>
+    /// <response code="401">Current password is wrong, or not signed in.</response>
+    [Authorize]
+    [HttpPost("change-password")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordRequest request,
+        [FromServices] ChangePasswordHandler handler,
+        CancellationToken ct)
+    {
+        await handler.HandleAsync(CurrentUserId(), request, ct);
+        return Ok(new { success = true });
+    }
+
     [HttpPatch("me")]
     [ProducesResponseType(typeof(UserDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

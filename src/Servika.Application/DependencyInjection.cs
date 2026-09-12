@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<SendPhoneOtpHandler>();
         services.AddScoped<VerifyPhoneOtpHandler>();
         services.AddScoped<ForgotPasswordHandler>();
+        services.AddScoped<Users.Password.ChangePasswordHandler>();
         services.AddScoped<ResetPasswordHandler>();
         services.AddScoped<BecomeArtisanHandler>();
         services.AddScoped<Users.Profile.UpdateProfileHandler>();

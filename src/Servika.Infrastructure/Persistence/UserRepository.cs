@@ -66,5 +66,10 @@ public sealed class UserRepository : IUserRepository
 
     public void AddRefreshToken(RefreshToken token) => _db.RefreshTokens.Add(token);
 
+    public Task<int> RevokeAllRefreshTokensAsync(Guid userId, DateTimeOffset now, CancellationToken ct) =>
+        _db.RefreshTokens
+            .Where(t => t.UserId == userId && t.RevokedAtUtc == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAtUtc, now), ct);
+
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }
