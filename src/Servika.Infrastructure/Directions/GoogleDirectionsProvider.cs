@@ -7,7 +7,8 @@ namespace Servika.Infrastructure.Directions;
 
 /// <summary>
 /// Google Directions API implementation of <see cref="IDirectionsProvider"/>.
-/// Requests a driving route (traffic-aware via <c>departure_time=now</c>), decodes
+/// Requests a driving route (traffic-aware via <c>departure_time=now</c> only when
+/// <c>Google:TrafficAware</c> is on, to stay on the 10,000-call Essentials tier), decodes
 /// the overview polyline, and returns distance + duration. The API key is held
 /// server-side (config), so it never ships in the mobile app. Any failure or
 /// empty result falls back to a straight line so the map always has something to
@@ -40,7 +41,7 @@ public sealed class GoogleDirectionsProvider : IDirectionsProvider
                 $"{_options.DirectionsBaseUrl}/maps/api/directions/json" +
                 $"?origin={fromLat.ToString(inv)},{fromLng.ToString(inv)}" +
                 $"&destination={toLat.ToString(inv)},{toLng.ToString(inv)}" +
-                $"&mode=driving&departure_time=now&key={_options.DirectionsApiKey}";
+                $"&mode=driving{(_options.TrafficAware ? "&departure_time=now" : "")}&key={_options.DirectionsApiKey}";
 
             using var resp = await client.GetAsync(url, ct);
             resp.EnsureSuccessStatusCode();

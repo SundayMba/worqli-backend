@@ -16,4 +16,12 @@ public sealed class GoogleDirectionsOptions
     public string DirectionsBaseUrl { get; init; } = "https://maps.googleapis.com";
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(DirectionsApiKey);
+
+    /// <summary>
+    /// Ask Google for a live-traffic ETA (<c>departure_time=now</c>). Google bills that
+    /// as "Directions Advanced" (Pro tier, 5,000 free calls a month); a plain route is
+    /// "Directions" (Essentials, 10,000 free). Off by default at launch to stay on the
+    /// larger free tier; flip <c>Google:TrafficAware=true</c> when volume justifies it.
+    /// </summary>
+    public bool TrafficAware { get; init; } = false;
 }
