@@ -15,4 +15,7 @@ public sealed record ArtisanWalletDto(
     int CommissionOwedNaira = 0,
     /// <summary>True when the owed amount is past the platform's debt limit —
     /// the artisan stops receiving new job requests until they settle.</summary>
-    bool IsRestricted = false);
+    bool IsRestricted = false,
+    /// <summary>The smallest payout the admin currently allows, so the app never
+    /// blocks an amount the server would accept.</summary>
+    int MinWithdrawalNaira = 1000);

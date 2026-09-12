@@ -51,6 +51,7 @@ public sealed class GetArtisanWalletHandler
         var restricted = available < -settings.MaxCommissionDebtNaira;
 
         return new ArtisanWalletDto(
-            Math.Max(0, available), totalEarned, totalWithdrawn, "NGN", owed, restricted);
+            Math.Max(0, available), totalEarned, totalWithdrawn, "NGN", owed, restricted,
+            settings.MinWithdrawalNaira);
     }
 }
