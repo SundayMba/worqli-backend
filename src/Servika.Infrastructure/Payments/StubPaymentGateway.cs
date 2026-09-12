@@ -76,6 +76,14 @@ public sealed class StubPaymentGateway : IPaymentGateway
         }
     }
 
+    // Dev gateway: verify says "still pending" so the app's waiting state is exercised
+    // locally; the stub webhook (posted by hand) is what settles a payment in dev.
+    public Task<PaymentWebhookEvent?> VerifyAsync(string reference, CancellationToken ct)
+    {
+        _logger.LogInformation("[STUB-PAY] verify {Reference}: pending until the stub webhook fires", reference);
+        return Task.FromResult<PaymentWebhookEvent?>(new PaymentWebhookEvent(reference, PaymentWebhookOutcome.Pending));
+    }
+
     // Dev gateway: every body is trusted.
     public bool VerifySignature(string rawBody, string? signature) => true;
 

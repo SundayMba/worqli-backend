@@ -132,6 +132,8 @@ public static class DependencyInjection
         services.AddScoped<Payments.ArtisanStandingService>();
         services.AddScoped<Payments.SettleCommissionHandler>();
         services.AddScoped<Payments.FeeQuoteHandler>();
+        services.AddScoped<Payments.PaymentSettlementService>();
+        services.AddScoped<Payments.VerifyPaymentHandler>();
         services.AddScoped<Payments.SendFeeNoticesHandler>();
         services.AddScoped<GetArtisanWithdrawalsHandler>();
         services.AddScoped<RequestWithdrawalHandler>();

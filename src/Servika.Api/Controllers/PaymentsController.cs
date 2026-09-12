@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Servika.Application.Common;
 using Servika.Application.Payments;
 using Servika.Contracts.Payments;
@@ -41,6 +42,28 @@ public sealed class PaymentsController : ControllerBase
         CancellationToken ct)
     {
         return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>Ask where a payment stands, settling it if the provider already has the answer.</summary>
+    /// <remarks>
+    /// Called by the app the moment the payer returns from a bank or wallet app, so the
+    /// result shows without waiting for the webhook. Only the payer may ask. The client
+    /// sends no verdict: the provider is asked directly and the same settlement code the
+    /// webhook uses is applied.
+    /// </remarks>
+    /// <response code="200">The payment's current state.</response>
+    /// <response code="404">No such payment for this user.</response>
+    [Authorize]
+    [HttpPost("{reference}/verify")]
+    [EnableRateLimiting("payment-verify")]
+    [ProducesResponseType(typeof(PaymentStatusDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PaymentStatusDto>> Verify(
+        string reference,
+        [FromServices] VerifyPaymentHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), reference, ct));
     }
 
     /// <summary>Gateway webhook (no auth — verified by signature).</summary>

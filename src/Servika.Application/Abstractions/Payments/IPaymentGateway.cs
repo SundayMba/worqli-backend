@@ -21,6 +21,13 @@ public interface IPaymentGateway
     /// it isn't a payment event we care about.</summary>
     PaymentWebhookEvent? ParseWebhook(string rawBody);
 
+    /// <summary>Asks the provider directly how a charge stands (Paystack
+    /// <c>GET /transaction/verify/:reference</c>). Returns the same normalized shape
+    /// the webhook produces, so both paths settle through one service; null when the
+    /// provider does not know the reference yet or the call failed. Used when the
+    /// payer comes back to the app before the webhook has landed.</summary>
+    Task<PaymentWebhookEvent?> VerifyAsync(string reference, CancellationToken ct);
+
     /// <summary>Sends real money back to the customer who paid (e.g. a dispute
     /// resolved in their favour). Refunds the charge identified by our original
     /// <paramref name="reference"/> for <paramref name="amountNaira"/>. Best-effort:
@@ -67,6 +74,8 @@ public enum PaymentWebhookOutcome
 {
     Succeeded,
     Failed,
+    /// <summary>Verify only: the provider has the charge but the payer has not finished (bank transfer still in flight, checkout still open).</summary>
+    Pending,
 }
 
 /// <summary>A normalized payment webhook: which reference, and how it resolved.</summary>

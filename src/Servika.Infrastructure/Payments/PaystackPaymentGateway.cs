@@ -46,6 +46,12 @@ public sealed class PaystackPaymentGateway : IPaymentGateway
             // Sends the payer back into the app when the charge completes (the app
             // scheme is registered, so the checkout page hands off to the app).
             callback_url = input.CallbackUrl,
+            // Where the checkout's own Cancel goes: the same link flagged cancelled,
+            // so the in-app checkout screen can close cleanly instead of hanging.
+            metadata = input.CallbackUrl is null ? null : new
+            {
+                cancel_action = input.CallbackUrl + (input.CallbackUrl.Contains('?') ? "&" : "?") + "cancelled=1",
+            },
         });
 
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
@@ -141,6 +147,44 @@ public sealed class PaystackPaymentGateway : IPaymentGateway
         }
         catch (JsonException)
         {
+            return null;
+        }
+    }
+
+    public async Task<PaymentWebhookEvent?> VerifyAsync(string reference, CancellationToken ct)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient("paystack");
+            client.BaseAddress = new Uri(_options.BaseUrl);
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.SecretKey);
+            using var response = await client.GetAsync($"/transaction/verify/{Uri.EscapeDataString(reference)}", ct);
+            var json = await response.Content.ReadAsStringAsync(ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                // 404 = Paystack has not seen the charge yet; anything else is logged.
+                if (response.StatusCode != System.Net.HttpStatusCode.NotFound)
+                    _logger.LogWarning("Paystack verify failed ({Status}) for {Reference}: {Body}", response.StatusCode, reference, json);
+                return null;
+            }
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object) return null;
+            var status = data.TryGetProperty("status", out var st) ? st.GetString() : null;
+            var outcome = status switch
+            {
+                "success" => PaymentWebhookOutcome.Succeeded,
+                "failed" or "abandoned" or "reversed" => PaymentWebhookOutcome.Failed,
+                _ => PaymentWebhookOutcome.Pending, // ongoing / pending / processing / queued
+            };
+            long? amount = data.TryGetProperty("amount", out var am) && am.ValueKind == JsonValueKind.Number ? am.GetInt64() : null;
+            long? fees = data.TryGetProperty("fees", out var fe) && fe.ValueKind == JsonValueKind.Number ? fe.GetInt64() : null;
+            var currency = data.TryGetProperty("currency", out var cu) ? cu.GetString() : null;
+            return new PaymentWebhookEvent(reference, outcome, amount, fees, currency);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Paystack verify threw for {Reference}", reference);
             return null;
         }
     }

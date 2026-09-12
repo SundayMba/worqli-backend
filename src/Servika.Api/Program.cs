@@ -211,6 +211,16 @@ builder.Services.AddRateLimiter(options =>
                 PermitLimit = 12,
                 Window = TimeSpan.FromMinutes(10),
             }));
+    // The in-app checkout polls verify every few seconds while a bank transfer
+    // confirms; generous per IP, still a ceiling against hammering the provider.
+    options.AddPolicy("payment-verify", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(2),
+            }));
 });
 
 // CORS — gate *browser* clients (the admin dashboard + Expo web/dev). Native mobile
