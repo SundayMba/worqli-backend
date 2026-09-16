@@ -41,6 +41,10 @@ public sealed class SaveArtisanProfileHandler
             .ToList();
         if (slugs.Count == 0)
             throw new ArgumentException("Select at least one service category.");
+        // A work area is a place name customers recognise, never a raw pin. Coordinates
+        // belong in Latitude/Longitude; a "6.4785, 3.4219" label once leaked onto profiles.
+        if (System.Text.RegularExpressions.Regex.IsMatch(request.Location?.Trim() ?? "", @"^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$"))
+            throw new ArgumentException("Type the name of the area you cover, for example Ajah, Lagos.");
         foreach (var slug in slugs)
         {
             if (!await _catalogue.CategoryExistsAsync(slug, ct))
