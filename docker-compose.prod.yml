@@ -66,6 +66,8 @@ services:
       # the API refuses to boot if this is true while Sms__ApiKey is blank.
       Auth__RequirePhoneForBooking: ${REQUIRE_PHONE_FOR_BOOKING:-false}
       Google__DirectionsApiKey: ${GOOGLE_DIRECTIONS_API_KEY}
+      Osrm__BaseUrl: ${OSRM_BASE_URL:-}
+      Osrm__ApiKey: ${OSRM_API_KEY:-}
       # Google Sign-In: WEB OAuth client id(s), comma-separated (the ID-token
       # audience the API accepts). Empty = the /auth/google endpoint rejects all.
       Google__OAuthClientIds: ${GOOGLE_OAUTH_CLIENT_IDS:-}
