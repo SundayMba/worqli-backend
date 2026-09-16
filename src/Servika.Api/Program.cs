@@ -17,6 +17,15 @@ using Servika.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// A marketplace must never verify its own artisans automatically. Kyc:AutoApprove is a
+// dev convenience only: in Production it is forced off whatever the environment says,
+// so every application goes through the admin review desk.
+if (builder.Environment.IsProduction() && builder.Configuration.GetValue("Kyc:AutoApprove", false))
+{
+    builder.Configuration["Kyc:AutoApprove"] = "false";
+    Console.WriteLine("WARNING: Kyc:AutoApprove was true in Production and has been forced to false. Artisans are verified by an admin only.");
+}
+
 // KYC submissions carry base64 images in the JSON body. The client compresses
 // them, but raise Kestrel's ~30MB default so an uncompressed-fallback upload from
 // a high-megapixel phone camera isn't rejected/reset.

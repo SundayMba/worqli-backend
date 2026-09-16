@@ -72,7 +72,7 @@ services:
       # S3 uploads (KYC docs, photos, booking media). Empty => local disk (ephemeral!).
       Storage__S3Bucket: ${STORAGE_S3_BUCKET:-}
       Storage__S3Region: ${STORAGE_S3_REGION:-}
-      Kyc__AutoApprove: ${KYC_AUTOAPPROVE:-true}
+      Kyc__AutoApprove: ${KYC_AUTOAPPROVE:-false}
     # Published to the server's own port 8080 so we can test it (curl localhost:8080).
     # The firewall still blocks 8080 from the internet; later Caddy will front it on 443.
     ports:
