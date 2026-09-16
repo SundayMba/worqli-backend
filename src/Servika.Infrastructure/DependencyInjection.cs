@@ -156,17 +156,31 @@ public static class DependencyInjection
         // straight-line stub (so the tracking map works in local dev without
         // credentials). Same IDirectionsProvider port — no use-case changes. The
         // key is server-side only; the mobile app calls our /tracking/route.
-        var googleOptions = configuration.GetSection(GoogleDirectionsOptions.SectionName).Get<GoogleDirectionsOptions>()
-            ?? new GoogleDirectionsOptions();
-        services.AddSingleton(googleOptions);
-        if (googleOptions.IsConfigured)
+        // Routing: an OSRM-compatible service (self-hosted OSRM, LocationIQ, Geoapify) wins
+        // when Osrm:BaseUrl is set; it costs nothing per call and needs no card. Google
+        // Directions is next when a key is configured; else the straight-line stub.
+        var osrmOptions = configuration.GetSection(OsrmDirectionsOptions.SectionName).Get<OsrmDirectionsOptions>()
+            ?? new OsrmDirectionsOptions();
+        if (osrmOptions.IsConfigured)
         {
-            services.AddHttpClient("google-directions");
-            services.AddSingleton<IDirectionsProvider, GoogleDirectionsProvider>();
+            services.AddSingleton(osrmOptions);
+            services.AddHttpClient("osrm", c => c.Timeout = TimeSpan.FromSeconds(8));
+            services.AddSingleton<IDirectionsProvider, OsrmDirectionsProvider>();
         }
         else
         {
-            services.AddSingleton<IDirectionsProvider, StubDirectionsProvider>();
+            var googleOptions = configuration.GetSection(GoogleDirectionsOptions.SectionName).Get<GoogleDirectionsOptions>()
+                ?? new GoogleDirectionsOptions();
+            services.AddSingleton(googleOptions);
+            if (googleOptions.IsConfigured)
+            {
+                services.AddHttpClient("google-directions");
+                services.AddSingleton<IDirectionsProvider, GoogleDirectionsProvider>();
+            }
+            else
+            {
+                services.AddSingleton<IDirectionsProvider, StubDirectionsProvider>();
+            }
         }
 
         // OTP / password-reset: code generation+hashing (stateless → Singleton)
