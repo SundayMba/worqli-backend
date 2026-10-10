@@ -19,9 +19,13 @@ public sealed class ResubmitKycCheckHandler
     private readonly IUserRepository _users;
     private readonly NotificationEmitter _notifications;
     private readonly IClock _clock;
+    private readonly ICatalogueRepository _catalogue;
+    private readonly Abstractions.Notifications.IAdminAlerts _alerts;
 
-    public ResubmitKycCheckHandler(IArtisanKycRepository kyc, IVerificationEventRepository events, IUserRepository users, NotificationEmitter notifications, IClock clock)
+    public ResubmitKycCheckHandler(IArtisanKycRepository kyc, IVerificationEventRepository events, IUserRepository users, NotificationEmitter notifications, IClock clock, ICatalogueRepository catalogue, Abstractions.Notifications.IAdminAlerts alerts)
     {
+        _catalogue = catalogue;
+        _alerts = alerts;
         _kyc = kyc;
         _events = events;
         _users = users;
@@ -45,6 +49,12 @@ public sealed class ResubmitKycCheckHandler
         await _notifications.KycResubmittedAsync(artisan?.FullName ?? "An artisan", check.ToString(), ct);
 
         await _kyc.SaveChangesAsync(ct);
+
+        var (name, trade) = await Admin.AdminAlertSweepHandler.DescribeArtisanAsync(_catalogue, _users, artisanUserId, ct);
+        _alerts.Send(new Abstractions.Notifications.AdminAlert(Abstractions.Notifications.AdminAlertKind.Resubmission,
+            "Fix sent back for review",
+            new[] { $"{name}{trade}", $"They fixed {check.ToString().ToLowerInvariant()} and are at the front of the queue." },
+            $"/verifications/{kyc.Id}", "Review now"));
         return kyc.ToStatusDto((await _events.ListForKycAsync(kyc.Id, ct)).ToArtisanDtos());
     }
 }

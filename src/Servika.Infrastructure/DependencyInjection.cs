@@ -194,6 +194,14 @@ public static class DependencyInjection
         var resendOptions = configuration.GetSection(ResendOptions.SectionName).Get<ResendOptions>()
             ?? new ResendOptions();
         services.AddSingleton(resendOptions);
+
+        // Admin alerts: Telegram group + ops email. Logs only when neither is set.
+        var adminAlerts = configuration.GetSection(AdminAlertOptions.SectionName).Get<AdminAlertOptions>()
+            ?? new AdminAlertOptions();
+        services.AddSingleton(adminAlerts);
+        services.AddHttpClient("telegram", c => c.Timeout = TimeSpan.FromSeconds(10));
+        if (!resendOptions.IsConfigured) services.AddHttpClient("resend");
+        services.AddSingleton<IAdminAlerts, AdminAlertDispatcher>();
         if (resendOptions.IsConfigured)
         {
             services.AddHttpClient("resend");

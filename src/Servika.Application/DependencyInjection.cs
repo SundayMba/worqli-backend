@@ -194,6 +194,7 @@ public static class DependencyInjection
         services.AddScoped<Admin.ListAllBookingsHandler>();
         services.AddScoped<Admin.GetAdminBookingHandler>();
         services.AddScoped<Admin.GetAdminPaymentsHandler>();
+        services.AddScoped<Admin.AdminAlertSweepHandler>();
         services.AddScoped<Admin.ListAdminArtisansHandler>();
         services.AddScoped<Admin.GetAdminArtisanCertificateHandler>();
         services.AddScoped<Admin.SetGuarantorWaiverHandler>();

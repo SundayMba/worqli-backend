@@ -26,6 +26,7 @@ public sealed class NotificationEmitter
     private readonly IUserRepository _users;
     private readonly Payments.ArtisanStandingService _standing;
     private readonly IClock _clock;
+    private readonly IAdminAlerts _alerts;
 
     public NotificationEmitter(
         INotificationRepository notifications,
@@ -33,8 +34,10 @@ public sealed class NotificationEmitter
         ICatalogueRepository catalogue,
         IUserRepository users,
         Payments.ArtisanStandingService standing,
-        IClock clock)
+        IClock clock,
+        IAdminAlerts alerts)
     {
+        _alerts = alerts;
         _notifications = notifications;
         _push = push;
         _catalogue = catalogue;
@@ -141,6 +144,7 @@ public sealed class NotificationEmitter
                    "failed at Paystack. Reprocess the refund from the Paystack dashboard.";
         foreach (var admin in admins.Concat(superAdmins))
             Add(admin.Id, NotificationType.System, "Refund failed", body, bookingId);
+        _alerts.Send(new AdminAlert(AdminAlertKind.RefundFailed, "Refund failed at Paystack", new[] { body }, $"/bookings/{bookingId}", "Open booking"));
     }
 
     /// <summary>A webhook reported a successful charge for LESS than we asked (or in
@@ -157,6 +161,8 @@ public sealed class NotificationEmitter
                    "It was NOT settled and the booking stays unpaid. Check the transaction in Paystack.";
         foreach (var admin in admins.Concat(superAdmins))
             Add(admin.Id, NotificationType.System, "Payment amount mismatch", body, bookingId);
+        _alerts.Send(new AdminAlert(AdminAlertKind.PaymentMismatch, "Payment amount mismatch", new[] { body },
+            bookingId is { } bid ? $"/bookings/{bid}" : "/payments", bookingId is null ? "Open payments" : "Open booking"));
     }
 
     /// <summary>Advance notice that transaction fees are about to start (or just did).
@@ -504,6 +510,9 @@ public sealed class NotificationEmitter
         foreach (var admin in admins.Concat(superAdmins))
             Add(admin.Id, NotificationType.System,
                 "Dispute updated", $"{who} added a response to a dispute. Review it before resolving.", booking.Id);
+        _alerts.Send(new AdminAlert(AdminAlertKind.DisputeResponse, "Artisan answered a dispute",
+            new[] { $"{who} gave their side on the {booking.ServiceName} booking. You can resolve it now." },
+            "/disputes", "Open disputes"));
     }
 
     /// <summary>Notify the recipient of a new chat message from the other party.

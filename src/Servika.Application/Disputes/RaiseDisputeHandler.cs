@@ -20,19 +20,22 @@ public sealed class RaiseDisputeHandler
     private readonly IUserRepository _users;
     private readonly Notifications.NotificationEmitter _notifications;
     private readonly IClock _clock;
+    private readonly Abstractions.Notifications.IAdminAlerts _alerts;
 
     public RaiseDisputeHandler(
         IBookingRepository bookings,
         IDisputeRepository disputes,
         IUserRepository users,
         Notifications.NotificationEmitter notifications,
-        IClock clock)
+        IClock clock,
+        Abstractions.Notifications.IAdminAlerts alerts)
     {
         _bookings = bookings;
         _disputes = disputes;
         _users = users;
         _notifications = notifications;
         _clock = clock;
+        _alerts = alerts;
     }
 
     public async Task<DisputeDto> HandleAsync(
@@ -60,6 +63,12 @@ public sealed class RaiseDisputeHandler
         booking.RaiseDispute(now); // InProgress/AwaitingConfirmation/Completed → Disputed
         await _notifications.DisputeRaisedForArtisanAsync(booking, ct); // let the artisan respond
         await _disputes.SaveChangesAsync(ct); // commits the dispute + booking + notification together
+
+        _alerts.Send(new Abstractions.Notifications.AdminAlert(Abstractions.Notifications.AdminAlertKind.DisputeRaised,
+            "Customer raised a dispute",
+            new[] { $"{dispute.CustomerName} · {booking.ServiceName}{(string.IsNullOrWhiteSpace(booking.ArtisanName) ? "" : $" with {booking.ArtisanName}")}",
+                    $"{request.Category}. The booking is frozen until you resolve it." },
+            "/disputes", "Open disputes"));
 
         return dispute.ToDto();
     }

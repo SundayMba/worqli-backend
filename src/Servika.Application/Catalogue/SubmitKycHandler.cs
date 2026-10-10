@@ -1,3 +1,4 @@
+using Servika.Application.Abstractions.Notifications;
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Storage;
 using Servika.Application.Abstractions.Time;
@@ -25,6 +26,8 @@ public sealed class SubmitKycHandler
     private readonly IPlatformSettingsRepository _settings;
     private readonly IVerificationEventRepository _events;
     private readonly IClock _clock;
+    private readonly IUserRepository _users;
+    private readonly IAdminAlerts _alerts;
 
     public SubmitKycHandler(
         IArtisanKycRepository kyc,
@@ -34,8 +37,12 @@ public sealed class SubmitKycHandler
         IClock clock,
         IArtisanGuarantorRepository guarantors,
         IPlatformSettingsRepository settings,
-        IVerificationEventRepository events)
+        IVerificationEventRepository events,
+        IUserRepository users,
+        IAdminAlerts alerts)
     {
+        _users = users;
+        _alerts = alerts;
         _events = events;
         _kyc = kyc;
         _catalogue = catalogue;
@@ -116,6 +123,17 @@ public sealed class SubmitKycHandler
         }
 
         await _kyc.SaveChangesAsync(ct);
+
+        if (submission.Status == ArtisanVerificationStatus.Pending)
+        {
+            var (name, trade) = await Admin.AdminAlertSweepHandler.DescribeArtisanAsync(_catalogue, _users, artisanUserId, ct);
+            var resent = existing is not null;
+            _alerts.Send(new AdminAlert(
+                resent ? AdminAlertKind.Resubmission : AdminAlertKind.NewApplication,
+                resent ? "ID sent back for review" : "New artisan application",
+                new[] { $"{name}{trade}", resent ? "They uploaded a new ID or selfie." : "ID, selfie and payout account are in. Review target: 24 hours." },
+                $"/verifications/{submission.Id}", "Review now"));
+        }
         return submission.ToStatusDto();
     }
 
