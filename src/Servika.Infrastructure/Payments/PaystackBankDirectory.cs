@@ -61,7 +61,10 @@ public sealed class PaystackBankDirectory : IBankDirectory
             }
 
             if (banks.Count == 0) return await _fallback.ListBanksAsync(ct);
+            // Paystack lists a few banks twice under one code; transfers only need the code,
+            // so keep the first of each.
             _cache = banks
+                .DistinctBy(b => b.Code)
                 .OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             return _cache;
