@@ -121,6 +121,7 @@ public static class DependencyInjection
         services.AddScoped<Payments.GetBanksHandler>();
         services.AddScoped<Payments.BankAccountResolver>();
         services.AddScoped<Payments.ResolveBankAccountHandler>();
+        services.AddScoped<Payments.FindBankAccountsHandler>();
         services.AddScoped<RefundService>();
         services.AddScoped<Payments.EscrowReleaseService>();
         services.AddScoped<GetWalletHandler>();

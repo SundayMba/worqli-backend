@@ -29,6 +29,25 @@ public sealed class BanksController : ControllerBase
         return Ok(await handler.HandleAsync(ct));
     }
 
+    /// <summary>Every bank where this 10-digit number exists, with the bank's name for it (the OPay flow).</summary>
+    /// <response code="200">Matches, most likely first; empty when no bank has it.</response>
+    /// <response code="400">Not ten digits.</response>
+    /// <response code="429">Daily cap reached.</response>
+    [HttpGet("lookup")]
+    [ProducesResponseType(typeof(IReadOnlyList<Servika.Contracts.Payments.BankAccountMatchDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<IReadOnlyList<Servika.Contracts.Payments.BankAccountMatchDto>>> Lookup(
+        [FromQuery] string accountNumber,
+        [FromServices] Servika.Application.Payments.FindBankAccountsHandler handler,
+        CancellationToken ct)
+    {
+        var sub = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
+                  ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = Guid.TryParse(sub, out var id) ? id : Guid.Empty;
+        return Ok(await handler.HandleAsync(userId, accountNumber, ct));
+    }
+
     /// <summary>Whose name is on an account. Cached per bank+number; ten lookups a day per user.</summary>
     /// <response code="404">No account with that number at that bank.</response>
     /// <response code="429">Daily cap reached.</response>

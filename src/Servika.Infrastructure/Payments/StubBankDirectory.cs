@@ -39,6 +39,12 @@ public sealed class StubBankDirectory : IBankDirectory
     public Task<ResolvedBankAccount?> ResolveAccountAsync(string bankCode, string accountNumber, string? hintName, CancellationToken ct)
     {
         if (accountNumber.EndsWith("0000")) return Task.FromResult<ResolvedBankAccount?>(null);
+        // Behave like the real network: a number only "exists" where it plausibly could,
+        // so the bank-lookup screen shows one or two banks, not every bank asked.
+        var plausible = bankCode.Length == 3
+            ? Servika.Application.Payments.BankCandidates.PassesNuban(bankCode, accountNumber)
+            : bankCode is "999992" or "50515";
+        if (!plausible) return Task.FromResult<ResolvedBankAccount?>(null);
         var name = string.IsNullOrWhiteSpace(hintName) ? $"STUB ACCOUNT {accountNumber[^4..]}" : hintName.Trim().ToUpperInvariant();
         return Task.FromResult<ResolvedBankAccount?>(new ResolvedBankAccount(bankCode, accountNumber, name));
     }
