@@ -312,6 +312,23 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<Guid>("ArtisanUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ContactNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("ContactStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("NotCalled");
+
+                    b.Property<DateTimeOffset?>("ContactedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ContactedByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 

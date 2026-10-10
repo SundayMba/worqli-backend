@@ -186,6 +186,7 @@ public static class DependencyInjection
         services.AddScoped<Admin.GetKycSubmissionHandler>();
         services.AddScoped<Admin.ReviewKycHandler>();
         services.AddScoped<Admin.RequestKycChangesHandler>();
+        services.AddScoped<Admin.RecordGuarantorContactHandler>();
         services.AddScoped<Admin.ListUsersHandler>();
         services.AddScoped<Admin.SetUserSuspendedHandler>();
         services.AddScoped<Admin.AdminDeleteUserHandler>();

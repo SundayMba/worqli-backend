@@ -27,6 +27,13 @@ public sealed class ArtisanGuarantorRepository : IArtisanGuarantorRepository
     public Task<ArtisanGuarantor?> FindForUserAsync(Guid id, Guid artisanUserId, CancellationToken ct) =>
         _db.ArtisanGuarantors.FirstOrDefaultAsync(g => g.Id == id && g.ArtisanUserId == artisanUserId, ct);
 
+    public Task<ArtisanGuarantor?> FindByIdForUpdateAsync(Guid id, CancellationToken ct) =>
+        _db.ArtisanGuarantors.FirstOrDefaultAsync(g => g.Id == id, ct);
+
+    public async Task<IReadOnlyList<(Guid ArtisanUserId, string Phone)>> ListAllPhonesAsync(CancellationToken ct) =>
+        (await _db.ArtisanGuarantors.AsNoTracking().Select(g => new { g.ArtisanUserId, g.Phone }).ToListAsync(ct))
+            .Select(x => (x.ArtisanUserId, x.Phone)).ToList();
+
     public void Add(ArtisanGuarantor guarantor) => _db.ArtisanGuarantors.Add(guarantor);
     public void Remove(ArtisanGuarantor guarantor) => _db.ArtisanGuarantors.Remove(guarantor);
 

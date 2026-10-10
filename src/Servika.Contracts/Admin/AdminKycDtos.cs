@@ -76,7 +76,17 @@ public sealed record AdminGuarantorDto(
     int YearsKnown,
     string? Occupation,
     string? Address,
-    string? IdPhotoDataUri);
+    string? IdPhotoDataUri,
+    /// <summary>NotCalled | Confirmed | Unreachable | Denied.</summary>
+    string ContactStatus = "NotCalled",
+    string? ContactNote = null,
+    DateTimeOffset? ContactedAtUtc = null,
+    string? ContactedBy = null,
+    /// <summary>Automatic red flags on the phone number (own number, repeated, used for other artisans).</summary>
+    IReadOnlyList<string>? Warnings = null);
+
+/// <summary>Record a call to a guarantor (POST /admin/kyc/{id}/guarantors/{guarantorId}/contact).</summary>
+public sealed record RecordGuarantorContactRequest(string Status, string? Note);
 
 /// <summary>Reject a KYC submission with a reason (POST /admin/kyc/{id}/reject).</summary>
 public sealed record RejectKycRequest(string? Reason, string? Check = null, string? ReasonCode = null);

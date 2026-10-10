@@ -1,5 +1,17 @@
 namespace Servika.Domain.Catalogue;
 
+/// <summary>What happened when a reviewer called the guarantor.</summary>
+public enum GuarantorContactStatus
+{
+    NotCalled,
+    /// <summary>Reached them and they vouch for the artisan.</summary>
+    Confirmed,
+    /// <summary>No answer, switched off or wrong number.</summary>
+    Unreachable,
+    /// <summary>Reached them and they do not know or will not vouch for the artisan.</summary>
+    Denied,
+}
+
 /// <summary>
 /// Someone who vouches for an artisan: a person Servika can call if something
 /// goes wrong on a job, and only then. Part of the verification hub ("two
@@ -24,6 +36,29 @@ public sealed class ArtisanGuarantor
     /// <summary>Storage key of the guarantor's ID photo, or null.</summary>
     public string? IdPhotoKey { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
+
+    /// <summary>The reviewer's call outcome. A guarantor the artisan replaces is a new row, so it starts over.</summary>
+    public GuarantorContactStatus ContactStatus { get; private set; } = GuarantorContactStatus.NotCalled;
+    public string? ContactNote { get; private set; }
+    public DateTimeOffset? ContactedAtUtc { get; private set; }
+    public Guid? ContactedByUserId { get; private set; }
+
+    public void RecordContact(GuarantorContactStatus status, string? note, Guid adminUserId, DateTimeOffset now)
+    {
+        ContactStatus = status;
+        ContactNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim()[..Math.Min(note.Trim().Length, 300)];
+        ContactedAtUtc = status == GuarantorContactStatus.NotCalled ? null : now;
+        ContactedByUserId = status == GuarantorContactStatus.NotCalled ? null : adminUserId;
+    }
+
+    /// <summary>One shape for a Nigerian number so "+234 803…", "234803…" and "0803…" compare equal.</summary>
+    public static string NormalizePhone(string? phone)
+    {
+        var d = new string((phone ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (d.StartsWith("234") && d.Length == 13) return "0" + d[3..];
+        if (d.Length == 10 && !d.StartsWith('0')) return "0" + d;
+        return d;
+    }
 
     private ArtisanGuarantor() { }
 

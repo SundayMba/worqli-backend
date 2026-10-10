@@ -91,6 +91,21 @@ public sealed class AdminKycController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), id, request, ct));
     }
 
+    /// <summary>Record the outcome of calling one of the applicant's guarantors.</summary>
+    [HttpPost("{id:guid}/guarantors/{guarantorId:guid}/contact")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RecordGuarantorContact(
+        Guid id, Guid guarantorId,
+        [FromBody] RecordGuarantorContactRequest request,
+        [FromServices] RecordGuarantorContactHandler handler,
+        CancellationToken ct)
+    {
+        await handler.HandleAsync(CurrentUserId(), id, guarantorId, request, ct);
+        return NoContent();
+    }
+
     private Guid CurrentUserId()
     {
         var sub = User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)

@@ -552,6 +552,8 @@ public sealed class ServikaDbContext : DbContext
             g.Property(x => x.Occupation).HasMaxLength(120);
             g.Property(x => x.Address).HasMaxLength(300);
             g.Property(x => x.IdPhotoKey).HasMaxLength(80);
+            g.Property(x => x.ContactStatus).HasConversion<string>().HasMaxLength(20).HasDefaultValue(GuarantorContactStatus.NotCalled);
+            g.Property(x => x.ContactNote).HasMaxLength(300);
             g.HasOne<User>()
                .WithMany()
                .HasForeignKey(x => x.ArtisanUserId)
