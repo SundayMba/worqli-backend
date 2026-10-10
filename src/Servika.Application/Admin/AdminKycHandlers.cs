@@ -103,7 +103,7 @@ public sealed class GetKycSubmissionHandler
             await DataUriAsync(k.IdDocumentKey, ct),
             guarantors,
             profile?.PayoutBankName,
-            profile?.PayoutAccountNumber is { Length: >= 4 } acct ? $"••••{acct[^4..]}" : null,
+            string.IsNullOrWhiteSpace(profile?.PayoutAccountNumber) ? null : profile.PayoutAccountNumber,
             profile?.PayoutAccountName,
             profile?.Specialty,
             profile?.Location,

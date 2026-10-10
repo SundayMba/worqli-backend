@@ -37,9 +37,9 @@ public sealed record KycSubmissionDetailDto(
     string? IdImageDataUri,
     /// <summary>The artisan's guarantors (people Servika may call), with ID photos inlined.</summary>
     IReadOnlyList<AdminGuarantorDto>? Guarantors = null,
-    /// <summary>Saved payout account summary — the name should match the ID.</summary>
+    /// <summary>Saved payout account in full (admin-only) — the name should match the ID.</summary>
     string? PayoutBankName = null,
-    string? PayoutAccountMasked = null,
+    string? PayoutAccountNumber = null,
     string? PayoutAccountName = null,
     /// <summary>Trade / area / photo context for the reviewer.</summary>
     string? Specialty = null,
