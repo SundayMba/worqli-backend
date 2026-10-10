@@ -27,10 +27,6 @@ public sealed class GetMyArtisanProfileHandler
         var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct)
             ?? throw new NotFoundException("You haven't set up your artisan profile yet.");
 
-        var settings = await _settings.GetOrCreateAsync(ct);
-        return profile.ToMyProfileDto(
-            await _guarantors.CountForUserAsync(artisanUserId, ct),
-            settings.RequireGuarantors && !profile.GuarantorsWaived,
-            settings.RequiredGuarantorCount);
+        return await new MyProfileDtoBuilder(_guarantors, _settings).BuildAsync(profile, artisanUserId, ct);
     }
 }

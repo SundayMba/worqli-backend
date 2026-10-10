@@ -10,13 +10,15 @@ namespace Servika.Application.Catalogue;
 /// <summary>Saves the payout account withdrawals default to (verification check 5 / design 63).</summary>
 public sealed class SetPayoutAccountHandler
 {
+    private readonly MyProfileDtoBuilder _dto;
     private readonly ICatalogueRepository _catalogue;
     private readonly IArtisanGuarantorRepository _guarantors;
     private readonly Payments.BankAccountResolver _resolver;
     private readonly IUserRepository _users;
 
-    public SetPayoutAccountHandler(ICatalogueRepository catalogue, IArtisanGuarantorRepository guarantors, Payments.BankAccountResolver resolver, IUserRepository users)
+    public SetPayoutAccountHandler(ICatalogueRepository catalogue, IArtisanGuarantorRepository guarantors, Payments.BankAccountResolver resolver, IUserRepository users, MyProfileDtoBuilder dto)
     {
+        _dto = dto;
         _catalogue = catalogue;
         _guarantors = guarantors;
         _resolver = resolver;
@@ -34,18 +36,20 @@ public sealed class SetPayoutAccountHandler
             ?? throw new ArgumentException($"No account with that number at {request.BankName}. Check the digits.");
         profile.SetPayoutAccount(request.BankCode, request.BankName, resolved.AccountNumber, resolved.AccountName);
         await _catalogue.SaveChangesAsync(ct);
-        return profile.ToMyProfileDto(await _guarantors.CountForUserAsync(artisanUserId, ct));
+        return await _dto.BuildAsync(profile, artisanUserId, ct);
     }
 }
 
 /// <summary>Radius, emergency opt-in and working hours (design 49).</summary>
 public sealed class SetWorkPreferencesHandler
 {
+    private readonly MyProfileDtoBuilder _dto;
     private readonly ICatalogueRepository _catalogue;
     private readonly IArtisanGuarantorRepository _guarantors;
 
-    public SetWorkPreferencesHandler(ICatalogueRepository catalogue, IArtisanGuarantorRepository guarantors)
+    public SetWorkPreferencesHandler(ICatalogueRepository catalogue, IArtisanGuarantorRepository guarantors, MyProfileDtoBuilder dto)
     {
+        _dto = dto;
         _catalogue = catalogue;
         _guarantors = guarantors;
     }
@@ -59,19 +63,21 @@ public sealed class SetWorkPreferencesHandler
             throw new ArgumentException("Working hours are too long.");
         profile.SetWorkPreferences(request.RadiusKm, request.AcceptsEmergency, request.WorkingHoursJson);
         await _catalogue.SaveChangesAsync(ct);
-        return profile.ToMyProfileDto(await _guarantors.CountForUserAsync(artisanUserId, ct));
+        return await _dto.BuildAsync(profile, artisanUserId, ct);
     }
 }
 
 /// <summary>Away mode (design 64): hidden from search until a date; accepted jobs untouched.</summary>
 public sealed class SetAwayHandler
 {
+    private readonly MyProfileDtoBuilder _dto;
     private readonly ICatalogueRepository _catalogue;
     private readonly IArtisanGuarantorRepository _guarantors;
     private readonly IClock _clock;
 
-    public SetAwayHandler(ICatalogueRepository catalogue, IArtisanGuarantorRepository guarantors, IClock clock)
+    public SetAwayHandler(ICatalogueRepository catalogue, IArtisanGuarantorRepository guarantors, IClock clock, MyProfileDtoBuilder dto)
     {
+        _dto = dto;
         _catalogue = catalogue;
         _guarantors = guarantors;
         _clock = clock;
@@ -88,7 +94,7 @@ public sealed class SetAwayHandler
         // Away = not available to new customers. Coming back restores availability.
         profile.SetAvailability(request.UntilUtc is null);
         await _catalogue.SaveChangesAsync(ct);
-        return profile.ToMyProfileDto(await _guarantors.CountForUserAsync(artisanUserId, ct));
+        return await _dto.BuildAsync(profile, artisanUserId, ct);
     }
 }
 

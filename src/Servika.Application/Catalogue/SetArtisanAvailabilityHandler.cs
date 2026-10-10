@@ -12,10 +12,12 @@ namespace Servika.Application.Catalogue;
 public sealed class SetArtisanAvailabilityHandler
 {
     private readonly ICatalogueRepository _catalogue;
+    private readonly MyProfileDtoBuilder _dto;
 
-    public SetArtisanAvailabilityHandler(ICatalogueRepository catalogue)
+    public SetArtisanAvailabilityHandler(ICatalogueRepository catalogue, MyProfileDtoBuilder dto)
     {
         _catalogue = catalogue;
+        _dto = dto;
     }
 
     public async Task<MyArtisanProfileDto> HandleAsync(
@@ -26,6 +28,6 @@ public sealed class SetArtisanAvailabilityHandler
 
         profile.SetAvailability(available);
         await _catalogue.SaveChangesAsync(ct);
-        return profile.ToMyProfileDto();
+        return await _dto.BuildAsync(profile, artisanUserId, ct);
     }
 }

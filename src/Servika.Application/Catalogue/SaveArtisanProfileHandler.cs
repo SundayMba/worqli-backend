@@ -20,11 +20,13 @@ public sealed class SaveArtisanProfileHandler
     private readonly IUserRepository _users;
     private readonly IArtisanKycRepository _kyc;
     private readonly IFileStorage _files;
+    private readonly MyProfileDtoBuilder _dto;
 
     public SaveArtisanProfileHandler(
         ICatalogueRepository catalogue, IUserRepository users, IArtisanKycRepository kyc,
-        IFileStorage files)
+        IFileStorage files, MyProfileDtoBuilder dto)
     {
+        _dto = dto;
         _catalogue = catalogue;
         _users = users;
         _kyc = kyc;
@@ -73,7 +75,7 @@ public sealed class SaveArtisanProfileHandler
             if (coverKey is not null) existing.SetCoverPhoto(coverKey);
             if (certificateKey is not null) existing.SetCertificate(certificateKey);
             await _catalogue.SaveChangesAsync(ct);
-            return existing.ToMyProfileDto();
+            return await _dto.BuildAsync(existing, artisanUserId, ct);
         }
 
         var user = await _users.FindByIdAsync(artisanUserId, ct)
@@ -104,7 +106,7 @@ public sealed class SaveArtisanProfileHandler
 
         _catalogue.AddArtisan(profile);
         await _catalogue.SaveChangesAsync(ct);
-        return profile.ToMyProfileDto();
+        return await _dto.BuildAsync(profile, artisanUserId, ct);
     }
 
     /// <summary>Decodes and stores an optional uploaded image, returning its
