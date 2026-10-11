@@ -49,12 +49,18 @@ public sealed record BookingDetailDto(
     int BidCount,
     /// <summary>Labour / materials split of the agreed price, when the accepted
     /// quote was itemised; null otherwise.</summary>
-    int? AgreedWorkmanshipNaira = null,
-    int? AgreedMaterialsNaira = null,
+    int? AgreedWorkmanshipNaira,
+    int? AgreedMaterialsNaira,
     /// <summary>"None" | "Requested" | "Approved" | "Declined": the artisan's request to
     /// have part of the materials money released from escrow before completion.</summary>
-    string MaterialsAdvanceStatus = "None",
-    int? MaterialsAdvanceNaira = null,
+    string MaterialsAdvanceStatus,
+    int? MaterialsAdvanceNaira,
     /// <summary>How many jobs this customer has completed on Servika — the
     /// artisan-side "7 jobs booked" trust line. Null on customer-side responses.</summary>
-    int? CustomerCompletedJobs = null);
+    int? CustomerCompletedJobs,
+    /// <summary>ARTISAN-facing only: what the artisan receives for this job (agreed
+    /// amount − commission − released materials advance). Null customer-side.</summary>
+    int? ArtisanNetNaira,
+    /// <summary>When an AwaitingConfirmation job confirms itself (work submitted +
+    /// the admin auto-confirm window); null in every other status.</summary>
+    DateTimeOffset? AutoConfirmAtUtc);

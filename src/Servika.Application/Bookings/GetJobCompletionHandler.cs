@@ -14,9 +14,11 @@ public sealed class GetJobCompletionHandler
 {
     private readonly IBookingRepository _bookings;
     private readonly IFileStorage _storage;
+    private readonly IPlatformSettingsRepository _settings;
 
-    public GetJobCompletionHandler(IBookingRepository bookings, IFileStorage storage)
+    public GetJobCompletionHandler(IBookingRepository bookings, IFileStorage storage, IPlatformSettingsRepository settings)
     {
+        _settings = settings;
         _bookings = bookings;
         _storage = storage;
     }
@@ -42,6 +44,7 @@ public sealed class GetJobCompletionHandler
         }
 
         return new JobCompletionDto(
-            booking.Status.ToString(), booking.CompletionNote, booking.WorkSubmittedAtUtc, photos, receipt);
+            booking.Status.ToString(), booking.CompletionNote, booking.WorkSubmittedAtUtc, photos, receipt,
+            booking.AutoConfirmAtUtc((await _settings.GetOrCreateAsync(ct)).AutoConfirmHours));
     }
 }

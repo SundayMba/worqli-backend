@@ -45,6 +45,6 @@ public sealed class CancelBookingHandler
         await _notifications.ArtisanBookingCancelled(booking, ct);
         await _bookings.SaveChangesAsync(ct);
 
-        return booking.ToDetailDto();
+        return booking.ToDetailDto(0, null, null);
     }
 }

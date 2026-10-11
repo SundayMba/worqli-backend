@@ -47,16 +47,16 @@ public sealed class CompleteBookingHandler
         var now = _clock.UtcNow;
         booking.ConfirmCompletion(now);
         _notifications.BookingCompleted(booking);
-        await _notifications.ArtisanJobConfirmed(booking, ct);
         // Online job → release the held escrow to the artisan now (this is the
         // point they can withdraw it). Cash job → record Servika's commission
         // against the artisan's ledger instead. Exactly one applies.
         await _escrow.ReleaseIfPaidAsync(booking, ct);
-        await _cashCommission.RecordIfCashJobAsync(booking, ct);
+        var cashFee = await _cashCommission.RecordIfCashJobAsync(booking, ct);
+        await _notifications.ArtisanJobConfirmed(booking, cashFee, ct);
         // First completed job for a referred artisan → credit the referrer.
         await _referrals.AwardIfReferredAsync(booking, now, ct);
         await _bookings.SaveChangesAsync(ct);
 
-        return booking.ToDetailDto();
+        return booking.ToDetailDto(0, null, null);
     }
 }

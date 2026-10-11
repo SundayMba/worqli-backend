@@ -12,7 +12,9 @@ public sealed record ArtisanSummaryDto(
     string Specialty,
     double Rating,
     int ReviewCount,
-    double DistanceKm,
+    /// <summary>Km from the caller's coords; null when the caller's or the artisan's
+    /// location is unknown.</summary>
+    double? DistanceKm,
     bool IsAvailable,
     string Accent,
     double? Latitude,
@@ -23,4 +25,8 @@ public sealed record ArtisanSummaryDto(
     string? PhotoUrl,
     /// <summary>True when the artisan uploaded a work certificate (trust badge;
     /// also boosts their ranking while ratings accumulate).</summary>
-    bool HasCertificate);
+    bool HasCertificate,
+    /// <summary>True when the artisan passed verification.</summary>
+    bool IsVerified,
+    /// <summary>Real count of completed jobs on Servika.</summary>
+    int CompletedJobs);

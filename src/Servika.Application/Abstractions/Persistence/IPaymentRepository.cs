@@ -22,6 +22,10 @@ public interface IPaymentRepository
     /// refunds view. Read-only.</summary>
     Task<IReadOnlyList<Payment>> ListRefundedAsync(CancellationToken ct);
 
+    /// <summary>The booking's settled escrow payment (succeeded or since refunded),
+    /// newest first, read-only; null if it was never paid online.</summary>
+    Task<Payment?> FindSettledForBookingReadOnlyAsync(Guid bookingId, CancellationToken ct);
+
     /// <summary>Settled escrow payments whose earning has not been released and that
     /// were not refunded: the money Servika is holding for jobs still in progress.
     /// Read-only; powers the admin float-health check.</summary>

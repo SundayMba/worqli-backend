@@ -13,14 +13,14 @@ public sealed class GetArtisanJobByIdHandler
 {
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
-    private readonly IUserRepository _users;
+    private readonly ArtisanBookingDtoBuilder _dto;
 
     public GetArtisanJobByIdHandler(
-        IBookingRepository bookings, ICatalogueRepository catalogue, IUserRepository users)
+        IBookingRepository bookings, ICatalogueRepository catalogue, ArtisanBookingDtoBuilder dto)
     {
         _bookings = bookings;
         _catalogue = catalogue;
-        _users = users;
+        _dto = dto;
     }
 
     public async Task<BookingDetailDto> HandleAsync(
@@ -32,11 +32,8 @@ public sealed class GetArtisanJobByIdHandler
         var booking = await _bookings.FindForArtisanAsync(bookingId, profile.Id, ct)
             ?? throw new NotFoundException($"Booking '{bookingId}' was not found.");
 
-        // The artisan is heading to a person, not a "Customer" — resolve the
-        // name for the job screen + the live map's destination tag.
-        var customer = await _users.FindByIdAsync(booking.CustomerId, ct);
-        var completed = await _bookings.CountCompletedForCustomerAsync(booking.CustomerId, ct);
-
-        return booking.ToDetailDto(customerName: customer?.FullName, customerCompletedJobs: completed);
+        // The artisan is heading to a person, not a "Customer": the builder resolves
+        // the name for the job screen + the live map's destination tag.
+        return await _dto.BuildAsync(booking, 0, ct);
     }
 }

@@ -31,18 +31,18 @@ public sealed class CashCommissionService
 
     /// <summary>Debits the artisan's ledger for a completed cash job's commission.
     /// Stages onto the shared DbContext — the caller's SaveChanges commits it in
-    /// the same transaction as the completion itself.</summary>
-    public async Task RecordIfCashJobAsync(Booking booking, CancellationToken ct)
+    /// the same transaction as the completion itself. Returns the fee recorded (0 if none).</summary>
+    public async Task<int> RecordIfCashJobAsync(Booking booking, CancellationToken ct)
     {
         // Escrow-paid jobs already had their commission taken at settlement.
-        if (booking.PaymentState == BookingPaymentState.Paid) return;
-        if (booking.PaymentMethod != PaymentMethod.Cash) return;
-        if (booking.ArtisanId is not { } artisanId) return;
-        if (booking.InitialQuoteAmountNaira is not { } amount || amount <= 0) return;
+        if (booking.PaymentState == BookingPaymentState.Paid) return 0;
+        if (booking.PaymentMethod != PaymentMethod.Cash) return 0;
+        if (booking.ArtisanId is not { } artisanId) return 0;
+        if (booking.InitialQuoteAmountNaira is not { } amount || amount <= 0) return 0;
 
         var commission = (int)Math.Round(
             amount * booking.CommissionRate, MidpointRounding.AwayFromZero);
-        if (commission <= 0) return; // launch window (0%) — nothing to record
+        if (commission <= 0) return 0; // launch window (0%) — nothing to record
 
         _wallet.Add(WalletTransaction.Create(
             WalletOwnerType.Artisan, artisanId,
@@ -51,5 +51,6 @@ public sealed class CashCommissionService
             $"Service fee on cash booking {booking.Id}", _clock.UtcNow));
 
         await _notifications.ArtisanCommissionRecorded(booking, commission, ct);
+        return commission;
     }
 }

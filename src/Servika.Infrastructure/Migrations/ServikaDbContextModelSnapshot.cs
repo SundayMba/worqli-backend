@@ -1138,6 +1138,10 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<bool>("IsRead")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Kind")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<DateTimeOffset?>("ReadAtUtc")
                         .HasColumnType("timestamp with time zone");
 

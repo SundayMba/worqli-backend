@@ -177,7 +177,7 @@ public sealed class GetBookingBidsHandler
 
     /// <summary>Km from the job's location to the artisan's base pin, when both
     /// are known — powers the customer's "Nearest" sort. Null otherwise.</summary>
-    private static double? DistanceToJobKm(Booking booking, ArtisanProfile? profile) =>
+    internal static double? DistanceToJobKm(Booking booking, ArtisanProfile? profile) =>
         booking is { LocationLat: { } jobLat, LocationLng: { } jobLng } &&
         profile is { Latitude: { } artLat, Longitude: { } artLng }
             ? Math.Round(GeoDistance.Km(jobLat, jobLng, artLat, artLng), 1)
@@ -222,7 +222,7 @@ public sealed class AcceptBidHandler
         _notifications.BidAccepted(booking, winner, statusBeforeAccept);
         await _bookings.SaveChangesAsync(ct);
 
-        return booking.ToDetailDto(bidCount: 0);
+        return booking.ToDetailDto(0, null, null);
     }
 
     /// <summary>Makes <paramref name="winner"/> the booking's agreed price and closes
@@ -280,7 +280,7 @@ public sealed class CounterBidHandler
         await _bids.SaveChangesAsync(ct);
 
         var profile = await _catalogue.GetArtisanByIdAsync(bid.ArtisanId, ct);
-        return bid.ToDto(profile);
+        return bid.ToDto(profile, GetBookingBidsHandler.DistanceToJobKm(booking, profile));
     }
 }
 
@@ -295,12 +295,14 @@ public sealed class RespondToCounterHandler
     private readonly IBidRepository _bids;
     private readonly ICatalogueRepository _catalogue;
     private readonly NotificationEmitter _notifications;
+    private readonly ArtisanBookingDtoBuilder _dto;
     private readonly IClock _clock;
 
     public RespondToCounterHandler(
         IBookingRepository bookings, IBidRepository bids, ICatalogueRepository catalogue,
-        NotificationEmitter notifications, IClock clock)
+        NotificationEmitter notifications, ArtisanBookingDtoBuilder dto, IClock clock)
     {
+        _dto = dto;
         _bookings = bookings;
         _bids = bids;
         _catalogue = catalogue;
@@ -330,7 +332,7 @@ public sealed class RespondToCounterHandler
 
         _notifications.CounterOfferAccepted(booking, bid, statusBefore);
         await _bookings.SaveChangesAsync(ct);
-        return booking.ToDetailDto(bidCount: 0);
+        return await _dto.BuildAsync(booking, 0, ct);
     }
 
     private async Task<(ArtisanProfile profile, Bid bid, Booking booking)> LoadAsync(

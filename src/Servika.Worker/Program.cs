@@ -14,7 +14,7 @@ using Servika.Infrastructure.BackgroundJobs;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsProduction());
 builder.Services.AddBackgroundSweeps();
 
 var host = builder.Build();

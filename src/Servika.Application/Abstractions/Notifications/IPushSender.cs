@@ -24,5 +24,8 @@ public interface IPushSender
 /// </summary>
 public interface INotificationPushDispatcher
 {
-    void Dispatch(Guid userId, string title, string body, Guid? bookingId, Guid? conversationId = null);
+    /// <param name="kind">Fine-grained event kind (sent as "kind" in the push data).</param>
+    /// <param name="type">Coarse notification type ("Booking"/"Payment"/"System"/"Chat"/"OpenJob").</param>
+    void Dispatch(Guid userId, string title, string body, Guid? bookingId, Guid? conversationId = null,
+        string? kind = null, string? type = null);
 }

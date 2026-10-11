@@ -10,7 +10,9 @@ public sealed record ReferralSummaryDto(
     int AvailableNaira,
     int PaidOutNaira,
     int PendingCount,
-    IReadOnlyList<ReferredArtisanDto> Referred);
+    IReadOnlyList<ReferredArtisanDto> Referred,
+    /// <summary>Smallest referral cash-out (Naira).</summary>
+    int MinWithdrawalNaira);
 
 /// <summary>
 /// One referred artisan on the dashboard. <see cref="Status"/> is a readable string

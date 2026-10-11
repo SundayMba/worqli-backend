@@ -17,10 +17,12 @@ namespace Servika.Application.Catalogue;
 public sealed class GetArtisansHandler
 {
     private readonly ICatalogueRepository _catalogue;
+    private readonly IBookingRepository _bookings;
 
-    public GetArtisansHandler(ICatalogueRepository catalogue)
+    public GetArtisansHandler(ICatalogueRepository catalogue, IBookingRepository bookings)
     {
         _catalogue = catalogue;
+        _bookings = bookings;
     }
 
     public async Task<IReadOnlyList<ArtisanSummaryDto>> HandleAsync(
@@ -33,35 +35,17 @@ public sealed class GetArtisansHandler
         }
 
         var artisans = await _catalogue.GetArtisansAsync(categorySlug, ct);
+        var completed = await _bookings.CountCompletedForArtisansAsync(artisans.Select(a => a.Id).ToList(), ct);
 
-        // No customer location → rank by score (rating + certificate boost),
-        // available artisans first.
-        if (lat is not { } customerLat || lng is not { } customerLng)
-        {
-            return artisans
-                .OrderByDescending(a => a.IsAvailable)
-                .ThenByDescending(a => a.RankScore)
-                .Select(a => a.ToSummaryDto())
-                .ToList();
-        }
-
-        // Compute real distance for artisans that have coordinates; fall back to
-        // the seeded baseline for any that don't, so none silently disappears.
+        // Distance only when both the customer's and the artisan's locations are
+        // known; otherwise null (never a stored placeholder). Available first, then
+        // the ranking score (rating + certificate boost), then proximity breaks ties.
         return artisans
-            .Select(a =>
-            {
-                var distance = a.Latitude is { } aLat && a.Longitude is { } aLng
-                    ? Math.Round(GeoDistance.Km(customerLat, customerLng, aLat, aLng), 1)
-                    : a.DistanceKm;
-                return (Artisan: a, Distance: distance);
-            })
-            // Available first, then the ranking score (rating + certificate
-            // boost), then proximity breaks ties — quality leads, distance
-            // still matters.
+            .Select(a => (Artisan: a, Distance: a.DistanceFrom(lat, lng)))
             .OrderByDescending(x => x.Artisan.IsAvailable)
             .ThenByDescending(x => x.Artisan.RankScore)
-            .ThenBy(x => x.Distance)
-            .Select(x => x.Artisan.ToSummaryDto(x.Distance))
+            .ThenBy(x => x.Distance ?? double.MaxValue)
+            .Select(x => x.Artisan.ToSummaryDto(x.Distance, completed.GetValueOrDefault(x.Artisan.Id)))
             .ToList();
     }
 }

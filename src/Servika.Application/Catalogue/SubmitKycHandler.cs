@@ -96,8 +96,9 @@ public sealed class SubmitKycHandler
             existing.Resubmit(idType, request.IdNumber, selfieKey, idKey, now);
             existing.SetPoseSelfies(poseJson);
             submission = existing;
+            // Name the check only when one was actually open; a plain re-send has none.
             _events.Add(VerificationEvent.Create(submission.Id, artisanUserId, null, VerificationEventAction.Resubmitted,
-                wasOpen ?? VerificationCheck.Identity, null, null, now));
+                wasOpen, null, null, now));
         }
         else
         {
@@ -129,13 +130,21 @@ public sealed class SubmitKycHandler
         {
             var (name, trade) = await Admin.AdminAlertSweepHandler.DescribeArtisanAsync(_catalogue, _users, artisanUserId, ct);
             var resent = existing is not null;
+            // Say what is actually on file, never more.
+            var guarantorCount = await _guarantors.CountForUserAsync(artisanUserId, ct);
+            var hasPayout = !string.IsNullOrWhiteSpace(profile?.PayoutAccountNumber);
+            var onFile = "ID and selfie are in. " +
+                         (hasPayout ? "Payout account is in. " : "No payout account yet. ") +
+                         (guarantorCount == 0 ? "No guarantors yet. "
+                             : $"{guarantorCount} guarantor{(guarantorCount == 1 ? "" : "s")}. ") +
+                         $"Review target: {Common.PlatformRules.ReviewTargetHours} hours.";
             _alerts.Send(new AdminAlert(
                 resent ? AdminAlertKind.Resubmission : AdminAlertKind.NewApplication,
                 resent ? "ID sent back for review" : "New artisan application",
-                new[] { $"{name}{trade}", resent ? "They uploaded a new ID or selfie." : "ID, selfie and payout account are in. Review target: 24 hours." },
+                new[] { $"{name}{trade}", resent ? "They uploaded a new ID or selfie." : onFile },
                 $"/verifications/{submission.Id}", "Review now"));
         }
-        return submission.ToStatusDto();
+        return submission.ToStatusDto((await _events.ListForKycAsync(submission.Id, ct)).ToArtisanDtos());
     }
 
     private static byte[] DecodeImage(string? base64, string label)

@@ -481,6 +481,7 @@ public sealed class ServikaDbContext : DbContext
             notification.Property(n => n.Type).HasConversion<string>().HasMaxLength(20);
             notification.Property(n => n.Title).IsRequired().HasMaxLength(120);
             notification.Property(n => n.Body).HasMaxLength(500);
+            notification.Property(n => n.Kind).HasMaxLength(40);
 
             // A notification belongs to its recipient; it dies with the user.
             notification.HasOne<User>()

@@ -1,4 +1,5 @@
 using Servika.Application.Abstractions.Persistence;
+using Servika.Application.Common;
 using Servika.Application.Payments;
 using Servika.Contracts.Payments;
 using Servika.Domain.Payments;
@@ -30,6 +31,6 @@ public sealed class RequestReferralWithdrawalHandler
         var settings = await _settings.GetOrCreateAsync(ct);
         return await _service.WithdrawAsync(
             WalletOwnerType.Referrer, userId, userId,
-            request, settings.ReferralRewardNaira, ct);
+            request, PlatformRules.ReferralMinWithdrawalNaira(settings), ct);
     }
 }

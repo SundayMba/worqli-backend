@@ -59,6 +59,10 @@ public interface IBookingRepository
     /// <summary>How many bookings this customer has completed — the artisan-side trust line.</summary>
     Task<int> CountCompletedForCustomerAsync(Guid customerId, CancellationToken ct);
 
+    /// <summary>Completed-booking counts per artisan profile, in one query (absent = 0).</summary>
+    Task<IReadOnlyDictionary<Guid, int>> CountCompletedForArtisansAsync(
+        IReadOnlyCollection<Guid> artisanProfileIds, CancellationToken ct);
+
     Task<IReadOnlyList<Booking>> ListAwaitingConfirmationBeforeAsync(
         DateTimeOffset cutoffUtc, CancellationToken ct);
 

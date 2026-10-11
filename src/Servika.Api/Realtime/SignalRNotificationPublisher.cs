@@ -20,11 +20,11 @@ public sealed class SignalRNotificationPublisher : INotificationRealtimePublishe
 
     public Task PublishAsync(
         Guid userId, string title, string body,
-        Guid? bookingId, Guid? conversationId, CancellationToken ct) =>
+        Guid? bookingId, Guid? conversationId, string? kind, string? type, CancellationToken ct) =>
         _hub.Clients
             .Group(NotificationsHub.GroupName(userId))
             .SendAsync(
                 "NotificationReceived",
-                new { title, body, bookingId, conversationId },
+                new { title, body, bookingId, conversationId, kind, type },
                 ct);
 }

@@ -56,9 +56,11 @@ public sealed class CatalogueController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<ArtisanSummaryDto>>> GetArtisansByCategory(
         string slug,
         [FromServices] GetArtisansHandler handler,
-        CancellationToken ct)
+        CancellationToken ct,
+        [FromQuery] double? lat = null,
+        [FromQuery] double? lng = null)
     {
-        return Ok(await handler.HandleAsync(slug, lat: null, lng: null, ct));
+        return Ok(await handler.HandleAsync(slug, lat, lng, ct));
     }
 
     /// <summary>Get a single artisan's full profile.</summary>
@@ -70,9 +72,11 @@ public sealed class CatalogueController : ControllerBase
     public async Task<ActionResult<ArtisanDetailDto>> GetArtisan(
         Guid id,
         [FromServices] GetArtisanByIdHandler handler,
-        CancellationToken ct)
+        CancellationToken ct,
+        [FromQuery] double? lat = null,
+        [FromQuery] double? lng = null)
     {
-        return Ok(await handler.HandleAsync(id, ct));
+        return Ok(await handler.HandleAsync(id, lat, lng, ct));
     }
 
     /// <summary>The artisan's uploaded profile photo (image bytes).</summary>

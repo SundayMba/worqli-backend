@@ -29,7 +29,13 @@ public sealed record AdminPaymentsDto(
     /// <summary>True when the gateway balance covers the liabilities; null when the balance is unknown.</summary>
     bool? FloatHealthy = null,
     /// <summary>How much to top up so the balance covers the liabilities (0 when healthy or unknown).</summary>
-    long FloatShortfallNaira = 0);
+    long FloatShortfallNaira = 0,
+    /// <summary>Commission recorded on CASH jobs (owed by artisans via their ledger;
+    /// online commission is in <see cref="CommissionEarnedNaira"/>).</summary>
+    long CashCommissionNaira = 0,
+    /// <summary>Escrow actually held (succeeded, unreleased payments, less released
+    /// materials advances) for bookings currently in Disputed status.</summary>
+    long DisputedHeldNaira = 0);
 
 /// <summary>A refund's settlement state for the admin refunds view.</summary>
 public sealed record AdminRefundDto(

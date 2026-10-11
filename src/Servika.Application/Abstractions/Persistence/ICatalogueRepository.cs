@@ -76,4 +76,9 @@ public interface ICatalogueRepository
 
 /// <summary>A broadcast candidate: the artisan's profile id (standing/ledger key)
 /// and their login account id (notification recipient).</summary>
-public sealed record ArtisanRecipient(Guid ProfileId, Guid UserId);
+public sealed record ArtisanRecipient(Guid ProfileId, Guid UserId, ArtisanWorkRules Rules);
+
+/// <summary>The artisan's own job-matching rules: base pin, work radius, whether they
+/// take emergencies, and away mode.</summary>
+public sealed record ArtisanWorkRules(
+    double? Latitude, double? Longitude, int WorkRadiusKm, bool AcceptsEmergency, DateTimeOffset? AwayUntilUtc);

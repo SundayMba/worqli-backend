@@ -39,9 +39,12 @@ public sealed class CatalogueRepository : ICatalogueRepository
     {
         // Public catalogue shows only verified artisans (self-onboarded profiles
         // awaiting KYC review never leak into browse/search).
+        // ...and artisans in away mode stay out of lists until they're back.
+        var now = DateTimeOffset.UtcNow;
         var query = _db.ArtisanProfiles
             .AsNoTracking()
-            .Where(a => a.VerificationStatus == ArtisanVerificationStatus.Verified);
+            .Where(a => a.VerificationStatus == ArtisanVerificationStatus.Verified
+                        && (a.AwayUntilUtc == null || a.AwayUntilUtc <= now));
 
         if (!string.IsNullOrWhiteSpace(categorySlug))
         {
@@ -79,7 +82,8 @@ public sealed class CatalogueRepository : ICatalogueRepository
                         // Offline artisans have paused new requests — no broadcast.
                         && a.IsAvailable
                         && a.CategorySlugs.Contains(categorySlug))
-            .Select(a => new ArtisanRecipient(a.Id, a.UserId!.Value))
+            .Select(a => new ArtisanRecipient(a.Id, a.UserId!.Value,
+                new ArtisanWorkRules(a.Latitude, a.Longitude, a.WorkRadiusKm, a.AcceptsEmergency, a.AwayUntilUtc)))
             .ToListAsync(ct);
 
     // Tracked (no AsNoTracking) so a rating-aggregate change persists on SaveChanges.

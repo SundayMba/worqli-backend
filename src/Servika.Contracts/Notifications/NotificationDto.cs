@@ -14,7 +14,9 @@ public sealed record NotificationDto(
     Guid? BookingId,
     Guid? ConversationId,
     bool IsRead,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    /// <summary>Fine-grained event kind ("KycApproved", "OpenJob", "BidPlaced"...); null on old rows.</summary>
+    string? Kind);
 
 /// <summary>Unread badge count (GET /api/v1/notifications/unread-count).</summary>
 public sealed record UnreadCountDto(int Count);

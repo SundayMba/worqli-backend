@@ -29,6 +29,10 @@ public sealed class Notification
     /// <summary>Conversation to open when the notification is tapped, if any (chat).</summary>
     public Guid? ConversationId { get; private set; }
 
+    /// <summary>Fine-grained event kind ("KycApproved", "OpenJob", "BidPlaced"...) so the
+    /// apps can route a tap precisely. Null on rows written before kinds existed.</summary>
+    public string? Kind { get; private set; }
+
     public bool IsRead { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -45,7 +49,8 @@ public sealed class Notification
         string body,
         Guid? bookingId,
         Guid? conversationId,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        string? kind = null)
     {
         if (userId == Guid.Empty)
             throw new ArgumentException("Recipient is required.", nameof(userId));
@@ -61,6 +66,7 @@ public sealed class Notification
             Body = body?.Trim() ?? string.Empty,
             BookingId = bookingId,
             ConversationId = conversationId,
+            Kind = string.IsNullOrWhiteSpace(kind) ? null : kind.Trim(),
             IsRead = false,
             CreatedAt = now,
         };

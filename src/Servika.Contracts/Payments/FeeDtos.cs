@@ -16,7 +16,31 @@ public sealed record FeeScheduleDto(
     int CardFeeFlatNaira,
     int CardFeeFlatFromNaira,
     int CardFeeCapNaira,
-    IReadOnlyList<TransferFeeTierDto> TransferFeeTiers);
+    IReadOnlyList<TransferFeeTierDto> TransferFeeTiers,
+    // ── Live marketplace settings and fixed product rules the apps show ──
+    /// <summary>Commission on a standard job, fraction 0–1 (artisan side).</summary>
+    decimal CommissionRate,
+    /// <summary>Commission on an urgent job, fraction 0–1.</summary>
+    decimal EmergencyCommissionRate,
+    /// <summary>Hours a submitted job waits for the customer before it confirms itself.</summary>
+    int AutoConfirmHours,
+    /// <summary>Smallest artisan withdrawal (Naira).</summary>
+    int MinWithdrawalNaira,
+    /// <summary>Reward per referred artisan's first job (Naira).</summary>
+    int ReferralRewardNaira,
+    /// <summary>Smallest referral cash-out (Naira).</summary>
+    int ReferralMinWithdrawalNaira,
+    /// <summary>Hours an application may wait for a reviewer before it is overdue.</summary>
+    int ReviewTargetHours,
+    bool RequireGuarantors,
+    int RequiredGuarantorCount,
+    /// <summary>Most guarantors an artisan may list.</summary>
+    int MaxGuarantors,
+    /// <summary>Most counter-offers a customer may make on one quote.</summary>
+    int MaxCounterRounds,
+    /// <summary>Fewest / most work photos accepted as proof of completion.</summary>
+    int ProofPhotosMin,
+    int ProofPhotosMax);
 
 /// <summary>One transfer-charge band: amounts up to <see cref="UpToNaira"/> (null = anything above) cost <see cref="FeeNaira"/>.</summary>
 public sealed record TransferFeeTierDto(int? UpToNaira, int FeeNaira);

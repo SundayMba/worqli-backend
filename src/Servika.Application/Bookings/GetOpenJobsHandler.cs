@@ -14,12 +14,15 @@ public sealed class GetOpenJobsHandler
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
     private readonly Payments.ArtisanStandingService _standing;
+    private readonly Abstractions.Time.IClock _clock;
 
     public GetOpenJobsHandler(
         IBookingRepository bookings,
         ICatalogueRepository catalogue,
-        Payments.ArtisanStandingService standing)
+        Payments.ArtisanStandingService standing,
+        Abstractions.Time.IClock clock)
     {
+        _clock = clock;
         _bookings = bookings;
         _catalogue = catalogue;
         _standing = standing;
@@ -39,7 +42,16 @@ public sealed class GetOpenJobsHandler
         if (await _standing.IsRestrictedAsync(profile.Id, ct))
             return Array.Empty<BookingSummaryDto>();
 
+        // Away → no new requests until they're back; radius and emergency
+        // preferences filter the rest (same rules as the broadcast).
+        var now = _clock.UtcNow;
+        if (OpenJobMatching.IsAway(profile.AwayUntilUtc, now))
+            return Array.Empty<BookingSummaryDto>();
+        var rules = OpenJobMatching.RulesOf(profile);
         var open = await _bookings.ListOpenInCategoriesAsync(profile.CategorySlugs, ct);
-        return open.Select(b => b.ToSummaryDto()).ToList();
+        return open
+            .Where(b => OpenJobMatching.Accepts(rules, b, now))
+            .Select(b => b.ToSummaryDto(artisanSide: true))
+            .ToList();
     }
 }

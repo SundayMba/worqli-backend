@@ -12,20 +12,29 @@ internal static class CatalogueMapping
     public static CategoryDto ToDto(this ServiceCategory c) =>
         new(c.Id, c.Slug, c.Name, c.Tint, c.IconKey, c.SortOrder, c.IsPopular);
 
-    /// <param name="distanceKmOverride">Real distance from the customer's
-    /// location, when supplied; otherwise the artisan's seeded baseline distance.</param>
-    public static ArtisanSummaryDto ToSummaryDto(this ArtisanProfile a, double? distanceKmOverride = null) =>
+    /// <param name="distanceKm">Real distance from the caller's coordinates, or null
+    /// when either side's location is unknown (never the stored baseline).</param>
+    public static ArtisanSummaryDto ToSummaryDto(this ArtisanProfile a, double? distanceKm, int completedJobs) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
-            distanceKmOverride ?? a.DistanceKm, a.IsAvailable, a.Accent,
-            a.Latitude, a.Longitude, a.PhotoUrl(), a.HasCertificate);
+            distanceKm, a.IsAvailable, a.Accent,
+            a.Latitude, a.Longitude, a.PhotoUrl(), a.HasCertificate,
+            a.VerificationStatus == ArtisanVerificationStatus.Verified, completedJobs);
 
     public static ArtisanDetailDto ToDetailDto(
-        this ArtisanProfile a, IReadOnlyList<ArtisanServiceDto>? pricedServices = null) =>
+        this ArtisanProfile a, double? distanceKm, int completedJobs, IReadOnlyList<ArtisanServiceDto> pricedServices) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
-            a.DistanceKm, a.IsAvailable, a.Accent, a.ExperienceYears, a.Location,
-            a.ResponseTime, a.JobsCount, a.InspectionFeeNaira, a.About,
+            distanceKm, a.IsAvailable, a.Accent, a.ExperienceYears, a.Location,
+            string.Empty, completedJobs.ToString(), a.InspectionFeeNaira, a.About,
             a.Services, a.GalleryKeys, a.CategorySlugs, a.PhotoUrl(), a.CoverPhotoUrl(),
-            a.GalleryUrls(), a.HasCertificate, pricedServices ?? Array.Empty<ArtisanServiceDto>());
+            a.GalleryUrls(), a.HasCertificate, pricedServices,
+            a.VerificationStatus == ArtisanVerificationStatus.Verified, completedJobs);
+
+    /// <summary>Km between the caller and the artisan's base, rounded to 0.1; null
+    /// when either location is unknown.</summary>
+    public static double? DistanceFrom(this ArtisanProfile a, double? lat, double? lng) =>
+        lat is { } la && lng is { } ln && a is { Latitude: { } alat, Longitude: { } alng }
+            ? Math.Round(GeoDistance.Km(la, ln, alat, alng), 1)
+            : null;
 
     public static MyArtisanProfileDto ToMyProfileDto(this ArtisanProfile a, int guarantorCount, bool guarantorsRequired, int requiredGuarantorCount) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,

@@ -45,7 +45,7 @@ public sealed record MyArtisanProfileDto(
     /// <summary>How many guarantors are on file (verification hub progress).</summary>
     int GuarantorCount = 0,
     /// <summary>Whether guarantors must be added before the application can be sent (global rule minus any admin waiver).</summary>
-    bool GuarantorsRequired = true,
+    bool GuarantorsRequired = false,
     int RequiredGuarantorCount = 2,
     /// <summary>Last NIN register check: Matched | NameMismatch | NotFound | Failed | null.</summary>
     string? NinLookupStatus = null,

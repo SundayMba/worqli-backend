@@ -31,7 +31,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        bool isProduction = true)
     {
         var connectionString = configuration.GetConnectionString("Postgres");
 
@@ -228,14 +229,20 @@ public static class DependencyInjection
             services.AddSingleton<IPhoneOtpSender, StubPhoneOtpSender>();
         }
 
-        // NIN register lookup: Dojah when `Nin:ApiKey` (+ `Nin:AppId`) is set, else the
-        // offline stub so the identity screen behaves the same locally.
+        // NIN register lookup: Dojah when `Nin:ApiKey` (+ `Nin:AppId`) is set. Without a
+        // key: the offline stub outside Production (identity screen behaves the same
+        // locally), and in Production a provider that answers Unavailable for every
+        // lookup, so a fabricated "Matched" can never reach a reviewer.
         var ninOptions = configuration.GetSection(NinOptions.SectionName).Get<NinOptions>() ?? new NinOptions();
         services.AddSingleton(ninOptions);
         if (ninOptions.IsConfigured)
         {
             services.AddHttpClient("dojah");
             services.AddSingleton<INinLookupProvider, DojahNinLookupProvider>();
+        }
+        else if (isProduction)
+        {
+            services.AddSingleton<INinLookupProvider, UnavailableNinLookupProvider>();
         }
         else
         {

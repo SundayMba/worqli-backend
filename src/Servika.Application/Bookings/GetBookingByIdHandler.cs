@@ -12,9 +12,11 @@ public sealed class GetBookingByIdHandler
 {
     private readonly IBookingRepository _bookings;
     private readonly IBidRepository _bids;
+    private readonly IPlatformSettingsRepository _settings;
 
-    public GetBookingByIdHandler(IBookingRepository bookings, IBidRepository bids)
+    public GetBookingByIdHandler(IBookingRepository bookings, IBidRepository bids, IPlatformSettingsRepository settings)
     {
+        _settings = settings;
         _bookings = bookings;
         _bids = bids;
     }
@@ -40,6 +42,7 @@ public sealed class GetBookingByIdHandler
                 ? await _bids.CountActiveForBookingAsync(bookingId, ct)
                 : 0;
 
-        return booking.ToDetailDto(bidCount);
+        var settings = await _settings.GetOrCreateAsync(ct);
+        return booking.ToDetailDto(bidCount, settings.AutoConfirmHours, null);
     }
 }

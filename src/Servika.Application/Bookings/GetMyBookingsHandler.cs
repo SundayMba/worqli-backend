@@ -30,6 +30,6 @@ public sealed class GetMyBookingsHandler
         }
 
         var bookings = await _bookings.ListForCustomerAsync(customerId, filter, ct);
-        return bookings.Select(b => b.ToSummaryDto()).ToList();
+        return bookings.Select(b => b.ToSummaryDto(artisanSide: false)).ToList();
     }
 }

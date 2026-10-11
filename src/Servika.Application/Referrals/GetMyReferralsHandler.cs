@@ -73,9 +73,10 @@ public sealed class GetMyReferralsHandler
                 r.CreatedAt));
         }
 
-        var rewardNaira = (await _settings.GetOrCreateAsync(ct)).ReferralRewardNaira;
+        var settings = await _settings.GetOrCreateAsync(ct);
         return new ReferralSummaryDto(
-            user.ReferralCode!, rewardNaira, available, paidOut, pending, referred);
+            user.ReferralCode!, settings.ReferralRewardNaira, available, paidOut, pending, referred,
+            PlatformRules.ReferralMinWithdrawalNaira(settings));
     }
 
     private static string DeriveStatus(ReferralStatus status, ArtisanProfile? profile) => status switch

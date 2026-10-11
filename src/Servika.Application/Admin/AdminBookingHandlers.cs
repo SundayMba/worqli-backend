@@ -50,11 +50,13 @@ public sealed class GetAdminBookingHandler
     private readonly IUserRepository _users;
     private readonly ICatalogueRepository _catalogue;
     private readonly IBidRepository _bids;
+    private readonly IPaymentRepository _payments;
 
     public GetAdminBookingHandler(
         IBookingRepository bookings, IUserRepository users, ICatalogueRepository catalogue,
-        IBidRepository bids)
+        IBidRepository bids, IPaymentRepository payments)
     {
+        _payments = payments;
         _bookings = bookings;
         _users = users;
         _catalogue = catalogue;
@@ -84,7 +86,11 @@ public sealed class GetAdminBookingHandler
         }
 
         var amount = b.InitialQuoteAmountNaira;
-        var commission = amount is { } a ? (int)Math.Round(a * b.CommissionRate) : 0;
+        // The real commission comes from the payment when there is one; otherwise
+        // the same rounding the payment would use.
+        var payment = await _payments.FindSettledForBookingReadOnlyAsync(b.Id, ct);
+        var commission = payment?.CommissionNaira
+            ?? (amount is { } a ? (int)Math.Round(a * b.CommissionRate, MidpointRounding.AwayFromZero) : 0);
 
         var bids = (await _bids.ListForBookingAsync(b.Id, ct))
             .Select(bid => new AdminBidDto(
@@ -106,6 +112,10 @@ public sealed class GetAdminBookingHandler
             b.CreatedAt, b.AcceptedAtUtc, b.WorkSubmittedAtUtc, b.CompletedAtUtc, b.CancelledAtUtc, b.DisputedAtUtc,
             b.AgreedWorkmanshipNaira, b.AgreedMaterialsNaira,
             b.MaterialsAdvanceStatus.ToString(), b.MaterialsAdvanceNaira,
-            bids);
+            bids,
+            payment?.ServiceFeeNaira ?? 0,
+            payment?.ChargedNaira,
+            b.RefundedAmountNaira ?? (payment is { } pr && pr.RefundedNaira > 0 ? pr.RefundedNaira : null),
+            b.ReleasedMaterialsAdvanceNaira);
     }
 }

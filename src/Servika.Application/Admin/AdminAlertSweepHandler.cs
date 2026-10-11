@@ -14,7 +14,7 @@ namespace Servika.Application.Admin;
 /// </summary>
 public sealed class AdminAlertSweepHandler
 {
-    public const int OverdueHours = 24;
+    public const int OverdueHours = Servika.Application.Common.PlatformRules.ReviewTargetHours;
 
     private readonly IArtisanKycRepository _kyc;
     private readonly IUserRepository _users;

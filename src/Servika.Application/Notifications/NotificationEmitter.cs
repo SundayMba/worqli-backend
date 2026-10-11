@@ -3,6 +3,7 @@ using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Time;
 using Servika.Application.Bookings;
 using Servika.Domain.Bookings;
+using Servika.Domain.Payments;
 using Servika.Domain.Notifications;
 
 namespace Servika.Application.Notifications;
@@ -27,8 +28,10 @@ public sealed class NotificationEmitter
     private readonly Payments.ArtisanStandingService _standing;
     private readonly IClock _clock;
     private readonly IAdminAlerts _alerts;
+    private readonly IPlatformSettingsRepository _settings;
 
     public NotificationEmitter(
+        IPlatformSettingsRepository settings,
         INotificationRepository notifications,
         INotificationPushDispatcher push,
         ICatalogueRepository catalogue,
@@ -38,6 +41,7 @@ public sealed class NotificationEmitter
         IAdminAlerts alerts)
     {
         _alerts = alerts;
+        _settings = settings;
         _notifications = notifications;
         _push = push;
         _catalogue = catalogue;
@@ -46,38 +50,61 @@ public sealed class NotificationEmitter
         _clock = clock;
     }
 
-    /// <summary>Notify the customer of an artisan-driven booking transition.</summary>
-    public void BookingAdvancedByArtisan(Booking booking, ArtisanBookingAction action)
+    /// <summary>Notify the customer of an artisan-driven booking transition.
+    /// <paramref name="refundedNaira"/> is what a cancellation actually returned.</summary>
+    public async Task BookingAdvancedByArtisanAsync(
+        Booking booking, ArtisanBookingAction action, int refundedNaira, CancellationToken ct)
     {
         var who = string.IsNullOrWhiteSpace(booking.ArtisanName) ? "Your artisan" : booking.ArtisanName!;
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "your" : booking.ServiceName;
 
-        var (title, body) = action switch
+        string payLine = string.Empty;
+        if (action == ArtisanBookingAction.Accept && booking.InitialQuoteAmountNaira is { } due &&
+            booking.PaymentState != BookingPaymentState.Paid && booking.PaymentMethod != PaymentMethod.Cash)
+        {
+            // Quote the total the card will actually be charged once users bear fees.
+            var s = await _settings.GetOrCreateAsync(ct);
+            var fee = Domain.Payments.FeePolicy.UsersBearFees(s, _clock.UtcNow)
+                ? Domain.Payments.FeePolicy.CustomerServiceFee(due, s)
+                : 0;
+            payLine = fee > 0
+                ? $" Pay ₦{due + fee:N0} (₦{due:N0} plus a ₦{fee:N0} payment fee) to secure it. Your money is held safely until the job is done."
+                : $" Pay ₦{due:N0} to secure it. Your money is held safely until the job is done.";
+        }
+
+        var (kind, title, body) = action switch
         {
             // A fixed-price booking already has its amount — nudge the payment
             // that unlocks the work; a quote-based accept has nothing due yet.
-            ArtisanBookingAction.Accept when booking.InitialQuoteAmountNaira is { } due &&
-                                             booking.PaymentState != BookingPaymentState.Paid =>
-                ("Booking accepted",
-                 $"{who} accepted your {service} booking. Pay ₦{due:N0} to secure it. Your money is held safely until the job is done."),
             ArtisanBookingAction.Accept =>
-                ("Booking accepted", $"{who} accepted your {service} booking."),
+                (NotificationKinds.BookingAccepted, "Booking accepted", $"{who} accepted your {service} booking.{payLine}"),
             ArtisanBookingAction.Reject =>
-                ("Booking declined", $"{who} can't take this {service} booking. Try another artisan."),
+                (NotificationKinds.BookingDeclined, "Booking declined", $"{who} can't take this {service} booking. Try another artisan."),
             ArtisanBookingAction.StartTrip =>
-                ("Artisan on the way", $"{who} is heading to your location."),
+                (NotificationKinds.ArtisanOnTheWay, "Artisan on the way", $"{who} is heading to your location."),
             ArtisanBookingAction.Arrive =>
-                ("Artisan arrived", $"{who} has arrived at your location."),
+                (NotificationKinds.ArtisanArrived, "Artisan arrived", $"{who} has arrived at your location."),
             ArtisanBookingAction.StartWork =>
-                ("Work started", $"{who} has started your {service} job."),
+                (NotificationKinds.WorkStarted, "Work started", $"{who} has started your {service} job."),
             ArtisanBookingAction.Cancel =>
-                ("Booking cancelled",
-                 $"{who} can no longer take your {service} booking. Anything you paid is refunded automatically, and you can book another artisan right away."),
-            _ => (string.Empty, string.Empty),
+                (NotificationKinds.BookingCancelled, "Booking cancelled",
+                 $"{who} can no longer take your {service} booking. {CancelRefundLine(booking, refundedNaira)} You can book another artisan right away."),
+            _ => (string.Empty, string.Empty, string.Empty),
         };
 
         if (title.Length == 0) return; // nothing to announce for this action
-        Add(booking.CustomerId, NotificationType.Booking, title, body, booking.Id);
+        Add(booking.CustomerId, NotificationType.Booking, kind, title, body, booking.Id);
+    }
+
+    /// <summary>The honest refund sentence for an artisan cancellation.</summary>
+    private static string CancelRefundLine(Booking booking, int refundedNaira)
+    {
+        var advance = booking.ReleasedMaterialsAdvanceNaira;
+        if (refundedNaira > 0 && advance > 0)
+            return $"₦{refundedNaira:N0} of your payment is being refunded. The ₦{advance:N0} materials advance you approved stays with the artisan; contact support if you need help with it.";
+        if (refundedNaira > 0)
+            return $"Your ₦{refundedNaira:N0} payment is being refunded in full.";
+        return "Nothing was charged through Servika.";
     }
 
     /// <summary>Tell the customer their artisan submitted completed work to review.</summary>
@@ -85,7 +112,7 @@ public sealed class NotificationEmitter
     {
         var who = string.IsNullOrWhiteSpace(booking.ArtisanName) ? "Your artisan" : booking.ArtisanName!;
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
-        Add(booking.CustomerId, NotificationType.Booking,
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.WorkSubmitted,
             "Work completed", $"{who} finished your {service}. Review the photos and confirm.", booking.Id);
     }
 
@@ -93,7 +120,7 @@ public sealed class NotificationEmitter
     public void BookingAutoConfirmed(Booking booking)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
-        Add(booking.CustomerId, NotificationType.Booking,
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.JobConfirmed,
             "Job auto-confirmed", $"Your {service} was auto-confirmed as complete. Tap to leave a review.", booking.Id);
     }
 
@@ -101,25 +128,55 @@ public sealed class NotificationEmitter
     public void BookingCompleted(Booking booking)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
-        Add(booking.CustomerId, NotificationType.Booking,
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.JobConfirmed,
             "Job completed", $"Your {service} is done. Tap to leave a review.", booking.Id);
     }
 
-    /// <summary>Tell the customer their dispute was resolved.</summary>
-    public void DisputeResolved(Booking booking, bool favourCustomer)
+    /// <summary>Tell the customer AND the assigned artisan how a dispute was resolved.
+    /// <paramref name="refundedNaira"/> is what was actually refunded (0 for cash or
+    /// unpaid jobs), so neither side is ever told about a refund that did not happen.</summary>
+    public async Task DisputeResolvedAsync(
+        Booking booking, bool favourCustomer, bool partial, int refundedNaira, CancellationToken ct)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "booking" : $"{booking.ServiceName} booking";
-        var body = favourCustomer
-            ? $"Your dispute on the {service} was resolved in your favour."
-            : $"Your dispute on the {service} was reviewed and the job stands.";
-        Add(booking.CustomerId, NotificationType.Booking, "Dispute resolved", body, booking.Id);
+        var advance = booking.ReleasedMaterialsAdvanceNaira;
+
+        string customerBody, artisanBody;
+        if (!favourCustomer)
+        {
+            customerBody = $"Your dispute on the {service} was reviewed and the job stands.";
+            artisanBody = booking.PaymentState == BookingPaymentState.Paid
+                ? $"The dispute on the {service} was resolved in your favour. The job is complete and your earnings are released to your balance."
+                : $"The dispute on the {service} was resolved in your favour. The job is complete.";
+        }
+        else if (partial)
+        {
+            customerBody = refundedNaira > 0
+                ? $"Your dispute on the {service} was resolved with a partial refund: ₦{refundedNaira:N0} is coming back to you, and the artisan keeps the rest for the work done."
+                : $"Your dispute on the {service} was resolved and the job is closed as done. Nothing was paid through Servika, so there is no refund to send.";
+            artisanBody = refundedNaira > 0
+                ? $"The dispute on the {service} was resolved with a partial refund of ₦{refundedNaira:N0} to the customer. You keep the rest of the payment."
+                : $"The dispute on the {service} was resolved and the job is closed as done.";
+        }
+        else
+        {
+            customerBody = refundedNaira > 0
+                ? $"Your dispute on the {service} was resolved in your favour. ₦{refundedNaira:N0} is being refunded to you."
+                : $"Your dispute on the {service} was resolved in your favour and the booking is cancelled.";
+            artisanBody = $"The dispute on the {service} was resolved in the customer's favour and the booking is cancelled." +
+                          (refundedNaira > 0 ? " Their payment is refunded." : string.Empty) +
+                          (advance > 0 ? $" The ₦{advance:N0} materials advance you received stays with you." : string.Empty);
+        }
+
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.DisputeResolved, "Dispute resolved", customerBody, booking.Id);
+        await NotifyArtisanAsync(booking, NotificationKinds.DisputeResolved, "Dispute resolved", artisanBody, ct);
     }
 
     /// <summary>Tell the customer a refund is on its way (requested, settling async).</summary>
     public void RefundIssued(Booking booking, int amountNaira)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "booking" : $"{booking.ServiceName} booking";
-        Add(booking.CustomerId, NotificationType.Payment,
+        Add(booking.CustomerId, NotificationType.Payment, NotificationKinds.Refund,
             "Refund on its way",
             $"We're sending ₦{amountNaira:N0} for your {service} back to your account. It can take a few days to appear.",
             booking.Id);
@@ -129,7 +186,7 @@ public sealed class NotificationEmitter
     public void RefundSettled(Guid customerId, Guid bookingId, string serviceName, int amountNaira)
     {
         var service = string.IsNullOrWhiteSpace(serviceName) ? "booking" : $"{serviceName} booking";
-        Add(customerId, NotificationType.Payment,
+        Add(customerId, NotificationType.Payment, NotificationKinds.Refund,
             "Refund complete", $"₦{amountNaira:N0} for your {service} has landed in your account.", bookingId);
     }
 
@@ -143,7 +200,7 @@ public sealed class NotificationEmitter
         var body = $"A ₦{amountNaira:N0} refund for booking {bookingId.ToString()[..8].ToUpperInvariant()} " +
                    "failed at Paystack. Reprocess the refund from the Paystack dashboard.";
         foreach (var admin in admins.Concat(superAdmins))
-            Add(admin.Id, NotificationType.System, "Refund failed", body, bookingId);
+            Add(admin.Id, NotificationType.System, NotificationKinds.Refund, "Refund failed", body, bookingId);
         _alerts.Send(new AdminAlert(AdminAlertKind.RefundFailed, "Refund failed at Paystack", new[] { body }, $"/bookings/{bookingId}", "Open booking"));
     }
 
@@ -160,7 +217,7 @@ public sealed class NotificationEmitter
         var body = $"Payment {reference} reported {what}{cur} against ₦{expectedNaira:N0} due. " +
                    "It was NOT settled and the booking stays unpaid. Check the transaction in Paystack.";
         foreach (var admin in admins.Concat(superAdmins))
-            Add(admin.Id, NotificationType.System, "Payment amount mismatch", body, bookingId);
+            Add(admin.Id, NotificationType.System, NotificationKinds.PaymentMismatch, "Payment amount mismatch", body, bookingId);
         _alerts.Send(new AdminAlert(AdminAlertKind.PaymentMismatch, "Payment amount mismatch", new[] { body },
             bookingId is { } bid ? $"/bookings/{bid}" : "/payments", bookingId is null ? "Open payments" : "Open booking"));
     }
@@ -192,7 +249,7 @@ public sealed class NotificationEmitter
                    (s.CardFeeFlatNaira > 0 ? $"(plus ₦{s.CardFeeFlatNaira:N0} on payments of ₦{s.CardFeeFlatFromNaira:N0} or more" + (s.CardFeeCapNaira > 0 ? $", never more than ₦{s.CardFeeCapNaira:N0}" : "") + ") " : "") +
                    "is shown and added when you pay online. The agreed price itself does not change, and cash jobs are unaffected.";
         }
-        Add(userId, NotificationType.System, title, body, null);
+        Add(userId, NotificationType.System, NotificationKinds.FeeNotice, title, body, null);
 
         static string Cap(string t) => char.ToUpperInvariant(t[0]) + t[1..];
     }
@@ -201,7 +258,7 @@ public sealed class NotificationEmitter
     public void PaymentReceived(Guid customerId, Guid bookingId, string serviceName)
     {
         var service = string.IsNullOrWhiteSpace(serviceName) ? "your booking" : serviceName;
-        Add(customerId, NotificationType.Payment,
+        Add(customerId, NotificationType.Payment, NotificationKinds.PaymentReceived,
             "Payment received", $"We received your payment for {service}.", bookingId);
     }
 
@@ -214,7 +271,7 @@ public sealed class NotificationEmitter
     public Task ArtisanNewBooking(Booking booking, CancellationToken ct)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
-        return NotifyArtisanAsync(booking,
+        return NotifyArtisanAsync(booking, NotificationKinds.NewJobRequest,
             "New job request", $"You have a new {service} request. Review and accept it.", ct);
     }
 
@@ -222,28 +279,38 @@ public sealed class NotificationEmitter
     public Task ArtisanBookingCancelled(Booking booking, CancellationToken ct)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
-        return NotifyArtisanAsync(booking,
+        return NotifyArtisanAsync(booking, NotificationKinds.BookingCancelled,
             "Booking cancelled", $"The customer cancelled the {service}.", ct);
     }
 
     /// <summary>Tell the artisan the customer confirmed the completed work.</summary>
-    public Task ArtisanJobConfirmed(Booking booking, CancellationToken ct)
+    /// <param name="cashServiceFeeNaira">Service fee recorded on a cash job (0 if none).</param>
+    public Task ArtisanJobConfirmed(Booking booking, int cashServiceFeeNaira, CancellationToken ct)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
-        return NotifyArtisanAsync(booking,
-            "Job confirmed", $"The customer confirmed your {service}. Your earnings are available to withdraw.", ct);
+        string tail;
+        if (booking.PaymentState == BookingPaymentState.Paid)
+            tail = " Your earnings are released to your balance.";
+        else if (booking.PaymentMethod == PaymentMethod.Cash)
+            tail = " The customer paid you in cash." +
+                   (cashServiceFeeNaira > 0 ? $" A ₦{cashServiceFeeNaira:N0} Servika service fee was recorded on your balance." : string.Empty);
+        else
+            tail = string.Empty;
+        return NotifyArtisanAsync(booking, NotificationKinds.JobConfirmed,
+            "Job confirmed", $"Your {service} is confirmed complete.{tail}", ct);
     }
 
     /// <summary>Tell the artisan a customer left them a review.</summary>
     public Task ArtisanNewReview(Booking booking, int rating, CancellationToken ct)
     {
-        return NotifyArtisanAsync(booking,
+        return NotifyArtisanAsync(booking, NotificationKinds.Review,
             "New review", $"A customer rated your work {rating}★. Tap to view.", ct);
     }
 
     /// <summary>Broadcast a newly-posted open request to every verified artisan whose
-    /// services include its category. No <c>bookingId</c> deep-link — the tap opens the
-    /// available-jobs list (an artisan can't open a job they haven't claimed).</summary>
+    /// services include its category and whose work rules accept it (not away, within
+    /// their work radius, emergencies only if they take them). Carries the booking id
+    /// so the Pro app can open /open-job/{id}.</summary>
     public async Task OpenJobPosted(Booking booking, CancellationToken ct)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
@@ -252,14 +319,16 @@ public sealed class NotificationEmitter
         // until they settle — the enforcement half of commission-on-cash.
         var restricted = (await _standing.GetRestrictedProfileIdsAsync(ct)).ToHashSet();
         var bidding = booking.Assessment == Domain.Bookings.AssessmentMode.RemoteQuote;
-        foreach (var recipient in recipients.Where(r => !restricted.Contains(r.ProfileId)))
+        var now = _clock.UtcNow;
+        foreach (var recipient in recipients.Where(r => !restricted.Contains(r.ProfileId)
+                     && OpenJobMatching.Accepts(r.Rules, booking, now)))
         {
-            Add(recipient.UserId, NotificationType.OpenJob,
+            Add(recipient.UserId, NotificationType.OpenJob, NotificationKinds.OpenJob,
                 bidding ? "New job: send your price" : "New job available",
                 bidding
                     ? $"A new {service} request is open for bids. Check the photos and offer your price."
                     : $"A new {service} request is open near you. Tap to view and accept.",
-                null);
+                booking.Id);
         }
     }
 
@@ -269,7 +338,7 @@ public sealed class NotificationEmitter
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "request" : $"{booking.ServiceName} request";
         var direct = booking.ArtisanId is not null;
-        Add(booking.CustomerId, NotificationType.Booking,
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.BidPlaced,
             direct ? "Quote received" : "New price offer",
             direct
                 ? $"{bid.ArtisanName} sent a quote of ₦{bid.AmountNaira:N0} for your {service}. Review and accept to proceed."
@@ -283,7 +352,7 @@ public sealed class NotificationEmitter
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
         var total = (bid.PendingCounterNaira ?? 0) + bid.MaterialsNaira;
         var note = string.IsNullOrWhiteSpace(bid.PendingCounterNote) ? string.Empty : $" \"{bid.PendingCounterNote}\"";
-        Add(bid.ArtisanUserId, NotificationType.Booking,
+        Add(bid.ArtisanUserId, NotificationType.Booking, NotificationKinds.CounterOffer,
             "Customer made an offer",
             $"The customer offered ₦{bid.PendingCounterNaira:N0} for workmanship on the {service} " +
             $"(₦{total:N0} with materials).{note} Accept it, decline, or send a new price.",
@@ -293,7 +362,7 @@ public sealed class NotificationEmitter
     /// <summary>Tell the customer the artisan turned down their counter; the quote stands.</summary>
     public void CounterOfferDeclined(Booking booking, Bid bid, int declinedNaira)
     {
-        Add(booking.CustomerId, NotificationType.Booking,
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.CounterDeclined,
             "Offer declined",
             $"{bid.ArtisanName} didn't accept ₦{declinedNaira:N0} for workmanship. " +
             $"Their quote of ₦{bid.AmountNaira:N0} still stands; you can accept it or make another offer.",
@@ -306,7 +375,7 @@ public sealed class NotificationEmitter
         var next = statusBefore is BookingStatus.Open or BookingStatus.Pending
             ? "Pay securely in the app to lock it in."
             : "Pay securely in the app so the work can start.";
-        Add(booking.CustomerId, NotificationType.Booking,
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.CounterAccepted,
             "Your offer was accepted",
             $"{bid.ArtisanName} accepted your offer. The agreed price is ₦{bid.AmountNaira:N0}. {next}",
             booking.Id);
@@ -315,7 +384,7 @@ public sealed class NotificationEmitter
     /// <summary>Tell the customer the artisan answered their counter with a new price.</summary>
     public void BidRevisedAfterCounter(Booking booking, Bid bid)
     {
-        Add(booking.CustomerId, NotificationType.Booking,
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.BidPlaced,
             "New price from " + bid.ArtisanName,
             $"{bid.ArtisanName} came back with ₦{bid.AmountNaira:N0} (₦{bid.WorkmanshipNaira:N0} workmanship). " +
             "Accept it, or make another offer.",
@@ -330,16 +399,19 @@ public sealed class NotificationEmitter
     public void BidAccepted(Booking booking, Bid bid, BookingStatus statusBeforeAccept)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
+        var secured = booking.PaymentState == BookingPaymentState.Paid || booking.PaymentMethod == PaymentMethod.Cash;
         var body = statusBeforeAccept switch
         {
-            BookingStatus.Open =>
+            BookingStatus.Open when secured =>
                 $"You won the {service} at ₦{bid.AmountNaira:N0}. Head out when ready!",
+            BookingStatus.Open =>
+                $"You won the {service} at ₦{bid.AmountNaira:N0}. You will be told once payment is secured.",
             BookingStatus.Pending =>
                 $"Your ₦{bid.AmountNaira:N0} quote for the {service} was accepted. You'll be notified once payment is secured.",
             _ =>
                 $"The customer accepted your ₦{bid.AmountNaira:N0} quote. You can start as soon as payment is secured.",
         };
-        Add(bid.ArtisanUserId, NotificationType.Booking, "Your offer was accepted", body, booking.Id);
+        Add(bid.ArtisanUserId, NotificationType.Booking, NotificationKinds.BidAccepted, "Your offer was accepted", body, booking.Id);
     }
 
     /// <summary>Tell the artisan the escrow is funded — the start-work gate is open.</summary>
@@ -347,7 +419,7 @@ public sealed class NotificationEmitter
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
         var amount = booking.InitialQuoteAmountNaira is { } a ? $"₦{a:N0} " : string.Empty;
-        return NotifyArtisanAsync(booking,
+        return NotifyArtisanAsync(booking, NotificationKinds.PaymentSecured,
             "Payment secured",
             $"{amount}for the {service} is held in escrow. You're clear to start the work.", ct);
     }
@@ -356,7 +428,7 @@ public sealed class NotificationEmitter
     public void MaterialsAdvanceRequested(Booking booking, int amountNaira)
     {
         var who = string.IsNullOrWhiteSpace(booking.ArtisanName) ? "Your artisan" : booking.ArtisanName;
-        Add(booking.CustomerId, NotificationType.Payment,
+        Add(booking.CustomerId, NotificationType.Payment, NotificationKinds.MaterialsAdvance,
             "Materials money requested",
             $"{who} asked for ₦{amountNaira:N0} of the agreed materials cost to buy parts now. " +
             "Approve in the app to release it; your workmanship payment stays held until the job is done.",
@@ -366,11 +438,11 @@ public sealed class NotificationEmitter
     /// <summary>Tell the artisan how the customer answered the materials request.</summary>
     public Task MaterialsAdvanceDecided(Booking booking, bool approved, int amountNaira, CancellationToken ct) =>
         approved
-            ? NotifyArtisanAsync(booking,
+            ? NotifyArtisanAsync(booking, NotificationKinds.MaterialsAdvance,
                 "Materials money released",
                 $"₦{amountNaira:N0} is now in your Servika wallet to buy the materials. " +
                 "The rest of the price is released when the customer confirms the job.", ct)
-            : NotifyArtisanAsync(booking,
+            : NotifyArtisanAsync(booking, NotificationKinds.MaterialsAdvance,
                 "Materials request declined",
                 "The customer chose not to release materials money up front. " +
                 "You can ask again with a smaller amount, or discuss it with them in chat.", ct);
@@ -380,7 +452,7 @@ public sealed class NotificationEmitter
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
         var amount = booking.InitialQuoteAmountNaira is { } a ? $"₦{a:N0} " : string.Empty;
-        return NotifyArtisanAsync(booking,
+        return NotifyArtisanAsync(booking, NotificationKinds.CashChosen,
             "Cash payment chosen",
             $"The customer will pay {amount}in cash after the {service}. You're clear to start the work.", ct);
     }
@@ -390,7 +462,7 @@ public sealed class NotificationEmitter
     public Task ArtisanCommissionRecorded(Booking booking, int commissionNaira, CancellationToken ct)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
-        return NotifyArtisanAsync(booking,
+        return NotifyArtisanAsync(booking, NotificationKinds.ServiceFeeRecorded,
             "Service fee recorded",
             $"A ₦{commissionNaira:N0} Servika fee applies to your cash {service}. It'll be deducted from your next online earnings, or you can settle it anytime from Earnings.", ct);
     }
@@ -398,7 +470,7 @@ public sealed class NotificationEmitter
     /// <summary>Tell the payout requester their bank transfer landed.</summary>
     public void PayoutSent(Guid userId, int amountNaira, string bankMasked)
     {
-        Add(userId, NotificationType.Payment,
+        Add(userId, NotificationType.Payment, NotificationKinds.Payout,
             "Payout sent",
             $"₦{amountNaira:N0} was sent to your bank account {bankMasked}.",
             null);
@@ -406,19 +478,20 @@ public sealed class NotificationEmitter
 
     /// <summary>The reviewer decided on the artisan's verification. A decline carries the
     /// reviewer's note word for word, so the artisan knows exactly what to fix.</summary>
-    public void KycReviewed(Guid artisanUserId, bool approved, string? note)
+    public void KycReviewed(Guid artisanUserId, bool approved, string? note, string? check = null)
     {
         if (approved)
         {
-            Add(artisanUserId, NotificationType.System,
+            Add(artisanUserId, NotificationType.System, NotificationKinds.KycApproved,
                 "You are verified",
                 "Your checks passed. Your profile now carries the verified badge and you can take jobs.",
                 null);
             return;
         }
         var reason = string.IsNullOrWhiteSpace(note) ? "The reviewer could not match your documents." : note.Trim();
-        Add(artisanUserId, NotificationType.System,
-            "Your verification needs another look",
+        var what = CheckLabel(check);
+        Add(artisanUserId, NotificationType.System, NotificationKinds.KycDeclined,
+            what is null ? "Your verification needs another look" : $"Your verification needs another look: {what}",
             $"{reason} Fix it in Get verified and send again; it goes to the front of the queue.",
             null);
     }
@@ -426,22 +499,33 @@ public sealed class NotificationEmitter
     /// <summary>The reviewer asked for one check to be fixed; the note is quoted word for word.</summary>
     public void KycChangesRequested(Guid artisanUserId, string check, string note)
     {
-        var what = check switch
+        var what = CheckLabel(check) ?? "one check";
+        // An ID or selfie fix is a fresh upload, which sends itself back; every other
+        // check is edited and then sent back by hand.
+        var how = check switch
         {
-            "Trade" => "your trade and work area",
-            "Photo" => "your profile photo",
-            "Identity" => "your ID",
-            "Selfie" => "your selfie",
-            "Guarantors" => "your guarantors",
-            "Payout" => "your payout account",
-            "Documents" => "your documents",
-            _ => "one check",
+            "Identity" => "Upload your ID again in Get verified; it goes straight back to the reviewer and you go to the front of the queue.",
+            "Selfie" => "Take your selfie again in Get verified; it goes straight back to the reviewer and you go to the front of the queue.",
+            _ => "Fix it in Get verified and tap Send it back for review; you go to the front of the queue.",
         };
-        Add(artisanUserId, NotificationType.System,
+        Add(artisanUserId, NotificationType.System, NotificationKinds.KycChangesRequested,
             $"One change needed: {what}",
-            $"{note} Fix it in Get verified and tap Send again; you go to the front of the queue.",
+            $"{note} {how}",
             null);
     }
+
+    /// <summary>Plain-language name of a verification check, or null if unknown.</summary>
+    private static string? CheckLabel(string? check) => check switch
+    {
+        "Trade" => "your trade and work area",
+        "Photo" => "your profile photo",
+        "Identity" => "your ID",
+        "Selfie" => "your selfie",
+        "Guarantors" => "your guarantors",
+        "Payout" => "your payout account",
+        "Documents" => "your documents",
+        _ => null,
+    };
 
     /// <summary>Tell the admins an artisan sent a fix back, so the desk sees it without refreshing.</summary>
     public async Task KycResubmittedAsync(string artisanName, string check, CancellationToken ct)
@@ -449,13 +533,13 @@ public sealed class NotificationEmitter
         var admins = await _users.ListAsync(Domain.Users.Role.Admin, ct);
         var superAdmins = await _users.ListAsync(Domain.Users.Role.SuperAdmin, ct);
         foreach (var admin in admins.Concat(superAdmins))
-            Add(admin.Id, NotificationType.System, "Resubmission to review", $"{artisanName} fixed {check.ToLowerInvariant()} and sent their application back.", null);
+            Add(admin.Id, NotificationType.System, NotificationKinds.KycResubmitted, "Resubmission to review", $"{artisanName} fixed {check.ToLowerInvariant()} and sent their application back.", null);
     }
 
     /// <summary>Tell the payout requester the transfer failed and funds were returned.</summary>
     public void PayoutFailed(Guid userId, int amountNaira)
     {
-        Add(userId, NotificationType.Payment,
+        Add(userId, NotificationType.Payment, NotificationKinds.Payout,
             "Payout failed",
             $"Your ₦{amountNaira:N0} payout couldn't be completed. The funds are back in your balance. Please check your bank details and try again.",
             null);
@@ -464,7 +548,7 @@ public sealed class NotificationEmitter
     /// <summary>Tell the artisan their settlement landed and they're active again.</summary>
     public void ArtisanBalanceSettled(Guid artisanUserId, int amountNaira)
     {
-        Add(artisanUserId, NotificationType.Payment,
+        Add(artisanUserId, NotificationType.Payment, NotificationKinds.BalanceSettled,
             "Balance settled",
             $"₦{amountNaira:N0} received. Your service fees are cleared and you're receiving job requests again.",
             null);
@@ -475,16 +559,16 @@ public sealed class NotificationEmitter
     {
         var who = string.IsNullOrWhiteSpace(booking.ArtisanName) ? "An artisan" : booking.ArtisanName!;
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "request" : $"{booking.ServiceName} request";
-        Add(booking.CustomerId, NotificationType.Booking,
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.OpenJobClaimed,
             "Artisan found", $"{who} accepted your {service} and will be in touch.", booking.Id);
     }
 
-    private async Task NotifyArtisanAsync(Booking booking, string title, string body, CancellationToken ct)
+    private async Task NotifyArtisanAsync(Booking booking, string kind, string title, string body, CancellationToken ct)
     {
         if (booking.ArtisanId is not { } profileId) return;
         var profile = await _catalogue.GetArtisanByIdAsync(profileId, ct);
         if (profile?.UserId is not { } artisanUserId) return; // unlinked catalogue artisan
-        Add(artisanUserId, NotificationType.Booking, title, body, booking.Id);
+        Add(artisanUserId, NotificationType.Booking, kind, title, body, booking.Id);
     }
 
     /// <summary>Tell the assigned artisan a customer opened a dispute, so they can
@@ -492,7 +576,7 @@ public sealed class NotificationEmitter
     public Task DisputeRaisedForArtisanAsync(Booking booking, CancellationToken ct)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "a booking" : $"the {booking.ServiceName} booking";
-        return NotifyArtisanAsync(booking,
+        return NotifyArtisanAsync(booking, NotificationKinds.Dispute,
             "A customer reported an issue",
             $"A customer opened a dispute on {service}. Open it to give your side before it's reviewed.",
             ct);
@@ -502,13 +586,13 @@ public sealed class NotificationEmitter
     public async Task ArtisanRespondedToDisputeAsync(Booking booking, CancellationToken ct)
     {
         var who = string.IsNullOrWhiteSpace(booking.ArtisanName) ? "The artisan" : booking.ArtisanName!;
-        Add(booking.CustomerId, NotificationType.Booking,
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.Dispute,
             "Artisan responded", $"{who} responded to your reported issue.", booking.Id);
 
         var admins = await _users.ListAsync(Domain.Users.Role.Admin, ct);
         var superAdmins = await _users.ListAsync(Domain.Users.Role.SuperAdmin, ct);
         foreach (var admin in admins.Concat(superAdmins))
-            Add(admin.Id, NotificationType.System,
+            Add(admin.Id, NotificationType.System, NotificationKinds.Dispute,
                 "Dispute updated", $"{who} added a response to a dispute. Review it before resolving.", booking.Id);
         _alerts.Send(new AdminAlert(AdminAlertKind.DisputeResponse, "Artisan answered a dispute",
             new[] { $"{who} gave their side on the {booking.ServiceName} booking. You can resolve it now." },
@@ -531,18 +615,20 @@ public sealed class NotificationEmitter
         if (!alreadyPending)
         {
             _notifications.Add(Notification.Create(
-                recipientUserId, NotificationType.Chat, title, body, null, conversationId, _clock.UtcNow));
+                recipientUserId, NotificationType.Chat, title, body, null, conversationId, _clock.UtcNow,
+                NotificationKinds.Chat));
         }
         // Push every message regardless of feed coalescing (best-effort, off-transaction).
-        _push.Dispatch(recipientUserId, title, body, null, conversationId);
+        _push.Dispatch(recipientUserId, title, body, null, conversationId,
+            NotificationKinds.Chat, NotificationType.Chat.ToString());
     }
 
     private void Add(
-        Guid userId, NotificationType type, string title, string body,
+        Guid userId, NotificationType type, string kind, string title, string body,
         Guid? bookingId, Guid? conversationId = null)
     {
-        _notifications.Add(Notification.Create(userId, type, title, body, bookingId, conversationId, _clock.UtcNow));
+        _notifications.Add(Notification.Create(userId, type, title, body, bookingId, conversationId, _clock.UtcNow, kind));
         // Best-effort device push (fire-and-forget; independent of this transaction).
-        _push.Dispatch(userId, title, body, bookingId, conversationId);
+        _push.Dispatch(userId, title, body, bookingId, conversationId, kind, type.ToString());
     }
 }

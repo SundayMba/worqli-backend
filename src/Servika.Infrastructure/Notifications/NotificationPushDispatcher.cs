@@ -28,7 +28,8 @@ public sealed class NotificationPushDispatcher : INotificationPushDispatcher
         _logger = logger;
     }
 
-    public void Dispatch(Guid userId, string title, string body, Guid? bookingId, Guid? conversationId = null)
+    public void Dispatch(Guid userId, string title, string body, Guid? bookingId, Guid? conversationId = null,
+        string? kind = null, string? type = null)
     {
         _ = Task.Run(async () =>
         {
@@ -44,7 +45,7 @@ public sealed class NotificationPushDispatcher : INotificationPushDispatcher
                 using var scope = _scopeFactory.CreateScope();
                 var realtime = scope.ServiceProvider.GetService<INotificationRealtimePublisher>();
                 if (realtime is not null)
-                    await realtime.PublishAsync(userId, title, body, bookingId, conversationId, CancellationToken.None);
+                    await realtime.PublishAsync(userId, title, body, bookingId, conversationId, kind, type, CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -61,6 +62,8 @@ public sealed class NotificationPushDispatcher : INotificationPushDispatcher
                 var data = new Dictionary<string, string>();
                 if (bookingId is { } b) data["bookingId"] = b.ToString();
                 if (conversationId is { } c) data["conversationId"] = c.ToString();
+                if (!string.IsNullOrWhiteSpace(kind)) data["kind"] = kind;
+                if (!string.IsNullOrWhiteSpace(type)) data["type"] = type;
 
                 await _sender.SendAsync(
                     registered.Select(t => t.Token).ToList(), title, body,

@@ -18,12 +18,14 @@ public sealed class RequestMaterialsAdvanceHandler
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
     private readonly NotificationEmitter _notifications;
+    private readonly ArtisanBookingDtoBuilder _dto;
     private readonly IClock _clock;
 
     public RequestMaterialsAdvanceHandler(
         IBookingRepository bookings, ICatalogueRepository catalogue,
-        NotificationEmitter notifications, IClock clock)
+        NotificationEmitter notifications, ArtisanBookingDtoBuilder dto, IClock clock)
     {
+        _dto = dto;
         _bookings = bookings;
         _catalogue = catalogue;
         _notifications = notifications;
@@ -41,7 +43,7 @@ public sealed class RequestMaterialsAdvanceHandler
         booking.RequestMaterialsAdvance(request.AmountNaira, _clock.UtcNow);
         _notifications.MaterialsAdvanceRequested(booking, request.AmountNaira);
         await _bookings.SaveChangesAsync(ct);
-        return booking.ToDetailDto();
+        return await _dto.BuildAsync(booking, 0, ct);
     }
 }
 
@@ -59,12 +61,14 @@ public sealed class DecideMaterialsAdvanceHandler
     private readonly IPaymentRepository _payments;
     private readonly IWalletRepository _wallet;
     private readonly NotificationEmitter _notifications;
+    private readonly IPlatformSettingsRepository _settings;
     private readonly IClock _clock;
 
     public DecideMaterialsAdvanceHandler(
         IBookingRepository bookings, IPaymentRepository payments, IWalletRepository wallet,
-        NotificationEmitter notifications, IClock clock)
+        NotificationEmitter notifications, IPlatformSettingsRepository settings, IClock clock)
     {
+        _settings = settings;
         _bookings = bookings;
         _payments = payments;
         _wallet = wallet;
@@ -104,6 +108,7 @@ public sealed class DecideMaterialsAdvanceHandler
 
         await _notifications.MaterialsAdvanceDecided(booking, approve, amount, ct);
         await _bookings.SaveChangesAsync(ct);
-        return booking.ToDetailDto();
+        var settings = await _settings.GetOrCreateAsync(ct);
+        return booking.ToDetailDto(0, settings.AutoConfirmHours, null);
     }
 }

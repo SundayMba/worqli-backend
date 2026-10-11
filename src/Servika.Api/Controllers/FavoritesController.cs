@@ -26,9 +26,10 @@ public sealed class FavoritesController : ControllerBase
     [ProducesResponseType(typeof(IReadOnlyList<ArtisanSummaryDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<ArtisanSummaryDto>>> List(
-        [FromServices] GetFavoritesHandler handler, CancellationToken ct)
+        [FromServices] GetFavoritesHandler handler, CancellationToken ct,
+        [FromQuery] double? lat = null, [FromQuery] double? lng = null)
     {
-        return Ok(await handler.HandleAsync(CurrentUserId(), ct));
+        return Ok(await handler.HandleAsync(CurrentUserId(), lat, lng, ct));
     }
 
     /// <summary>Save an artisan to favourites (idempotent).</summary>

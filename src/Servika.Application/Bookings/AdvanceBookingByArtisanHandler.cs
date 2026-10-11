@@ -21,12 +21,15 @@ public sealed class AdvanceBookingByArtisanHandler
     private readonly ICatalogueRepository _catalogue;
     private readonly NotificationEmitter _notifications;
     private readonly Payments.RefundService _refunds;
+    private readonly ArtisanBookingDtoBuilder _dto;
     private readonly IClock _clock;
 
     public AdvanceBookingByArtisanHandler(
         IBookingRepository bookings, ICatalogueRepository catalogue,
-        NotificationEmitter notifications, Payments.RefundService refunds, IClock clock)
+        NotificationEmitter notifications, Payments.RefundService refunds,
+        ArtisanBookingDtoBuilder dto, IClock clock)
     {
+        _dto = dto;
         _bookings = bookings;
         _catalogue = catalogue;
         _notifications = notifications;
@@ -44,9 +47,15 @@ public sealed class AdvanceBookingByArtisanHandler
             ?? throw new NotFoundException($"Booking '{bookingId}' was not found.");
 
         var now = _clock.UtcNow;
+        var refunded = 0;
         switch (action)
         {
-            case ArtisanBookingAction.Accept: booking.Accept(now); break;
+            case ArtisanBookingAction.Accept:
+                // Only verified artisans take work (the catalogue already hides the rest).
+                if (profile.VerificationStatus != Domain.Catalogue.ArtisanVerificationStatus.Verified)
+                    throw new ConflictException("Your profile must be verified before you can accept jobs.");
+                booking.Accept(now);
+                break;
             case ArtisanBookingAction.Reject: booking.Reject(); break;
             case ArtisanBookingAction.StartTrip: booking.StartTrip(); break;
             case ArtisanBookingAction.Arrive: booking.Arrive(); break;
@@ -55,15 +64,15 @@ public sealed class AdvanceBookingByArtisanHandler
                 booking.Cancel(now);
                 // Any escrow the customer already paid goes straight back in full
                 // (no-op if unpaid). Same transaction as the cancellation.
-                await _refunds.RefundIfPaidAsync(booking, ct);
+                refunded = await _refunds.RefundIfPaidAsync(booking, ct);
                 break;
             default: throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown artisan action.");
         }
 
         // Notify the customer of the transition; flushed with the booking below.
-        _notifications.BookingAdvancedByArtisan(booking, action);
+        await _notifications.BookingAdvancedByArtisanAsync(booking, action, refunded, ct);
 
         await _bookings.SaveChangesAsync(ct);
-        return booking.ToDetailDto();
+        return await _dto.BuildAsync(booking, 0, ct);
     }
 }

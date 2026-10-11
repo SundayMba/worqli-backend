@@ -63,7 +63,15 @@ public sealed record AdminBookingDetailDto(
     int? MaterialsAdvanceNaira = null,
     /// <summary>Every offer on the booking (all statuses), cheapest first, with the
     /// itemised breakdown and any pending counter-offer.</summary>
-    IReadOnlyList<AdminBidDto>? Bids = null);
+    IReadOnlyList<AdminBidDto>? Bids = null,
+    /// <summary>Payment fee the customer paid on top (0 when none / not paid online).</summary>
+    int ServiceFeeNaira = 0,
+    /// <summary>What the card was charged (amount + payment fee); null when not paid online.</summary>
+    int? ChargedNaira = null,
+    /// <summary>Amount refunded to the customer (full or partial); null when none.</summary>
+    int? RefundedAmountNaira = null,
+    /// <summary>Materials advance actually released to the artisan (0 when none).</summary>
+    int MaterialsAdvanceReleasedNaira = 0);
 
 public sealed record AdminBidDto(
     Guid Id,

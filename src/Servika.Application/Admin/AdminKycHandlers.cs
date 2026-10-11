@@ -226,7 +226,7 @@ public sealed class ReviewKycHandler
         }
 
         // In-app + push, in the same transaction as the decision.
-        _notifications.KycReviewed(submission.UserId, approve, reason);
+        _notifications.KycReviewed(submission.UserId, approve, reason, failed?.ToString());
 
         await _kyc.SaveChangesAsync(ct);
 

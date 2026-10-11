@@ -126,6 +126,7 @@ public static class DependencyInjection
         services.AddScoped<Payments.EscrowReleaseService>();
         services.AddScoped<GetWalletHandler>();
         services.AddScoped<GetWalletTransactionsHandler>();
+        services.AddScoped<GetArtisanWalletTransactionsHandler>();
 
         // Payouts (shared owner-agnostic engine + artisan earnings entry points).
         services.AddScoped<WithdrawalService>();
@@ -197,6 +198,7 @@ public static class DependencyInjection
         services.AddScoped<Admin.GetAdminPaymentsHandler>();
         services.AddScoped<Admin.AdminAlertSweepHandler>();
         services.AddScoped<Catalogue.MyProfileDtoBuilder>();
+        services.AddScoped<Bookings.ArtisanBookingDtoBuilder>();
         services.AddScoped<Admin.ListAdminArtisansHandler>();
         services.AddScoped<Admin.GetAdminArtisanCertificateHandler>();
         services.AddScoped<Admin.SetGuarantorWaiverHandler>();

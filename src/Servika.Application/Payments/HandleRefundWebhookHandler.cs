@@ -70,7 +70,7 @@ public sealed class HandleRefundWebhookHandler
             {
                 var booking = await _bookings.FindByIdAsync(bookingId, ct);
                 _notifications.RefundSettled(
-                    payment.CustomerId, bookingId, booking?.ServiceName ?? string.Empty, payment.AmountNaira);
+                    payment.CustomerId, bookingId, booking?.ServiceName ?? string.Empty, payment.RefundedNaira);
             }
         }
         else // Failed
@@ -79,7 +79,7 @@ public sealed class HandleRefundWebhookHandler
                 return; // already handled / already landed
             payment.MarkRefundFailed(now);
             if (payment.BookingId is { } bookingId)
-                await _notifications.RefundFailedNeedsRetryAsync(bookingId, payment.AmountNaira, ct);
+                await _notifications.RefundFailedNeedsRetryAsync(bookingId, payment.RefundedNaira, ct);
         }
 
         await _payments.SaveChangesAsync(ct);

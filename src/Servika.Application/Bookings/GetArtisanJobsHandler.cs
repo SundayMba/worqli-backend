@@ -37,6 +37,6 @@ public sealed class GetArtisanJobsHandler
         }
 
         var jobs = await _bookings.ListForArtisanAsync(profile.Id, filter, ct);
-        return jobs.Select(b => b.ToSummaryDto()).ToList();
+        return jobs.Select(b => b.ToSummaryDto(artisanSide: true)).ToList();
     }
 }

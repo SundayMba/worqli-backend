@@ -34,6 +34,6 @@ public sealed class RebroadcastBookingHandler
         await _notifications.OpenJobPosted(booking, ct);
         await _bookings.SaveChangesAsync(ct);
 
-        return booking.ToDetailDto();
+        return booking.ToDetailDto(0, null, null);
     }
 }

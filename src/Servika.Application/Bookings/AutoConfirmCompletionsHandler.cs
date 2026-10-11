@@ -53,9 +53,9 @@ public sealed class AutoConfirmCompletionsHandler
         {
             booking.ConfirmCompletion(now);
             _notifications.BookingAutoConfirmed(booking);
-            await _notifications.ArtisanJobConfirmed(booking, ct);
             await _escrow.ReleaseIfPaidAsync(booking, ct);
-            await _cashCommission.RecordIfCashJobAsync(booking, ct);
+            var cashFee = await _cashCommission.RecordIfCashJobAsync(booking, ct);
+            await _notifications.ArtisanJobConfirmed(booking, cashFee, ct);
             await _referrals.AwardIfReferredAsync(booking, now, ct);
         }
 

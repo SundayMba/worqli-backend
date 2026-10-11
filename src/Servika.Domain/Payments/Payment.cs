@@ -214,6 +214,13 @@ public sealed class Payment
     /// <summary>True once any refund (full or partial) has been requested on this payment.</summary>
     public bool IsRefundRequested => RefundedAtUtc is not null;
 
+    /// <summary>What was actually refunded (full or partial). Falls back to the whole
+    /// amount for a full refund recorded before the refunded amount was tracked.</summary>
+    public int RefundedNaira =>
+        RefundedAmountNaira > 0 ? RefundedAmountNaira
+        : Status == PaymentStatus.Refunded ? AmountNaira
+        : 0;
+
     /// <summary>Fully reverses a settled payment (a dispute resolved wholly for the
     /// customer). Only a Succeeded payment can be refunded, and only once.</summary>
     public void MarkRefunded(DateTimeOffset now)

@@ -2,7 +2,8 @@ namespace Servika.Contracts.Bookings;
 
 /// <summary>
 /// Artisan submits proof of completed work (POST /api/v1/artisan/jobs/{id}/submit-completion).
-/// Photos are base64 (optionally data: URIs); at least one is required.
+/// Photos are base64 (optionally data: URIs); 2 to 4 work photos are required
+/// (the receipt is separate).
 /// </summary>
 public sealed record SubmitCompletionRequest(
     string? Note,
@@ -20,4 +21,7 @@ public sealed record JobCompletionDto(
     DateTimeOffset? SubmittedAtUtc,
     IReadOnlyList<string> Photos,
     /// <summary>The materials receipt as a data URI, or null when none was attached.</summary>
-    string? ReceiptPhoto = null);
+    string? ReceiptPhoto,
+    /// <summary>When the job confirms itself if the customer doesn't respond
+    /// (AwaitingConfirmation only; null otherwise).</summary>
+    DateTimeOffset? AutoConfirmAtUtc);

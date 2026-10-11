@@ -14,12 +14,15 @@ public sealed record ArtisanDetailDto(
     string Specialty,
     double Rating,
     int ReviewCount,
-    double DistanceKm,
+    /// <summary>Km from the caller's coords (?lat=&amp;lng=); null when either location is unknown.</summary>
+    double? DistanceKm,
     bool IsAvailable,
     string Accent,
     int ExperienceYears,
     string Location,
+    /// <summary>Not computed; always "" (kept for older clients).</summary>
     string ResponseTime,
+    /// <summary>Completed jobs as a string (same number as <see cref="CompletedJobs"/>).</summary>
     string JobsCount,
     int InspectionFeeNaira,
     string About,
@@ -42,7 +45,9 @@ public sealed record ArtisanDetailDto(
     /// <summary>The artisan's published fixed-price services ("Knotless braids —
     /// ₦15,000") — bookable directly at that price, paid once the artisan
     /// accepts. Empty for quote-only artisans.</summary>
-    IReadOnlyList<ArtisanServiceDto>? PricedServices = null);
+    IReadOnlyList<ArtisanServiceDto> PricedServices,
+    bool IsVerified,
+    int CompletedJobs);
 
 /// <summary>A fixed-price service on an artisan's profile. <see cref="PhotoUrl"/>
 /// is the API path of its showcase photo, or null (clients fall back to the

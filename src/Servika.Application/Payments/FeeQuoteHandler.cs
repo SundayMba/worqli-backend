@@ -1,6 +1,8 @@
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Time;
 using Servika.Contracts.Payments;
+using Servika.Application.Common;
+using Servika.Domain.Bookings;
 using Servika.Domain.Payments;
 
 namespace Servika.Application.Payments;
@@ -34,7 +36,12 @@ public sealed class FeeQuoteHandler
                 new TransferFeeTierDto(s.TransferFeeTier1MaxNaira, s.TransferFeeTier1Naira),
                 new TransferFeeTierDto(s.TransferFeeTier2MaxNaira, s.TransferFeeTier2Naira),
                 new TransferFeeTierDto(null, s.TransferFeeTier3Naira),
-            });
+            },
+            s.CommissionRate, s.EmergencyCommissionRate, s.AutoConfirmHours,
+            s.MinWithdrawalNaira, s.ReferralRewardNaira, PlatformRules.ReferralMinWithdrawalNaira(s),
+            PlatformRules.ReviewTargetHours, s.RequireGuarantors, s.RequiredGuarantorCount,
+            PlatformRules.MaxGuarantors, Bid.MaxCounterRounds,
+            PlatformRules.ProofPhotosMin, PlatformRules.ProofPhotosMax);
     }
 
     public async Task<FeeQuoteDto> QuoteAsync(int amountNaira, CancellationToken ct)

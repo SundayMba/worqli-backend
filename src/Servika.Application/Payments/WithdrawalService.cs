@@ -18,8 +18,6 @@ namespace Servika.Application.Payments;
 public sealed class WithdrawalService
 {
     private readonly BankAccountResolver _resolver;
-    /// <summary>Default smallest payout we'll process (artisan earnings).</summary>
-    public const int DefaultMinWithdrawalNaira = 1000;
 
     private readonly IWalletRepository _wallet;
     private readonly IWithdrawalRepository _withdrawals;

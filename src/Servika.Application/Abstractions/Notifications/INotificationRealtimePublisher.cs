@@ -15,5 +15,7 @@ public interface INotificationRealtimePublisher
         string body,
         Guid? bookingId,
         Guid? conversationId,
+        string? kind,
+        string? type,
         CancellationToken ct);
 }

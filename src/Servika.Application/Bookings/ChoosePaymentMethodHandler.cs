@@ -44,6 +44,6 @@ public sealed class ChoosePaymentMethodHandler
             await _notifications.ArtisanCashChosen(booking, ct);
 
         await _bookings.SaveChangesAsync(ct);
-        return booking.ToDetailDto();
+        return booking.ToDetailDto(0, null, null);
     }
 }

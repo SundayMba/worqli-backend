@@ -20,13 +20,16 @@ public sealed class GetOpenJobDetailHandler
     private readonly ICatalogueRepository _catalogue;
     private readonly IUserRepository _users;
     private readonly IBidRepository _bids;
+    private readonly ArtisanBookingDtoBuilder _dto;
 
     public GetOpenJobDetailHandler(
         IBookingRepository bookings,
         ICatalogueRepository catalogue,
         IUserRepository users,
-        IBidRepository bids)
+        IBidRepository bids,
+        ArtisanBookingDtoBuilder dto)
     {
+        _dto = dto;
         _bookings = bookings;
         _catalogue = catalogue;
         _users = users;
@@ -46,13 +49,11 @@ public sealed class GetOpenJobDetailHandler
             || !profile.CategorySlugs.Contains(booking.CategorySlug))
             throw new NotFoundException("This request was not found.");
 
-        var customer = await _users.FindByIdAsync(booking.CustomerId, ct);
-        var completed = await _bookings.CountCompletedForCustomerAsync(booking.CustomerId, ct);
         var bidCount = booking.Assessment == AssessmentMode.RemoteQuote
             ? await _bids.CountActiveForBookingAsync(booking.Id, ct)
             : 0;
 
-        return booking.ToDetailDto(bidCount, customer?.FullName, completed);
+        return await _dto.BuildAsync(booking, bidCount, ct);
     }
 }
 
@@ -66,10 +67,13 @@ public sealed class GetArtisanJobCompletionHandler
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
     private readonly IFileStorage _storage;
+    private readonly IPlatformSettingsRepository _settings;
 
     public GetArtisanJobCompletionHandler(
-        IBookingRepository bookings, ICatalogueRepository catalogue, IFileStorage storage)
+        IBookingRepository bookings, ICatalogueRepository catalogue, IFileStorage storage,
+        IPlatformSettingsRepository settings)
     {
+        _settings = settings;
         _bookings = bookings;
         _catalogue = catalogue;
         _storage = storage;
@@ -99,6 +103,7 @@ public sealed class GetArtisanJobCompletionHandler
         }
 
         return new JobCompletionDto(
-            booking.Status.ToString(), booking.CompletionNote, booking.WorkSubmittedAtUtc, photos, receipt);
+            booking.Status.ToString(), booking.CompletionNote, booking.WorkSubmittedAtUtc, photos, receipt,
+            booking.AutoConfirmAtUtc((await _settings.GetOrCreateAsync(ct)).AutoConfirmHours));
     }
 }

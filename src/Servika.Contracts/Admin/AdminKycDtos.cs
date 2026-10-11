@@ -48,7 +48,7 @@ public sealed record KycSubmissionDetailDto(
     bool HasCertificate = false,
     /// <summary>The artisan profile id (for the per-artisan actions such as the guarantor waiver).</summary>
     Guid? ArtisanId = null,
-    bool GuarantorsRequired = true,
+    bool GuarantorsRequired = false,
     bool GuarantorsWaived = false,
     int RequiredGuarantorCount = 2,
     /// <summary>What the NIN register said when the artisan checked their number: Matched | NameMismatch | NotFound | Failed | null.</summary>

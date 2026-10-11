@@ -134,25 +134,28 @@ public sealed class ResolveDisputeHandler
                 if (partial)
                 {
                     booking.ResolveDisputePartial(now);
-                    await _refunds.PartialRefundIfPaidAsync(booking, request.RefundAmountNaira!.Value, ct);
-                    _notifications.DisputeResolved(booking, favourCustomer: true);
+                    var refunded = await _refunds.PartialRefundIfPaidAsync(booking, request.RefundAmountNaira!.Value, ct);
+                    // The job closes as Completed: a cash job owes its commission
+                    // exactly as a favour-artisan resolution would (no-op if online).
+                    await _cashCommission.RecordIfCashJobAsync(booking, ct);
+                    await _notifications.DisputeResolvedAsync(booking, favourCustomer: true, partial: true, refunded, ct);
                 }
                 else
                 {
                     booking.ResolveDispute(favourCustomer: true, now);
-                    _notifications.DisputeResolved(booking, favourCustomer: true);
-                    await _refunds.RefundIfPaidAsync(booking, ct); // no-op if never paid
+                    var refunded = await _refunds.RefundIfPaidAsync(booking, ct); // 0 if never paid
+                    await _notifications.DisputeResolvedAsync(booking, favourCustomer: true, partial: false, refunded, ct);
                 }
             }
             else
             {
                 booking.ResolveDispute(favourCustomer: false, now);
-                _notifications.DisputeResolved(booking, favourCustomer: false);
                 // Favour-artisan completes the job, so pay the artisan: release the
                 // held escrow (online) or record the cash-job commission. Exactly
                 // one applies, mirroring the normal completion paths.
                 await _escrow.ReleaseIfPaidAsync(booking, ct);
                 await _cashCommission.RecordIfCashJobAsync(booking, ct);
+                await _notifications.DisputeResolvedAsync(booking, favourCustomer: false, partial: false, 0, ct);
             }
         }
 

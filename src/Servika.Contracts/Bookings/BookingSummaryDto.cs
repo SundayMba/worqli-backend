@@ -24,5 +24,14 @@ public sealed record BookingSummaryDto(
     string? VideoUrl,
     /// <summary>Job coordinates, when the customer pinned one — lets the Pro app
     /// show distance from the artisan's base on list cards.</summary>
-    double? LocationLat = null,
-    double? LocationLng = null);
+    double? LocationLat,
+    double? LocationLng,
+    /// <summary>"Online" (escrow) or "Cash".</summary>
+    string PaymentMethod,
+    /// <summary>"Unpaid" | "Pending" | "Paid" | "Refunded" | "PartiallyRefunded".</summary>
+    string PaymentState,
+    DateTimeOffset? CompletedAtUtc,
+    /// <summary>ARTISAN-facing only: what the artisan receives for this job (agreed
+    /// amount − commission at the booking's rate − any released materials advance).
+    /// Null on customer-facing responses and when no amount is agreed.</summary>
+    int? ArtisanNetNaira);

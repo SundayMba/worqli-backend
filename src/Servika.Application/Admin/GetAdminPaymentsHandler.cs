@@ -20,12 +20,14 @@ public sealed class GetAdminPaymentsHandler
     private readonly IWithdrawalRepository _withdrawals;
     private readonly IPaymentRepository _payments;
     private readonly IPayoutGateway _payouts;
+    private readonly IBookingRepository _bookings;
     private readonly IClock _clock;
 
     public GetAdminPaymentsHandler(
         IWalletRepository wallet, IWithdrawalRepository withdrawals,
-        IPaymentRepository payments, IPayoutGateway payouts, IClock clock)
+        IPaymentRepository payments, IPayoutGateway payouts, IBookingRepository bookings, IClock clock)
     {
+        _bookings = bookings;
         _wallet = wallet;
         _withdrawals = withdrawals;
         _payments = payments;
@@ -76,7 +78,7 @@ public sealed class GetAdminPaymentsHandler
             .Where(p => p.RefundSettledAtUtc is null)
             .Select(p => new AdminRefundDto(
                 p.BookingId ?? Guid.Empty,
-                p.AmountNaira,
+                p.RefundedNaira,
                 p.RefundFailedAtUtc is not null ? "Failed" : "Pending",
                 p.RefundedAtUtc!.Value,
                 p.RefundFailedAtUtc))
@@ -105,6 +107,23 @@ public sealed class GetAdminPaymentsHandler
             .Where(e => e.Type == WalletTransactionType.MaterialsAdvance && e.BookingId is { } b && heldBookings.Contains(b))
             .Sum(e => (long)e.AmountNaira);
         heldEscrow = Math.Max(0, heldEscrow);
+
+        // Of that, what sits behind an open dispute right now.
+        var disputedIds = (await _bookings.ListAllAsync(Domain.Bookings.BookingStatus.Disputed, ct))
+            .Select(b => b.Id).ToHashSet();
+        long disputedHeld = held
+            .Where(p => p.BookingId is { } id && disputedIds.Contains(id))
+            .Sum(p => (long)p.AmountNaira);
+        disputedHeld -= entries
+            .Where(e => e.Type == WalletTransactionType.MaterialsAdvance && e.BookingId is { } d && disputedIds.Contains(d)
+                        && heldBookings.Contains(d))
+            .Sum(e => (long)e.AmountNaira);
+        disputedHeld = Math.Max(0, disputedHeld);
+
+        // Commission recorded on cash jobs (artisan-side CommissionDue debits).
+        long cashCommission = entries
+            .Where(e => e.OwnerType == WalletOwnerType.Artisan && e.Type == WalletTransactionType.CommissionDue)
+            .Sum(e => (long)-e.AmountNaira);
         long artisanBalances = (await _wallet.ListBalancesAsync(WalletOwnerType.Artisan, ct)).Values.Where(v => v > 0).Sum(v => (long)v);
         long referrerBalances = (await _wallet.ListBalancesAsync(WalletOwnerType.Referrer, ct)).Values.Where(v => v > 0).Sum(v => (long)v);
         long liabilities = heldEscrow + artisanBalances + referrerBalances;
@@ -116,6 +135,7 @@ public sealed class GetAdminPaymentsHandler
             revenue, commission, artisanEarnings, pending, refunds,
             payoutSummary, series, recent, refundAttention,
             feesCollected, gatewayCosts, absorbed,
-            balance, liabilities, heldEscrow, artisanBalances, referrerBalances, healthy, shortfall);
+            balance, liabilities, heldEscrow, artisanBalances, referrerBalances, healthy, shortfall,
+            cashCommission, disputedHeld);
     }
 }

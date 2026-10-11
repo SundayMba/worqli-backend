@@ -58,21 +58,26 @@ public sealed class GetFavoritesHandler
 {
     private readonly IFavoriteRepository _favorites;
     private readonly ICatalogueRepository _catalogue;
+    private readonly IBookingRepository _bookings;
 
-    public GetFavoritesHandler(IFavoriteRepository favorites, ICatalogueRepository catalogue)
+    public GetFavoritesHandler(IFavoriteRepository favorites, ICatalogueRepository catalogue, IBookingRepository bookings)
     {
         _favorites = favorites;
         _catalogue = catalogue;
+        _bookings = bookings;
     }
 
-    public async Task<IReadOnlyList<ArtisanSummaryDto>> HandleAsync(Guid userId, CancellationToken ct)
+    public async Task<IReadOnlyList<ArtisanSummaryDto>> HandleAsync(
+        Guid userId, double? lat, double? lng, CancellationToken ct)
     {
         var ids = await _favorites.ListArtisanIdsAsync(userId, ct);
+        var completed = await _bookings.CountCompletedForArtisansAsync(ids.ToList(), ct);
         var list = new List<ArtisanSummaryDto>(ids.Count);
         foreach (var id in ids)
         {
             var artisan = await _catalogue.GetArtisanByIdAsync(id, ct);
-            if (artisan is not null) list.Add(artisan.ToSummaryDto());
+            if (artisan is not null)
+                list.Add(artisan.ToSummaryDto(artisan.DistanceFrom(lat, lng), completed.GetValueOrDefault(artisan.Id)));
         }
         return list;
     }

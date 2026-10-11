@@ -20,9 +20,11 @@ public sealed class ClaimOpenJobHandler
     private readonly ICatalogueRepository _catalogue;
     private readonly Notifications.NotificationEmitter _notifications;
     private readonly Payments.ArtisanStandingService _standing;
+    private readonly ArtisanBookingDtoBuilder _dto;
     private readonly IClock _clock;
 
     public ClaimOpenJobHandler(
+        ArtisanBookingDtoBuilder dto,
         IBookingRepository bookings,
         ICatalogueRepository catalogue,
         Notifications.NotificationEmitter notifications,
@@ -34,6 +36,7 @@ public sealed class ClaimOpenJobHandler
         _notifications = notifications;
         _standing = standing;
         _clock = clock;
+        _dto = dto;
     }
 
     public async Task<BookingDetailDto> HandleAsync(
@@ -69,6 +72,6 @@ public sealed class ClaimOpenJobHandler
         _notifications.OpenJobClaimed(claimed);
         await _bookings.SaveChangesAsync(ct);
 
-        return claimed.ToDetailDto();
+        return await _dto.BuildAsync(claimed, 0, ct);
     }
 }

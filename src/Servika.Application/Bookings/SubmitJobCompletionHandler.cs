@@ -19,9 +19,11 @@ public sealed class SubmitJobCompletionHandler
     private readonly ICatalogueRepository _catalogue;
     private readonly IFileStorage _storage;
     private readonly NotificationEmitter _notifications;
+    private readonly ArtisanBookingDtoBuilder _dto;
     private readonly IClock _clock;
 
     public SubmitJobCompletionHandler(
+        ArtisanBookingDtoBuilder dto,
         IBookingRepository bookings,
         ICatalogueRepository catalogue,
         IFileStorage storage,
@@ -33,6 +35,7 @@ public sealed class SubmitJobCompletionHandler
         _storage = storage;
         _notifications = notifications;
         _clock = clock;
+        _dto = dto;
     }
 
     public async Task<BookingDetailDto> HandleAsync(
@@ -45,12 +48,14 @@ public sealed class SubmitJobCompletionHandler
             ?? throw new NotFoundException($"Booking '{bookingId}' was not found.");
 
         var photos = request.PhotosBase64 ?? new List<string>();
-        if (photos.Count == 0)
-            throw new ArgumentException("At least one proof-of-work photo is required.");
+        if (photos.Count < PlatformRules.ProofPhotosMin)
+            throw new ArgumentException($"Add at least {PlatformRules.ProofPhotosMin} photos of the finished work.");
+        if (photos.Count > PlatformRules.ProofPhotosMax)
+            throw new ArgumentException($"Send at most {PlatformRules.ProofPhotosMax} work photos (the receipt goes separately).");
 
         var now = _clock.UtcNow;
         var keys = new List<string>();
-        foreach (var b64 in photos.Take(6))
+        foreach (var b64 in photos)
         {
             var bytes = DecodeImage(b64);
             keys.Add(await _storage.SaveAsync(bytes, "image/jpeg", ct));
@@ -64,7 +69,7 @@ public sealed class SubmitJobCompletionHandler
         _notifications.WorkSubmitted(booking);
         await _bookings.SaveChangesAsync(ct);
 
-        return booking.ToDetailDto();
+        return await _dto.BuildAsync(booking, 0, ct);
     }
 
     private static byte[] DecodeImage(string? base64)

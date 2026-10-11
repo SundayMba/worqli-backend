@@ -74,6 +74,13 @@ public sealed class CreateBookingHandler
         {
             var artisan = await _catalogue.GetArtisanByIdAsync(artisanId, ct)
                 ?? throw new NotFoundException($"Artisan '{artisanId}' was not found.");
+            // Only verified artisans take bookings (unpaid commission is deliberately
+            // NOT checked here: online jobs are how that debt nets down).
+            if (artisan.VerificationStatus != Domain.Catalogue.ArtisanVerificationStatus.Verified)
+                throw new ConflictException($"{artisan.FullName} isn't verified yet, so they can't take bookings. Pick another artisan or post the job to everyone.");
+            if (artisan.AwayUntilUtc is { } away && away > _clock.UtcNow)
+                throw new ConflictException(
+                    $"{artisan.FullName} is away until {away.ToOffset(TimeSpan.FromHours(1)):d MMMM yyyy}. Pick another artisan or post the job to everyone.");
             artisanName = artisan.FullName;
         }
 
@@ -157,7 +164,7 @@ public sealed class CreateBookingHandler
             await _notifications.ArtisanNewBooking(booking, ct);
         await _bookings.SaveChangesAsync(ct);
 
-        return booking.ToDetailDto();
+        return booking.ToDetailDto(0, null, null);
     }
 
     private static AssessmentMode ParseAssessment(string? value) =>

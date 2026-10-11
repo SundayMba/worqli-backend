@@ -123,8 +123,8 @@ public sealed class AddGuarantorHandler
 
     public async Task<GuarantorDto> HandleAsync(Guid artisanUserId, AddGuarantorRequest request, CancellationToken ct)
     {
-        if (await _guarantors.CountForUserAsync(artisanUserId, ct) >= 4)
-            throw new ConflictException("You can list up to four guarantors.");
+        if (await _guarantors.CountForUserAsync(artisanUserId, ct) >= PlatformRules.MaxGuarantors)
+            throw new ConflictException($"You can list up to {PlatformRules.MaxGuarantors} guarantors.");
 
         string? photoKey = null;
         if (!string.IsNullOrWhiteSpace(request.IdPhotoBase64))

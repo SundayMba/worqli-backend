@@ -70,6 +70,20 @@ if (builder.Environment.IsProduction())
         misconfig.Add("Auth:RequirePhoneForBooking is on but Sms:ApiKey is unset — customers "
                       + "couldn't receive codes. Set Sms__ApiKey or turn the gate off.");
     }
+    // Without Resend, sign-up and reset codes are only logged, so nobody can verify;
+    // Resend's shared onboarding sender only delivers to the account owner.
+    if (string.IsNullOrWhiteSpace(builder.Configuration["Resend:ApiKey"]))
+    {
+        misconfig.Add("Resend:ApiKey is unset, so verification and reset codes would only be logged "
+                      + "(set Resend__ApiKey).");
+    }
+    var resendFrom = builder.Configuration["Resend:FromEmail"];
+    if (string.IsNullOrWhiteSpace(resendFrom)
+        || resendFrom.Trim().EndsWith("@resend.dev", StringComparison.OrdinalIgnoreCase))
+    {
+        misconfig.Add("Resend:FromEmail must be an address on a verified domain, not the shared "
+                      + "@resend.dev sender, which only reaches the Resend account owner (set Resend__FromEmail).");
+    }
     if (misconfig.Count > 0)
     {
         throw new InvalidOperationException(
@@ -81,7 +95,7 @@ if (builder.Environment.IsProduction())
 // --- Services (the "DI container": register everything the app can use) -----
 
 // Infrastructure layer: database, password hashing, JWT/refresh token services.
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsProduction());
 
 // Application layer: the use-case handlers (register/login/refresh/logout/me).
 builder.Services.AddApplication();

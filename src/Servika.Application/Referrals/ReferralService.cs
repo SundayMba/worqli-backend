@@ -14,9 +14,6 @@ namespace Servika.Application.Referrals;
 /// </summary>
 public sealed class ReferralService
 {
-    /// <summary>Reward per successful referral, in Naira.</summary>
-    public const int RewardNaira = 500;
-
     private readonly IReferralRepository _referrals;
     private readonly ICatalogueRepository _catalogue;
     private readonly IWalletRepository _wallet;
