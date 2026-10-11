@@ -120,6 +120,7 @@ public sealed class SubmitKycHandler
         {
             if (submission.Status == ArtisanVerificationStatus.Verified) profile.MarkVerified();
             else if (submission.Status == ArtisanVerificationStatus.Rejected) profile.MarkRejected();
+            else profile.MarkPendingReview();
         }
 
         await _kyc.SaveChangesAsync(ct);

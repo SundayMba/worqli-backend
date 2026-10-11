@@ -143,13 +143,23 @@ public sealed class ArtisanKyc
         OpenNote = null;
     }
 
-    public void Reject(string? reason, DateTimeOffset now)
+    /// <summary>Decline. The failed check stays open so the artisan fixes only that one and
+    /// sends it back (a fresh ID upload for identity/selfie, Send it back for the rest).</summary>
+    public void Reject(string? reason, DateTimeOffset now, VerificationCheck? failedCheck = null, string? reasonCode = null)
     {
         Status = ArtisanVerificationStatus.Rejected;
         ReviewedAtUtc = now;
         ReviewNote = reason;
-        OpenCheck = null;
-        OpenReasonCode = null;
-        OpenNote = null;
+        OpenCheck = failedCheck;
+        OpenReasonCode = failedCheck is null || string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim();
+        OpenNote = failedCheck is null || string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+    }
+
+    /// <summary>Older declines did not keep the check open; reopen it from the history.</summary>
+    public void ReopenCheck(VerificationCheck check)
+    {
+        if (Status != ArtisanVerificationStatus.Rejected || OpenCheck is not null) return;
+        OpenCheck = check;
+        OpenNote = ReviewNote;
     }
 }

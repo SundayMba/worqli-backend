@@ -401,6 +401,9 @@ public sealed class ArtisanProfile
     /// <summary>KYC rejected → profile stays hidden until re-submitted and approved.</summary>
     public void MarkRejected() => VerificationStatus = ArtisanVerificationStatus.Rejected;
 
+    /// <summary>Back in the review queue after a fix (still hidden from customers).</summary>
+    public void MarkPendingReview() => VerificationStatus = ArtisanVerificationStatus.Pending;
+
     /// <summary>
     /// Folds a new star rating into the running average and bumps the review
     /// count. <see cref="Rating"/> is treated as the average of

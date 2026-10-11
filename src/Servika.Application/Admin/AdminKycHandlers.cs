@@ -213,7 +213,7 @@ public sealed class ReviewKycHandler
         var now = _clock.UtcNow;
         VerificationCheck? failed = string.IsNullOrWhiteSpace(check) ? null : VerificationEventMapping.ParseCheck(check);
         if (approve) submission.Approve(now);
-        else submission.Reject(reason, now);
+        else submission.Reject(reason, now, failed, reasonCode);
         _events.Add(VerificationEvent.Create(submission.Id, submission.UserId, adminUserId,
             approve ? VerificationEventAction.Approved : VerificationEventAction.Declined, failed, reasonCode, approve ? null : reason, now));
 

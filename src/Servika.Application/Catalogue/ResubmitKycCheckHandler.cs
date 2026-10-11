@@ -37,12 +37,24 @@ public sealed class ResubmitKycCheckHandler
     {
         var kyc = await _kyc.GetForUserAsync(artisanUserId, ct)
             ?? throw new NotFoundException("Send your identity check first.");
+        if (!kyc.HasOpenCheck && kyc.Status == ArtisanVerificationStatus.Rejected)
+        {
+            // A decline from before checks stayed open: take the check from the history.
+            var declined = (await _events.ListForKycAsync(kyc.Id, ct))
+                .Where(e => e.Action == VerificationEventAction.Declined && e.Check is not null)
+                .OrderByDescending(e => e.CreatedAtUtc).FirstOrDefault();
+            if (declined?.Check is { } c) kyc.ReopenCheck(c);
+        }
         if (!kyc.HasOpenCheck)
             throw new ConflictException("Nothing is waiting on you right now.");
+        if (kyc.OpenCheck is VerificationCheck.Identity or VerificationCheck.Selfie)
+            throw new ConflictException("Upload your ID and selfie again; that sends it back on its own.");
 
         var now = _clock.UtcNow;
         var check = kyc.OpenCheck!.Value;
         kyc.MarkResubmitted(now);
+        var profile = await _catalogue.GetArtisanByUserIdForUpdateAsync(artisanUserId, ct);
+        profile?.MarkPendingReview();
         _events.Add(VerificationEvent.Create(kyc.Id, artisanUserId, null, VerificationEventAction.Resubmitted, check, null, null, now));
 
         var artisan = await _users.FindByIdAsync(artisanUserId, ct);
