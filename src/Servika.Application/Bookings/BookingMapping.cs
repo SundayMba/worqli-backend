@@ -86,10 +86,13 @@ internal static class BookingMapping
     /// <summary>What the artisan actually receives for the job: the agreed amount
     /// minus Servika's commission at the booking's rate (rounded exactly like
     /// <c>Payment.CommissionNaira</c>) minus any materials advance already released.
-    /// Null when no amount is agreed yet.</summary>
+    /// Null when no amount is agreed yet, or the job was cancelled, declined, expired or refunded.</summary>
     public static int? ArtisanNetNaira(this Booking b)
     {
         if (b.InitialQuoteAmountNaira is not { } amount) return null;
+        // Nothing reaches the artisan from a job that never happened or was fully refunded.
+        if (b.Status is BookingStatus.Cancelled or BookingStatus.Rejected or BookingStatus.Expired
+            || b.PaymentState == BookingPaymentState.Refunded) return null;
         var commission = (int)Math.Round(amount * b.CommissionRate, MidpointRounding.AwayFromZero);
         return Math.Max(0, amount - commission - b.ReleasedMaterialsAdvanceNaira);
     }
