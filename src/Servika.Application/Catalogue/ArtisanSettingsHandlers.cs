@@ -126,18 +126,7 @@ public sealed class AddGuarantorHandler
         if (await _guarantors.CountForUserAsync(artisanUserId, ct) >= PlatformRules.MaxGuarantors)
             throw new ConflictException($"You can list up to {PlatformRules.MaxGuarantors} guarantors.");
 
-        string? photoKey = null;
-        if (!string.IsNullOrWhiteSpace(request.IdPhotoBase64))
-        {
-            var payload = request.IdPhotoBase64!;
-            var comma = payload.IndexOf(',');
-            if (payload.StartsWith("data:", StringComparison.OrdinalIgnoreCase) && comma > 0)
-                payload = payload[(comma + 1)..];
-            byte[] bytes;
-            try { bytes = Convert.FromBase64String(payload); }
-            catch (FormatException) { throw new ArgumentException("The ID photo isn't a valid image upload."); }
-            photoKey = await _files.SaveAsync(bytes, "image/jpeg", ct);
-        }
+        var photoKey = await GuarantorPhoto.SaveAsync(_files, request.IdPhotoBase64, ct);
 
         var g = ArtisanGuarantor.Create(
             artisanUserId, request.FullName, request.Phone, request.Relationship,
@@ -145,6 +134,50 @@ public sealed class AddGuarantorHandler
         _guarantors.Add(g);
         await _guarantors.SaveChangesAsync(ct);
         return g.ToDto();
+    }
+}
+
+/// <summary>Correct a guarantor in place (PUT /artisan/guarantors/{id}). Omitting the
+/// ID photo keeps the current one; sending one replaces it.</summary>
+public sealed class UpdateGuarantorHandler
+{
+    private readonly IArtisanGuarantorRepository _guarantors;
+    private readonly IFileStorage _files;
+
+    public UpdateGuarantorHandler(IArtisanGuarantorRepository guarantors, IFileStorage files)
+    {
+        _guarantors = guarantors;
+        _files = files;
+    }
+
+    public async Task<GuarantorDto> HandleAsync(Guid artisanUserId, Guid id, AddGuarantorRequest request, CancellationToken ct)
+    {
+        var g = await _guarantors.FindForUserAsync(id, artisanUserId, ct)
+            ?? throw new NotFoundException("That guarantor was not found.");
+        var oldPhoto = g.IdPhotoKey;
+        var newPhoto = await GuarantorPhoto.SaveAsync(_files, request.IdPhotoBase64, ct);
+        g.Update(request.FullName, request.Phone, request.Relationship, request.YearsKnown,
+            request.Occupation, request.Address, newPhoto);
+        await _guarantors.SaveChangesAsync(ct);
+        if (newPhoto is not null && oldPhoto is not null && oldPhoto != newPhoto)
+            await _files.DeleteAsync(oldPhoto, ct);
+        return g.ToDto();
+    }
+}
+
+internal static class GuarantorPhoto
+{
+    public static async Task<string?> SaveAsync(IFileStorage files, string? base64, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(base64)) return null;
+        var payload = base64;
+        var comma = payload.IndexOf(',');
+        if (payload.StartsWith("data:", StringComparison.OrdinalIgnoreCase) && comma > 0)
+            payload = payload[(comma + 1)..];
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(payload); }
+        catch (FormatException) { throw new ArgumentException("The ID photo isn't a valid image upload."); }
+        return await files.SaveAsync(bytes, "image/jpeg", ct);
     }
 }
 

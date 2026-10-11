@@ -69,6 +69,7 @@ public static class DependencyInjection
         services.AddScoped<ListGuarantorsHandler>();
         services.AddScoped<AddGuarantorHandler>();
         services.AddScoped<RemoveGuarantorHandler>();
+        services.AddScoped<UpdateGuarantorHandler>();
         services.AddScoped<SaveArtisanProfileHandler>();
 
         // Artisan KYC (submit documents, read status).

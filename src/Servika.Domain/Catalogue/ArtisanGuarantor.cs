@@ -43,6 +43,32 @@ public sealed class ArtisanGuarantor
     public DateTimeOffset? ContactedAtUtc { get; private set; }
     public Guid? ContactedByUserId { get; private set; }
 
+    /// <summary>The artisan corrects a guarantor (e.g. after a reviewer asked). A new
+    /// ID photo replaces the old one; null keeps it. If the person or number changed,
+    /// any earlier call record no longer applies, so it starts over.</summary>
+    public void Update(string fullName, string phone, string relationship, int yearsKnown,
+        string? occupation, string? address, string? newIdPhotoKey)
+    {
+        var fresh = Create(ArtisanUserId, fullName, phone, relationship, yearsKnown, occupation, address,
+            newIdPhotoKey ?? IdPhotoKey, CreatedAt);
+        var personChanged = NormalizePhone(fresh.Phone) != NormalizePhone(Phone)
+            || !string.Equals(fresh.FullName, FullName, StringComparison.OrdinalIgnoreCase);
+        FullName = fresh.FullName;
+        Phone = fresh.Phone;
+        Relationship = fresh.Relationship;
+        YearsKnown = fresh.YearsKnown;
+        Occupation = fresh.Occupation;
+        Address = fresh.Address;
+        IdPhotoKey = fresh.IdPhotoKey;
+        if (personChanged)
+        {
+            ContactStatus = GuarantorContactStatus.NotCalled;
+            ContactNote = null;
+            ContactedAtUtc = null;
+            ContactedByUserId = null;
+        }
+    }
+
     public void RecordContact(GuarantorContactStatus status, string? note, Guid adminUserId, DateTimeOffset now)
     {
         ContactStatus = status;

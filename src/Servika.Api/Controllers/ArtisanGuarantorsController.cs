@@ -45,6 +45,18 @@ public sealed class ArtisanGuarantorsController : ControllerBase
         return CreatedAtAction(nameof(List), null, result);
     }
 
+    /// <summary>Correct one of your guarantors. Leave idPhotoBase64 empty to keep the current ID photo.</summary>
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(GuarantorDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<GuarantorDto>> Update(
+        Guid id, [FromBody] AddGuarantorRequest request,
+        [FromServices] UpdateGuarantorHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, request, ct));
+    }
+
     /// <summary>Remove one of your guarantors.</summary>
     /// <response code="204">Removed.</response>
     /// <response code="404">Not yours / unknown.</response>
