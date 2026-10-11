@@ -1200,6 +1200,47 @@ namespace Servika.Infrastructure.Migrations
                     b.ToTable("push_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("Servika.Domain.Notifications.WebPushSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Auth")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("P256dh")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Endpoint")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("web_push_subscriptions", (string)null);
+                });
+
             modelBuilder.Entity("Servika.Domain.Payments.Payment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1917,6 +1958,15 @@ namespace Servika.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("Servika.Domain.Notifications.PushToken", b =>
+                {
+                    b.HasOne("Servika.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Servika.Domain.Notifications.WebPushSubscription", b =>
                 {
                     b.HasOne("Servika.Domain.Users.User", null)
                         .WithMany()

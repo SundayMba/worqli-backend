@@ -21,6 +21,13 @@ public sealed class AdminAlertOptions
     /// money alerts, the daily summary and anything Telegram failed to deliver.</summary>
     public bool EmailEverything { get; set; } = true;
 
+    /// <summary>Web Push (installed console on a phone). VAPID keys are base64url; the subject is a mailto: or https: contact.</summary>
+    public string VapidPublicKey { get; set; } = string.Empty;
+    public string VapidPrivateKey { get; set; } = string.Empty;
+    public string VapidSubject { get; set; } = "mailto:support@servika.com.ng";
+
+    public bool WebPushConfigured => !string.IsNullOrWhiteSpace(VapidPublicKey) && !string.IsNullOrWhiteSpace(VapidPrivateKey);
+
     public bool TelegramConfigured => !string.IsNullOrWhiteSpace(TelegramBotToken) && !string.IsNullOrWhiteSpace(TelegramChatId);
     public bool EmailConfigured => !string.IsNullOrWhiteSpace(Email);
 }

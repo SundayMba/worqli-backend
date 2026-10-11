@@ -198,6 +198,8 @@ public static class DependencyInjection
         services.AddScoped<Admin.GetAdminBookingHandler>();
         services.AddScoped<Admin.GetAdminPaymentsHandler>();
         services.AddScoped<Admin.AdminAlertSweepHandler>();
+        services.AddScoped<Admin.SubscribeAdminPushHandler>();
+        services.AddScoped<Admin.UnsubscribeAdminPushHandler>();
         services.AddScoped<Catalogue.MyProfileDtoBuilder>();
         services.AddScoped<Bookings.ArtisanBookingDtoBuilder>();
         services.AddScoped<Admin.ListAdminArtisansHandler>();

@@ -96,6 +96,9 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "push_tokens" table — registered device tokens for push delivery.</summary>
     public DbSet<PushToken> PushTokens => Set<PushToken>();
 
+    /// <summary>The "web_push_subscriptions" table — admin phones/browsers for console notifications.</summary>
+    public DbSet<WebPushSubscription> WebPushSubscriptions => Set<WebPushSubscription>();
+
     /// <summary>The "favorites" table — a customer's saved artisans.</summary>
     public DbSet<Favorite> Favorites => Set<Favorite>();
 
@@ -658,6 +661,19 @@ public sealed class ServikaDbContext : DbContext
             settings.Property(s => s.TransferFeeTier2MaxNaira).HasDefaultValue(50000);
             settings.Property(s => s.TransferFeeTier3Naira).HasDefaultValue(50);
             settings.Property(s => s.FeeNoticeStage).HasDefaultValue(0);
+        });
+
+        modelBuilder.Entity<WebPushSubscription>(w =>
+        {
+            w.ToTable("web_push_subscriptions");
+            w.HasKey(x => x.Id);
+            w.HasIndex(x => x.Endpoint).IsUnique();
+            w.HasIndex(x => x.UserId);
+            w.Property(x => x.Endpoint).IsRequired().HasMaxLength(1000);
+            w.Property(x => x.P256dh).IsRequired().HasMaxLength(200);
+            w.Property(x => x.Auth).IsRequired().HasMaxLength(100);
+            w.Property(x => x.UserAgent).HasMaxLength(200);
+            w.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PushToken>(pt =>

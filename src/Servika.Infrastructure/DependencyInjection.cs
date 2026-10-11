@@ -203,6 +203,7 @@ public static class DependencyInjection
         services.AddHttpClient("telegram", c => c.Timeout = TimeSpan.FromSeconds(10));
         if (!resendOptions.IsConfigured) services.AddHttpClient("resend");
         services.AddSingleton<IAdminAlerts, AdminAlertDispatcher>();
+        services.AddScoped<IWebPushSubscriptionRepository, WebPushSubscriptionRepository>();
         if (resendOptions.IsConfigured)
         {
             services.AddHttpClient("resend");

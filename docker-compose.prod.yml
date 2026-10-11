@@ -62,6 +62,8 @@ services:
       AdminAlerts__TelegramChatId: ${ADMIN_ALERTS_TELEGRAM_CHAT_ID:-}
       AdminAlerts__Email: ${ADMIN_ALERTS_EMAIL:-}
       AdminAlerts__EmailEverything: ${ADMIN_ALERTS_EMAIL_EVERYTHING:-true}
+      AdminAlerts__VapidPublicKey: ${ADMIN_PUSH_VAPID_PUBLIC_KEY:-}
+      AdminAlerts__VapidPrivateKey: ${ADMIN_PUSH_VAPID_PRIVATE_KEY:-}
       Paystack__SecretKey: ${PAYSTACK_SECRET_KEY}
       # Phone-verification OTP (Termii). Empty => dev stub logs codes.
       Sms__ApiKey: ${SMS_API_KEY:-}

@@ -1,4 +1,8 @@
 using System.Net;
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Servika.Application.Abstractions.Persistence;
+using WebPush;
 using System.Net.Http.Json;
 using Microsoft.Extensions.Logging;
 using Servika.Application.Abstractions.Notifications;
@@ -23,9 +27,11 @@ public sealed class AdminAlertDispatcher : IAdminAlerts
     private readonly AdminAlertOptions _options;
     private readonly ResendOptions _resend;
     private readonly ILogger<AdminAlertDispatcher> _logger;
+    private readonly IServiceScopeFactory _scopes;
 
-    public AdminAlertDispatcher(IHttpClientFactory http, AdminAlertOptions options, ResendOptions resend, ILogger<AdminAlertDispatcher> logger)
+    public AdminAlertDispatcher(IHttpClientFactory http, AdminAlertOptions options, ResendOptions resend, ILogger<AdminAlertDispatcher> logger, IServiceScopeFactory scopes)
     {
+        _scopes = scopes;
         _http = http;
         _options = options;
         _resend = resend;
@@ -47,6 +53,9 @@ public sealed class AdminAlertDispatcher : IAdminAlerts
 
                 if (_options.EmailConfigured && _resend.IsConfigured && (_options.EmailEverything || !telegramOk || AlwaysEmail.Contains(alert.Kind)))
                     await SendEmailAsync(alert, link);
+
+                if (_options.WebPushConfigured)
+                    await SendWebPushAsync(alert, link);
 
                 if (!_options.TelegramConfigured && !_options.EmailConfigured)
                     _logger.LogInformation("[ADMIN-ALERT] {Title}: {Lines}", alert.Title, string.Join(" | ", alert.Lines));
@@ -75,6 +84,45 @@ public sealed class AdminAlertDispatcher : IAdminAlerts
         if (res.IsSuccessStatusCode) return true;
         _logger.LogWarning("Telegram admin alert failed ({Status}): {Body}", (int)res.StatusCode, await res.Content.ReadAsStringAsync());
         return false;
+    }
+
+    /// <summary>Phone notification on every admin device that switched them on. Dead
+    /// subscriptions (404/410 from the push service) are removed.</summary>
+    private async Task SendWebPushAsync(AdminAlert alert, string? link)
+    {
+        using var scope = _scopes.CreateScope();
+        var subs = scope.ServiceProvider.GetRequiredService<IWebPushSubscriptionRepository>();
+        var all = await subs.ListAllAsync(CancellationToken.None);
+        if (all.Count == 0) return;
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            title = $"{Icon(alert.Kind)} {alert.Title}",
+            body = string.Join("\n", alert.Lines),
+            url = alert.LinkPath ?? "/",
+            tag = alert.Kind.ToString(),
+        });
+        var vapid = new VapidDetails(_options.VapidSubject, _options.VapidPublicKey, _options.VapidPrivateKey);
+        var client = new WebPushClient();
+        var delivered = 0;
+        foreach (var s in all)
+        {
+            try
+            {
+                await client.SendNotificationAsync(new PushSubscription(s.Endpoint, s.P256dh, s.Auth), payload, vapid);
+                delivered++;
+            }
+            catch (WebPushException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
+            {
+                _logger.LogInformation("Admin push device expired ({Status}); removed.", (int)ex.StatusCode);
+                await subs.RemoveByEndpointAsync(s.Endpoint, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Web push to an admin device failed.");
+            }
+        }
+        _logger.LogInformation("Admin alert '{Title}' pushed to {Delivered} of {Total} device(s).", alert.Title, delivered, all.Count);
     }
 
     private async Task SendEmailAsync(AdminAlert alert, string? link)
