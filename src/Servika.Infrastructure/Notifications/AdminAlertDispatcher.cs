@@ -45,7 +45,7 @@ public sealed class AdminAlertDispatcher : IAdminAlerts
                 if (_options.TelegramConfigured)
                     telegramOk = await SendTelegramAsync(alert, link);
 
-                if (_options.EmailConfigured && _resend.IsConfigured && (!telegramOk || AlwaysEmail.Contains(alert.Kind)))
+                if (_options.EmailConfigured && _resend.IsConfigured && (_options.EmailEverything || !telegramOk || AlwaysEmail.Contains(alert.Kind)))
                     await SendEmailAsync(alert, link);
 
                 if (!_options.TelegramConfigured && !_options.EmailConfigured)

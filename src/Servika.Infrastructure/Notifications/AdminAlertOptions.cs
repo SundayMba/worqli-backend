@@ -17,6 +17,9 @@ public sealed class AdminAlertOptions
     /// <summary>Hour (Africa/Lagos, 0–23) the morning summary goes out.</summary>
     public int DigestHourLagos { get; set; } = 8;
     public int SweepMinutes { get; set; } = 60;
+    /// <summary>True: every alert goes to email as well as Telegram. False: email only gets
+    /// money alerts, the daily summary and anything Telegram failed to deliver.</summary>
+    public bool EmailEverything { get; set; } = true;
 
     public bool TelegramConfigured => !string.IsNullOrWhiteSpace(TelegramBotToken) && !string.IsNullOrWhiteSpace(TelegramChatId);
     public bool EmailConfigured => !string.IsNullOrWhiteSpace(Email);
