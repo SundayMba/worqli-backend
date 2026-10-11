@@ -85,6 +85,8 @@ public sealed class SubmitBidHandler
             if (await _standing.IsRestrictedAsync(profile.Id, ct))
                 throw new ConflictException(
                     "Settle your outstanding Servika service fees to bid on new jobs.");
+            if (OpenJobMatching.RefusalReason(profile, booking, _clock.UtcNow) is { } why)
+                throw new ConflictException(why);
         }
 
         var now = _clock.UtcNow;

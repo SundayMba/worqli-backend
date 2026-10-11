@@ -20,6 +20,16 @@ public static class OpenJobMatching
     public static bool IsAway(DateTimeOffset? awayUntilUtc, DateTimeOffset now) =>
         awayUntilUtc is { } until && until > now;
 
+    /// <summary>Why this artisan's own rules keep them off this job, or null when they fit.
+    /// Used by claim and bid so a job opened by id obeys the same rules as the pool.</summary>
+    public static string? RefusalReason(ArtisanProfile p, Booking booking, DateTimeOffset now)
+    {
+        if (IsAway(p.AwayUntilUtc, now)) return "You are in away mode. Turn it off to take new jobs.";
+        if (!p.AcceptsEmergency && booking.Urgency == Urgency.Urgent) return "You switched off urgent jobs. Turn them on in Availability to take this one.";
+        if (!Accepts(RulesOf(p), booking, now)) return $"This job is outside your {p.WorkRadiusKm} km work area. Widen it in Availability to take it.";
+        return null;
+    }
+
     public static bool Accepts(ArtisanWorkRules rules, Booking booking, DateTimeOffset now)
     {
         if (IsAway(rules.AwayUntilUtc, now)) return false;
