@@ -29,7 +29,10 @@ public sealed record GuarantorDto(
     string? Occupation,
     string? Address,
     bool HasIdPhoto,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    /// <summary>The ID photo on file as a data URI, on the owner's list only (so the
+    /// edit form can show it); null elsewhere and when none was attached.</summary>
+    string? IdPhotoDataUri = null);
 
 /// <summary>POST /api/v1/artisan/guarantors — add someone who vouches for you.
 /// <see cref="IdPhotoBase64"/> is raw base64 or a data: URI, optional.</summary>

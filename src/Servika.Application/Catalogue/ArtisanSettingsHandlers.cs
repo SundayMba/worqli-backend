@@ -102,10 +102,26 @@ public sealed class SetAwayHandler
 public sealed class ListGuarantorsHandler
 {
     private readonly IArtisanGuarantorRepository _guarantors;
-    public ListGuarantorsHandler(IArtisanGuarantorRepository guarantors) => _guarantors = guarantors;
+    private readonly IFileStorage _files;
 
-    public async Task<IReadOnlyList<GuarantorDto>> HandleAsync(Guid artisanUserId, CancellationToken ct) =>
-        (await _guarantors.ListForUserAsync(artisanUserId, ct)).Select(g => g.ToDto()).ToList();
+    public ListGuarantorsHandler(IArtisanGuarantorRepository guarantors, IFileStorage files)
+    {
+        _guarantors = guarantors;
+        _files = files;
+    }
+
+    public async Task<IReadOnlyList<GuarantorDto>> HandleAsync(Guid artisanUserId, CancellationToken ct)
+    {
+        var result = new List<GuarantorDto>();
+        foreach (var g in await _guarantors.ListForUserAsync(artisanUserId, ct))
+        {
+            string? photo = null;
+            if (!string.IsNullOrEmpty(g.IdPhotoKey) && await _files.GetAsync(g.IdPhotoKey, ct) is { } f)
+                photo = $"data:{f.ContentType};base64,{Convert.ToBase64String(f.Content)}";
+            result.Add(g.ToDto() with { IdPhotoDataUri = photo });
+        }
+        return result;
+    }
 }
 
 public sealed class AddGuarantorHandler
