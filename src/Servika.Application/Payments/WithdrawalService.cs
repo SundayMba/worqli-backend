@@ -1,3 +1,4 @@
+using Servika.Application.Abstractions.Notifications;
 using Servika.Application.Abstractions.Payments;
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Time;
@@ -24,6 +25,7 @@ public sealed class WithdrawalService
     private readonly IPayoutGateway _payouts;
     private readonly IPlatformSettingsRepository _settings;
     private readonly IClock _clock;
+    private readonly IAdminAlerts _alerts;
 
     public WithdrawalService(
         IWalletRepository wallet,
@@ -31,8 +33,10 @@ public sealed class WithdrawalService
         IPayoutGateway payouts,
         IPlatformSettingsRepository settings,
         IClock clock,
-        BankAccountResolver resolver)
+        BankAccountResolver resolver,
+        IAdminAlerts alerts)
     {
+        _alerts = alerts;
         _resolver = resolver;
         _wallet = wallet;
         _withdrawals = withdrawals;
@@ -89,6 +93,19 @@ public sealed class WithdrawalService
         var bearer = FeePolicy.UsersBearFees(settings, now) ? FeeBearer.User : FeeBearer.Platform;
         if (bearer == FeeBearer.User && request.AmountNaira - fee < 100)
             throw new ConflictException($"After the ₦{fee:N0} transfer charge too little would reach your bank. Withdraw at least ₦{Math.Max(minNaira, fee + 100):N0}.");
+
+        // Payouts are paid from the gateway balance, not the bank account payments settle
+        // to. When it can't cover this transfer, stop here: nothing is reserved, the
+        // owner is told plainly, and the admins are asked to top up.
+        var net = bearer == FeeBearer.User ? request.AmountNaira - fee : request.AmountNaira;
+        if (await _payouts.GetBalanceNairaAsync(ct) is { } payoutBalance && payoutBalance < net)
+        {
+            _alerts.Send(new AdminAlert(AdminAlertKind.FloatShort, "A withdrawal is waiting on a top-up",
+                new[] { $"Someone asked to withdraw ₦{net:N0}. The Paystack balance is ₦{payoutBalance:N0}.", "Top up the Paystack balance, then they can try again." },
+                "/payments", "Open payments"));
+            throw new ConflictException(
+                $"Withdrawals are paused for a short while as Servika tops up its payout account. Your ₦{request.AmountNaira:N0} is safe in your balance. Please try again later.");
+        }
 
         var withdrawal = Withdrawal.Request(
             ownerType, ownerId, userId, request.AmountNaira,

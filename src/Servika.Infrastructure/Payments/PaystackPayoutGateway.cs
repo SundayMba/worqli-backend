@@ -90,8 +90,10 @@ public sealed class PaystackPayoutGateway : IPayoutGateway
             if (!transferResp.IsSuccessStatusCode)
             {
                 _logger.LogError("Paystack transfer failed ({Status}): {Body}", transferResp.StatusCode, transferJson);
-                return new PayoutResult(PayoutOutcome.Failed, null,
-                    "The transfer couldn't be started. Your balance was not touched.");
+                var reason = transferJson.Contains("insufficient_balance", StringComparison.OrdinalIgnoreCase)
+                    ? "Servika's payout account was being topped up. Your money is back in your balance; please try again later."
+                    : "The transfer couldn't be started. Your money is back in your balance.";
+                return new PayoutResult(PayoutOutcome.Failed, null, reason);
             }
 
             using var transferDoc = JsonDocument.Parse(transferJson);

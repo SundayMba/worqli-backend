@@ -20,7 +20,9 @@ public sealed record WithdrawalDto(
     /// <summary>"Platform" (Servika paid the charge) or "User" (taken out of the amount).</summary>
     string FeeBearer = "Platform",
     /// <summary>What reaches the bank: amount less the charge when the user bears it.</summary>
-    int NetNaira = 0);
+    int NetNaira = 0,
+    /// <summary>Why it failed, in plain words (null unless Failed).</summary>
+    string? FailureReason = null);
 
 /// <summary>
 /// Request an artisan payout (POST /api/v1/artisan/withdrawals). The amount is

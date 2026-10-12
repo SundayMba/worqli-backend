@@ -64,7 +64,7 @@ public sealed class HandleTransferWebhookHandler
         }
         else
         {
-            withdrawal.MarkFailed(_gateway.Provider, "Transfer failed at the bank.", now);
+            withdrawal.MarkFailed(_gateway.Provider, "The bank did not accept the transfer. Your money is back in your balance; check the account details and try again.", now);
             // Return the reserved funds to the owner's ledger.
             _wallet.Add(WalletTransaction.Create(
                 withdrawal.OwnerType, withdrawal.OwnerId, WalletTransactionType.Adjustment,
