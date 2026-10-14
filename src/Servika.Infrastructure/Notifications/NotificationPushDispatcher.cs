@@ -65,9 +65,20 @@ public sealed class NotificationPushDispatcher : INotificationPushDispatcher
                 if (!string.IsNullOrWhiteSpace(kind)) data["kind"] = kind;
                 if (!string.IsNullOrWhiteSpace(type)) data["type"] = type;
 
-                await _sender.SendAsync(
+                var dead = await _sender.SendAsync(
                     registered.Select(t => t.Token).ToList(), title, body,
                     data.Count > 0 ? data : null, CancellationToken.None);
+
+                // A device that uninstalled the app is reported back by Expo; forget it so
+                // the next send is not padded with dead tokens.
+                if (dead.Count > 0)
+                {
+                    foreach (var token in dead)
+                        await tokens.RemoveByTokenAsync(token, CancellationToken.None);
+                    await tokens.SaveChangesAsync(CancellationToken.None);
+                    _logger.LogInformation("Removed {Count} unregistered push token(s) for user {UserId}.",
+                        dead.Count, userId);
+                }
             }
             catch (Exception ex)
             {

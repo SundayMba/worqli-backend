@@ -7,8 +7,10 @@ namespace Servika.Application.Abstractions.Notifications;
 public interface IPushSender
 {
     /// <summary>Best-effort delivery to the given device tokens. Never throws into
-    /// the caller — push is a side effect, not part of any transaction.</summary>
-    Task SendAsync(
+    /// the caller — push is a side effect, not part of any transaction. Returns the
+    /// tokens the provider reported as no longer registered (uninstalled app, revoked
+    /// token) so the caller can drop them.</summary>
+    Task<IReadOnlyList<string>> SendAsync(
         IReadOnlyCollection<string> tokens,
         string title,
         string body,
