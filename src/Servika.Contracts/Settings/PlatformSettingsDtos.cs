@@ -26,7 +26,9 @@ public sealed record PlatformSettingsDto(
     DateTimeOffset? FeeNoticeSentAtUtc = null,
     /// <summary>True when customers and artisans are paying their own fees right now.</summary>
     bool UsersBearFees = false,
-    string? UpdatedByName = null);
+    string? UpdatedByName = null,
+    /// <summary>Whether customers may pick cash after service instead of paying in the app (default off).</summary>
+    bool AllowCashPayments = false);
 
 /// <summary>Update the platform settings (PUT /api/v1/admin/settings). All fields required.</summary>
 public sealed record UpdatePlatformSettingsRequest(
@@ -39,7 +41,8 @@ public sealed record UpdatePlatformSettingsRequest(
     bool RequireGuarantors = false,
     int RequiredGuarantorCount = 2,
     /// <summary>Fee schedule. Omitted (null) keeps the stored values so older admin builds still save.</summary>
-    FeeSettingsRequest? Fees = null);
+    FeeSettingsRequest? Fees = null,
+    bool AllowCashPayments = false);
 
 /// <summary>The transaction-fee levers (part of PUT /api/v1/admin/settings).</summary>
 public sealed record FeeSettingsRequest(

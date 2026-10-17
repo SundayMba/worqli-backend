@@ -434,7 +434,7 @@ public sealed class Booking
                 "A price must be agreed before work starts — send the customer your quote first.");
         if (PaymentState != BookingPaymentState.Paid && PaymentMethod != PaymentMethod.Cash)
             throw new InvalidBookingStateException(
-                "Waiting for the customer's payment — work can start once it's secured in escrow (or they choose cash).");
+                "Waiting for the customer's payment. Work can start once it is secured in escrow.");
 
         Status = BookingStatus.InProgress;
         WorkStartedAtUtc = now;

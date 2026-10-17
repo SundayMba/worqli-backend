@@ -15,7 +15,7 @@ internal static class PlatformSettingsMapping
             s.RequireGuarantors, s.RequiredGuarantorCount,
             s.FeesStartAtUtc, s.CardFeeRate, s.CardFeeFlatNaira, s.CardFeeFlatFromNaira, s.CardFeeCapNaira,
             s.TransferFeeTier1Naira, s.TransferFeeTier1MaxNaira, s.TransferFeeTier2Naira, s.TransferFeeTier2MaxNaira, s.TransferFeeTier3Naira,
-            s.FeeNoticeStage, s.FeeNoticeSentAtUtc, FeePolicy.UsersBearFees(s, now), updatedByName);
+            s.FeeNoticeStage, s.FeeNoticeSentAtUtc, FeePolicy.UsersBearFees(s, now), updatedByName, s.AllowCashPayments);
 }
 
 /// <summary>Reads the current platform settings (admin).</summary>
@@ -68,7 +68,8 @@ public sealed class UpdatePlatformSettingsHandler
             request.MaxCommissionDebtNaira,
             now,
             request.RequireGuarantors,
-            request.RequiredGuarantorCount);
+            request.RequiredGuarantorCount,
+            request.AllowCashPayments);
         if (request.Fees is { } f)
             settings.UpdateFees(
                 f.FeesStartAtUtc, f.CardFeeRate, f.CardFeeFlatNaira, f.CardFeeFlatFromNaira, f.CardFeeCapNaira,

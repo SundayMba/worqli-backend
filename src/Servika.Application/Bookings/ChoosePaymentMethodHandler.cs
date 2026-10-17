@@ -14,12 +14,14 @@ namespace Servika.Application.Bookings;
 public sealed class ChoosePaymentMethodHandler
 {
     private readonly IBookingRepository _bookings;
+    private readonly IPlatformSettingsRepository _settings;
     private readonly Notifications.NotificationEmitter _notifications;
 
     public ChoosePaymentMethodHandler(
-        IBookingRepository bookings, Notifications.NotificationEmitter notifications)
+        IBookingRepository bookings, IPlatformSettingsRepository settings, Notifications.NotificationEmitter notifications)
     {
         _bookings = bookings;
+        _settings = settings;
         _notifications = notifications;
     }
 
@@ -35,6 +37,12 @@ public sealed class ChoosePaymentMethodHandler
             "online" or null or "" => PaymentMethod.Online,
             _ => throw new ArgumentException("Payment method must be 'online' or 'cash'."),
         };
+
+        // Cash is a dormant option: the admin switch (off by default) decides whether a
+        // customer may take the unprotected path at all.
+        if (parsed == PaymentMethod.Cash && !(await _settings.GetOrCreateAsync(ct)).AllowCashPayments)
+            throw new ConflictException(
+                "Cash payment is not available. Pay in the app and Servika holds the money until the job is done.");
 
         var changed = booking.PaymentMethod != parsed;
         booking.ChoosePaymentMethod(parsed);

@@ -37,6 +37,12 @@ public sealed class PlatformSettings
     /// <summary>How many guarantors count as complete when they are required.</summary>
     public int RequiredGuarantorCount { get; private set; } = 2;
 
+    /// <summary>Whether customers may choose to pay the artisan in cash after the service
+    /// instead of paying into escrow. Off by default (decision 2026-10-17): every job is paid
+    /// in the app so protection, refunds and commission all hold. The cash machinery stays
+    /// built and dormant behind this switch.</summary>
+    public bool AllowCashPayments { get; private set; }
+
     // ── Transaction fees (the gateway's charges and who pays them) ──
     /// <summary>When customers and artisans start paying their own transaction fees.
     /// Null = not scheduled: Servika absorbs every fee (the launch window).</summary>
@@ -80,6 +86,7 @@ public sealed class PlatformSettings
         MaxCommissionDebtNaira = 2000,
         RequireGuarantors = false,
         RequiredGuarantorCount = 2,
+        AllowCashPayments = false,
         UpdatedAtUtc = now,
     };
 
@@ -94,7 +101,8 @@ public sealed class PlatformSettings
         int maxCommissionDebtNaira,
         DateTimeOffset now,
         bool requireGuarantors = false,
-        int requiredGuarantorCount = 2)
+        int requiredGuarantorCount = 2,
+        bool allowCashPayments = false)
     {
         CommissionRate = Rate(commissionRate, nameof(commissionRate));
         EmergencyCommissionRate = Rate(emergencyCommissionRate, nameof(emergencyCommissionRate));
@@ -117,6 +125,7 @@ public sealed class PlatformSettings
         MaxCommissionDebtNaira = maxCommissionDebtNaira;
         RequireGuarantors = requireGuarantors;
         RequiredGuarantorCount = requiredGuarantorCount;
+        AllowCashPayments = allowCashPayments;
         UpdatedAtUtc = now;
     }
 

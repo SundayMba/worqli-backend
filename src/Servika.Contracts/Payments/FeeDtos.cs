@@ -40,7 +40,9 @@ public sealed record FeeScheduleDto(
     int MaxCounterRounds,
     /// <summary>Fewest / most work photos accepted as proof of completion.</summary>
     int ProofPhotosMin,
-    int ProofPhotosMax);
+    int ProofPhotosMax,
+    /// <summary>Whether a customer may choose cash after service. False = every job is paid in the app.</summary>
+    bool AllowCashPayments = false);
 
 /// <summary>One transfer-charge band: amounts up to <see cref="UpToNaira"/> (null = anything above) cost <see cref="FeeNaira"/>.</summary>
 public sealed record TransferFeeTierDto(int? UpToNaira, int FeeNaira);

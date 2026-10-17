@@ -247,7 +247,7 @@ public sealed class NotificationEmitter
             title = stage == Domain.Settings.PlatformSettings.FeeNoticeLive ? "Payment fees now apply" : $"Payment fees start {date}";
             body = $"Servika has been covering the card and transfer fee on online payments. {Cap(when)}, a payment fee of {pct}% " +
                    (s.CardFeeFlatNaira > 0 ? $"(plus ₦{s.CardFeeFlatNaira:N0} on payments of ₦{s.CardFeeFlatFromNaira:N0} or more" + (s.CardFeeCapNaira > 0 ? $", never more than ₦{s.CardFeeCapNaira:N0}" : "") + ") " : "") +
-                   "is shown and added when you pay online. The agreed price itself does not change, and cash jobs are unaffected.";
+                   "is shown and added when you pay online. The agreed price itself does not change.";
         }
         Add(userId, NotificationType.System, NotificationKinds.FeeNotice, title, body, null);
 

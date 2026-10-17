@@ -1545,6 +1545,9 @@ namespace Servika.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AllowCashPayments")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("AutoConfirmHours")
                         .HasColumnType("integer");
 
