@@ -87,7 +87,12 @@ services:
     # staging-api.servika.com.ng. The firewall blocks 8081 from the internet.
     ports:
       - '8081:8080'
+    volumes:
+      # Keep uploaded photos (local-disk storage on staging) across redeploys,
+      # so the demo marketplace does not lose its faces every time the image changes.
+      - servika_staging_uploads:/app/uploads
 
 volumes:
   servika_staging_pgdata:
   servika_staging_redisdata:
+  servika_staging_uploads:
