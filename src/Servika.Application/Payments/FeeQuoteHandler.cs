@@ -42,7 +42,7 @@ public sealed class FeeQuoteHandler
             PlatformRules.ReviewTargetHours, s.RequireGuarantors, s.RequiredGuarantorCount,
             PlatformRules.MaxGuarantors, Bid.MaxCounterRounds,
             PlatformRules.ProofPhotosMin, PlatformRules.ProofPhotosMax,
-            s.AllowCashPayments);
+            s.AllowCashPayments, s.OfferWindowMinutes);
     }
 
     public async Task<FeeQuoteDto> QuoteAsync(int amountNaira, CancellationToken ct)

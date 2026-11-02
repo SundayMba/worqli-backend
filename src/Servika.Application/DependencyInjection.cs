@@ -104,11 +104,13 @@ public static class DependencyInjection
         services.AddScoped<GetArtisanJobByIdHandler>();
         services.AddScoped<AdvanceBookingByArtisanHandler>();
 
-        // Open (unassigned) requests: the pool a matching artisan can browse + claim.
-        services.AddScoped<GetOpenJobsHandler>();
-        services.AddScoped<GetOpenJobDetailHandler>();
         services.AddScoped<GetArtisanJobCompletionHandler>();
-        services.AddScoped<ClaimOpenJobHandler>();
+
+        // Assignment: Servika offers each request to one artisan at a time, in rotation.
+        services.AddScoped<AssignmentService>();
+        services.AddScoped<GetMyOffersHandler>();
+        services.AddScoped<RespondToOfferHandler>();
+        services.AddScoped<OfferSweepHandler>();
 
         // Live tracking (SignalR hub + stale-cleanup worker both call this).
         services.AddScoped<Tracking.TrackingService>();

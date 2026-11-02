@@ -41,29 +41,6 @@ public sealed class ArtisanController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), status, ct));
     }
 
-    /// <summary>List open (unassigned) requests the current artisan can claim — the
-    /// ones in their service categories, newest first.</summary>
-    /// <response code="200">Open jobs (empty if the account has no verified profile).</response>
-    /// <response code="401">Not signed in.</response>
-    /// <response code="403">Signed in but not an artisan.</response>
-    [HttpGet("open")]
-    [ProducesResponseType(typeof(IReadOnlyList<BookingSummaryDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<IReadOnlyList<BookingSummaryDto>>> GetOpenJobs(
-        [FromServices] GetOpenJobsHandler handler,
-        CancellationToken ct)
-    {
-        return Ok(await handler.HandleAsync(CurrentUserId(), ct));
-    }
-
-    /// <summary>Claim an open request (Open → Accepted, assigned to you).
-    /// First-come-first-served — only one artisan wins.</summary>
-    /// <response code="200">Claimed; the job is now yours (Accepted).</response>
-    /// <response code="401">Not signed in.</response>
-    /// <response code="403">Signed in but not an artisan.</response>
-    /// <response code="404">No such job.</response>
-    /// <response code="409">Already taken, not in your categories, or your profile isn't verified.</response>
     /// <summary>Accept the customer's counter-offer on your quote: the price is agreed
     /// at their number and the job proceeds as if they had accepted your quote.</summary>
     /// <response code="200">The booking, now at the agreed price.</response>
@@ -146,18 +123,48 @@ public sealed class ArtisanController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
     }
 
-    [HttpPost("{id:guid}/claim")]
+    /// <summary>Jobs Servika is offering you right now, each with its deadline. Accept before it
+    /// passes or the job goes to the next artisan.</summary>
+    [HttpGet("offers")]
+    [ProducesResponseType(typeof(IReadOnlyList<JobOfferDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<JobOfferDto>>> GetOffers(
+        [FromServices] GetMyOffersHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.ListAsync(CurrentUserId(), ct));
+    }
+
+    /// <summary>One live offer, by booking id.</summary>
+    /// <response code="404">No live offer for this job.</response>
+    [HttpGet("offers/{id:guid}")]
+    [ProducesResponseType(typeof(JobOfferDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<JobOfferDto>> GetOffer(
+        Guid id, [FromServices] GetMyOffersHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.GetAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>Accept a job Servika offered you. Assigns it to you (Accepted).</summary>
+    /// <response code="409">The offer expired, was taken, or your profile is not verified.</response>
+    [HttpPost("{id:guid}/offer/accept")]
     [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<BookingDetailDto>> ClaimJob(
-        Guid id,
-        [FromServices] ClaimOpenJobHandler handler,
-        CancellationToken ct)
+    public async Task<ActionResult<BookingDetailDto>> AcceptOffer(
+        Guid id, [FromServices] RespondToOfferHandler handler, CancellationToken ct)
     {
-        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+        return Ok(await handler.AcceptAsync(CurrentUserId(), id, ct));
+    }
+
+    /// <summary>Decline an offer. The job goes to the next artisan at once; you are never penalised.</summary>
+    [HttpPost("{id:guid}/offer/decline")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeclineOffer(
+        Guid id, [FromBody] RespondToOfferRequest? request, [FromServices] RespondToOfferHandler handler, CancellationToken ct)
+    {
+        await handler.DeclineAsync(CurrentUserId(), id, request?.Reason, ct);
+        return NoContent();
     }
 
     /// <summary>Rate the customer after a job (private to Servika, never shown to them).</summary>
@@ -184,20 +191,6 @@ public sealed class ArtisanController : ControllerBase
     public async Task<ActionResult<CustomerRatingDto>> GetCustomerRating(
         Guid id,
         [FromServices] GetCustomerRatingHandler handler,
-        CancellationToken ct)
-    {
-        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
-    }
-
-    /// <summary>One OPEN request in full, for deciding whether to claim or quote it.</summary>
-    /// <response code="200">The request (with customer name + completed-job count).</response>
-    /// <response code="404">Not open, not in your categories, or you are not verified.</response>
-    [HttpGet("open/{id:guid}")]
-    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<BookingDetailDto>> GetOpenJob(
-        Guid id,
-        [FromServices] GetOpenJobDetailHandler handler,
         CancellationToken ct)
     {
         return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));

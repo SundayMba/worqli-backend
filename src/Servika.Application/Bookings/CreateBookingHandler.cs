@@ -26,6 +26,7 @@ public sealed class CreateBookingHandler
     private readonly IArtisanServiceRepository _artisanServices;
     private readonly IUserRepository _users;
     private readonly IPlatformSettingsRepository _settings;
+    private readonly AssignmentService _assignment;
     private readonly AuthPolicyOptions _authPolicy;
     private readonly Notifications.NotificationEmitter _notifications;
     private readonly IFileStorage _files;
@@ -40,13 +41,15 @@ public sealed class CreateBookingHandler
         AuthPolicyOptions authPolicy,
         Notifications.NotificationEmitter notifications,
         IFileStorage files,
-        IClock clock)
+        IClock clock,
+        AssignmentService assignment)
     {
         _bookings = bookings;
         _catalogue = catalogue;
         _artisanServices = artisanServices;
         _users = users;
         _settings = settings;
+        _assignment = assignment;
         _authPolicy = authPolicy;
         _notifications = notifications;
         _files = files;
@@ -70,10 +73,12 @@ public sealed class CreateBookingHandler
             ?? throw new NotFoundException($"Category '{slug}' was not found.");
 
         string? artisanName = null;
+        Domain.Catalogue.ArtisanProfile? chosenArtisan = null;
         if (request.ArtisanId is { } artisanId)
         {
             var artisan = await _catalogue.GetArtisanByIdAsync(artisanId, ct)
                 ?? throw new NotFoundException($"Artisan '{artisanId}' was not found.");
+            chosenArtisan = artisan;
             // Only verified artisans take bookings (unpaid commission is deliberately
             // NOT checked here: online jobs are how that debt nets down).
             if (artisan.VerificationStatus != Domain.Catalogue.ArtisanVerificationStatus.Verified)
@@ -156,12 +161,18 @@ public sealed class CreateBookingHandler
             videoKey: videoKey);
 
         _bookings.Add(booking);
-        if (booking.ArtisanId is null)
-            // Open request — broadcast to every matching artisan so one can claim it.
-            await _notifications.OpenJobPosted(booking, ct);
+        var now = _clock.UtcNow;
+        if (chosenArtisan is null)
+        {
+            // Servika assigns: the request is offered to one artisan at a time, in rotation.
+            await _assignment.OfferNextAsync(booking, now, ct);
+        }
         else
-            // Pre-selected — let the assigned artisan know a job came in.
+        {
+            // Asked for by name: that artisan gets an exclusive window, then rotation takes over.
+            await _assignment.OfferDirectAsync(booking, chosenArtisan, now, ct);
             await _notifications.ArtisanNewBooking(booking, ct);
+        }
         await _bookings.SaveChangesAsync(ct);
 
         return booking.ToDetailDto(0, null, null);

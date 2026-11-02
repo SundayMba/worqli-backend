@@ -70,23 +70,11 @@ public sealed class SubmitBidHandler
         }
         else
         {
-            if (booking.Status == BookingStatus.Pending)
+            // Servika assigns every request (Business Model v1.4): nobody bids on an open job.
+            // A request only visible to its assigned artisan stays invisible to everyone else.
+            if (booking.ArtisanId is not null)
                 throw new NotFoundException("This request was not found.");
-            if (booking.Status != BookingStatus.Open)
-                throw new ConflictException("This request is no longer open.");
-            if (booking.Assessment != AssessmentMode.RemoteQuote)
-                throw new ConflictException(
-                    "This request is inspect-first. Accept it directly instead of bidding.");
-            if (!profile.CategorySlugs.Contains(booking.CategorySlug))
-                throw new ConflictException("This job is not in your service categories.");
-            // Standing gate applies to competing for NEW work only — an artisan
-            // quoting on a job already assigned to them is never blocked (online
-            // jobs are how the debt auto-nets down).
-            if (await _standing.IsRestrictedAsync(profile.Id, ct))
-                throw new ConflictException(
-                    "Settle your outstanding Servika service fees to bid on new jobs.");
-            if (OpenJobMatching.RefusalReason(profile, booking, _clock.UtcNow) is { } why)
-                throw new ConflictException(why);
+            throw new ConflictException("Servika now offers each request to one artisan at a time. Wait for a job offer; you can only quote on a job assigned to you.");
         }
 
         var now = _clock.UtcNow;

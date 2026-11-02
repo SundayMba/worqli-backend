@@ -18,17 +18,20 @@ public sealed class CancelBookingHandler
     private readonly Notifications.NotificationEmitter _notifications;
     private readonly Payments.RefundService _refunds;
     private readonly IClock _clock;
+    private readonly AssignmentService _assignment;
 
     public CancelBookingHandler(
         IBookingRepository bookings,
         Notifications.NotificationEmitter notifications,
         Payments.RefundService refunds,
-        IClock clock)
+        IClock clock,
+        AssignmentService assignment)
     {
         _bookings = bookings;
         _notifications = notifications;
         _refunds = refunds;
         _clock = clock;
+        _assignment = assignment;
     }
 
     public async Task<BookingDetailDto> HandleAsync(
@@ -37,7 +40,10 @@ public sealed class CancelBookingHandler
         var booking = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
             ?? throw new NotFoundException($"Booking '{bookingId}' was not found.");
 
-        booking.Cancel(_clock.UtcNow);
+        var now = _clock.UtcNow;
+        booking.Cancel(now);
+        // Nothing stays offered to an artisan for a job that no longer exists.
+        await _assignment.WithdrawAllAsync(booking.Id, now, ct);
         // Money already held in escrow goes straight back (full refund; no-op if
         // unpaid). Stages onto the same DbContext → one transaction with the cancel.
         await _refunds.RefundIfPaidAsync(booking, ct);

@@ -11,6 +11,10 @@ public static class NotificationKinds
     public const string KycDeclined = "KycDeclined";
     public const string KycResubmitted = "KycResubmitted";
     public const string OpenJob = "OpenJob";
+    /// <summary>Servika offered this artisan a job; accept before the window closes.</summary>
+    public const string JobOffer = "JobOffer";
+    /// <summary>Customer: rotation found nobody free yet; Servika keeps trying.</summary>
+    public const string NoArtisanFree = "NoArtisanFree";
     public const string OpenJobClaimed = "OpenJobClaimed";
     public const string NewJobRequest = "NewJobRequest";
     public const string BookingAccepted = "BookingAccepted";

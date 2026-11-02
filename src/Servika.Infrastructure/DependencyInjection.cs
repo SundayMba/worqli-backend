@@ -80,6 +80,7 @@ public static class DependencyInjection
         // Bookings (read + write), Scoped (EF).
         services.AddScoped<IBookingRepository, BookingRepository>();
         services.AddScoped<IBidRepository, BidRepository>();
+        services.AddScoped<IJobOfferRepository, JobOfferRepository>();
 
         // Reviews (customer ratings on completed bookings), Scoped (EF).
         services.AddScoped<IReviewRepository, ReviewRepository>();

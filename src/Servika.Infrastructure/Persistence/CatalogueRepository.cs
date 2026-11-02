@@ -83,7 +83,8 @@ public sealed class CatalogueRepository : ICatalogueRepository
                         && a.IsAvailable
                         && a.CategorySlugs.Contains(categorySlug))
             .Select(a => new ArtisanRecipient(a.Id, a.UserId!.Value,
-                new ArtisanWorkRules(a.Latitude, a.Longitude, a.WorkRadiusKm, a.AcceptsEmergency, a.AwayUntilUtc)))
+                new ArtisanWorkRules(a.Latitude, a.Longitude, a.WorkRadiusKm, a.AcceptsEmergency, a.AwayUntilUtc),
+                a.FullName, a.LastAssignedAtUtc))
             .ToListAsync(ct);
 
     // Tracked (no AsNoTracking) so a rating-aggregate change persists on SaveChanges.

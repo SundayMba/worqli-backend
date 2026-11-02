@@ -22,14 +22,16 @@ public sealed class AdvanceBookingByArtisanHandler
     private readonly NotificationEmitter _notifications;
     private readonly Payments.RefundService _refunds;
     private readonly ArtisanBookingDtoBuilder _dto;
+    private readonly AssignmentService _assignment;
     private readonly IClock _clock;
 
     public AdvanceBookingByArtisanHandler(
         IBookingRepository bookings, ICatalogueRepository catalogue,
         NotificationEmitter notifications, Payments.RefundService refunds,
-        ArtisanBookingDtoBuilder dto, IClock clock)
+        ArtisanBookingDtoBuilder dto, AssignmentService assignment, IClock clock)
     {
         _dto = dto;
+        _assignment = assignment;
         _bookings = bookings;
         _catalogue = catalogue;
         _notifications = notifications;
@@ -48,6 +50,7 @@ public sealed class AdvanceBookingByArtisanHandler
 
         var now = _clock.UtcNow;
         var refunded = 0;
+        var reassign = false;
         switch (action)
         {
             case ArtisanBookingAction.Accept:
@@ -56,7 +59,10 @@ public sealed class AdvanceBookingByArtisanHandler
                     throw new ConflictException("Your profile must be verified before you can accept jobs.");
                 booking.Accept(now);
                 break;
-            case ArtisanBookingAction.Reject: booking.Reject(); break;
+            case ArtisanBookingAction.Reject:
+                booking.Reject();
+                reassign = true;
+                break;
             case ArtisanBookingAction.StartTrip: booking.StartTrip(); break;
             case ArtisanBookingAction.Arrive: booking.Arrive(); break;
             case ArtisanBookingAction.StartWork: booking.StartWork(_clock.UtcNow); break;
@@ -71,6 +77,15 @@ public sealed class AdvanceBookingByArtisanHandler
 
         // Notify the customer of the transition; flushed with the booking below.
         await _notifications.BookingAdvancedByArtisanAsync(booking, action, refunded, ct);
+        // A declined direct request goes straight into rotation; the customer is not left to re-book.
+        if (reassign) await _assignment.ReassignAsync(booking, profile.Id, null, now, ct);
+        else if (action == ArtisanBookingAction.Cancel) await _assignment.WithdrawAllAsync(booking.Id, now, ct);
+        else if (action == ArtisanBookingAction.Accept)
+        {
+            // The read above is untracked; stamp the rotation clock on the tracked row.
+            (await _catalogue.GetArtisanByUserIdForUpdateAsync(artisanUserId, ct))?.MarkAssigned(now);
+            await _assignment.AcceptDirectOfferAsync(booking.Id, profile.Id, now, ct);
+        }
 
         await _bookings.SaveChangesAsync(ct);
         return await _dto.BuildAsync(booking, 0, ct);

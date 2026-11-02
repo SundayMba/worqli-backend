@@ -81,7 +81,9 @@ internal static class BookingMapping
             b.MaterialsAdvanceNaira,
             artisanSide?.CustomerCompletedJobs,
             artisanSide is null ? null : b.ArtisanNetNaira(),
-            b.AutoConfirmAtUtc(autoConfirmHours));
+            b.AutoConfirmAtUtc(autoConfirmHours),
+            b.OfferRound,
+            b.OffersExhaustedAtUtc);
 
     /// <summary>What the artisan actually receives for the job: the agreed amount
     /// minus Servika's commission at the booking's rate (rounded exactly like

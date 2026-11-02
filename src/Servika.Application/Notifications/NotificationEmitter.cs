@@ -307,29 +307,24 @@ public sealed class NotificationEmitter
             "New review", $"A customer rated your work {rating}★. Tap to view.", ct);
     }
 
-    /// <summary>Broadcast a newly-posted open request to every verified artisan whose
-    /// services include its category and whose work rules accept it (not away, within
-    /// their work radius, emergencies only if they take them). Carries the booking id
-    /// so the Pro app can open /open-job/{id}.</summary>
-    public async Task OpenJobPosted(Booking booking, CancellationToken ct)
+    /// <summary>Servika offered this artisan a job. Carries the booking id so the Pro app opens the offer.</summary>
+    public void JobOffered(Guid artisanUserId, Booking booking, int windowMinutes)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
-        var recipients = await _catalogue.ListArtisanRecipientsInCategoryAsync(booking.CategorySlug, ct);
-        // Artisans past the commission-debt limit don't receive new requests
-        // until they settle — the enforcement half of commission-on-cash.
-        var restricted = (await _standing.GetRestrictedProfileIdsAsync(ct)).ToHashSet();
-        var bidding = booking.Assessment == Domain.Bookings.AssessmentMode.RemoteQuote;
-        var now = _clock.UtcNow;
-        foreach (var recipient in recipients.Where(r => !restricted.Contains(r.ProfileId)
-                     && OpenJobMatching.Accepts(r.Rules, booking, now)))
-        {
-            Add(recipient.UserId, NotificationType.OpenJob, NotificationKinds.OpenJob,
-                bidding ? "New job: send your price" : "New job available",
-                bidding
-                    ? $"A new {service} request is open for bids. Check the photos and offer your price."
-                    : $"A new {service} request is open near you. Tap to view and accept.",
-                booking.Id);
-        }
+        Add(artisanUserId, NotificationType.Booking, NotificationKinds.JobOffer,
+            "New job for you",
+            $"{service} in {Bookings.AssignmentService.Area(booking)}. Accept within {windowMinutes} minutes or it goes to the next artisan.",
+            booking.Id);
+    }
+
+    /// <summary>Tell the customer rotation found nobody free yet. Sent once per dry spell.</summary>
+    public void NoArtisanFree(Booking booking)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "request" : $"{booking.ServiceName} request";
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.NoArtisanFree,
+            "Still looking for an artisan",
+            $"No artisan is free for your {service} right now. We keep trying and will tell you the moment one accepts.",
+            booking.Id);
     }
 
     /// <summary>Tell the customer an artisan offered a price on their request.

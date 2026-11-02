@@ -7,55 +7,6 @@ using Servika.Domain.Catalogue;
 
 namespace Servika.Application.Bookings;
 
-/// <summary>
-/// One OPEN request in full, for an artisan deciding whether to claim or quote it
-/// (the Pro "Job detail" screen). Only verified artisans whose categories include
-/// the job's may read it; anything else is a 404, never a leak. The exact address
-/// is deliberately NOT withheld here because the summary already carries it; the
-/// customer's name and completed-job count give the artisan someone to trust.
-/// </summary>
-public sealed class GetOpenJobDetailHandler
-{
-    private readonly IBookingRepository _bookings;
-    private readonly ICatalogueRepository _catalogue;
-    private readonly IUserRepository _users;
-    private readonly IBidRepository _bids;
-    private readonly ArtisanBookingDtoBuilder _dto;
-
-    public GetOpenJobDetailHandler(
-        IBookingRepository bookings,
-        ICatalogueRepository catalogue,
-        IUserRepository users,
-        IBidRepository bids,
-        ArtisanBookingDtoBuilder dto)
-    {
-        _dto = dto;
-        _bookings = bookings;
-        _catalogue = catalogue;
-        _users = users;
-        _bids = bids;
-    }
-
-    public async Task<BookingDetailDto> HandleAsync(
-        Guid artisanUserId, Guid bookingId, CancellationToken ct)
-    {
-        var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct);
-        if (profile is null || profile.VerificationStatus == ArtisanVerificationStatus.Rejected)
-            throw new NotFoundException("This request was not found.");
-
-        var booking = await _bookings.FindByIdReadOnlyAsync(bookingId, ct);
-        if (booking is null
-            || booking.Status != BookingStatus.Open
-            || !profile.CategorySlugs.Contains(booking.CategorySlug))
-            throw new NotFoundException("This request was not found.");
-
-        var bidCount = booking.Assessment == AssessmentMode.RemoteQuote
-            ? await _bids.CountActiveForBookingAsync(booking.Id, ct)
-            : 0;
-
-        return await _dto.BuildAsync(booking, bidCount, ct);
-    }
-}
 
 /// <summary>
 /// The artisan's own proof-of-work for one of their assigned jobs — the note +

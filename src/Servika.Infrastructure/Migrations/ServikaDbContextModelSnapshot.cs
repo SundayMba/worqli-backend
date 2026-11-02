@@ -167,6 +167,9 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<int?>("InitialQuoteAmountNaira")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("LastOfferAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("LocationInstructions")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
@@ -196,6 +199,12 @@ namespace Servika.Infrastructure.Migrations
                     b.PrimitiveCollection<List<string>>("MediaKeys")
                         .IsRequired()
                         .HasColumnType("text[]");
+
+                    b.Property<int>("OfferRound")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("OffersExhaustedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("PaymentMethod")
                         .IsRequired()
@@ -297,6 +306,58 @@ namespace Servika.Infrastructure.Migrations
                     b.HasIndex("CustomerId");
 
                     b.ToTable("customer_ratings", (string)null);
+                });
+
+            modelBuilder.Entity("Servika.Domain.Bookings.JobOffer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ArtisanProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ArtisanUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DeclineReason")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("OfferedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RespondedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Round")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ArtisanProfileId", "Status");
+
+                    b.HasIndex("BookingId", "Status");
+
+                    b.HasIndex("Status", "ExpiresAtUtc");
+
+                    b.ToTable("job_offers", (string)null);
                 });
 
             modelBuilder.Entity("Servika.Domain.Catalogue.ArtisanGuarantor", b =>
@@ -511,6 +572,9 @@ namespace Servika.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("LastAssignedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<double?>("Latitude")
                         .HasColumnType("double precision");
@@ -1576,6 +1640,9 @@ namespace Servika.Infrastructure.Migrations
                         .HasPrecision(5, 4)
                         .HasColumnType("numeric(5,4)");
 
+                    b.Property<int>("DirectOfferWindowMinutes")
+                        .HasColumnType("integer");
+
                     b.Property<decimal>("EmergencyCommissionRate")
                         .HasPrecision(5, 4)
                         .HasColumnType("numeric(5,4)");
@@ -1595,6 +1662,9 @@ namespace Servika.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("MinWithdrawalNaira")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OfferWindowMinutes")
                         .HasColumnType("integer");
 
                     b.Property<int>("ReferralRewardNaira")
@@ -1863,6 +1933,15 @@ namespace Servika.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("Servika.Domain.Bookings.CustomerRating", b =>
+                {
+                    b.HasOne("Servika.Domain.Bookings.Booking", null)
+                        .WithMany()
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Servika.Domain.Bookings.JobOffer", b =>
                 {
                     b.HasOne("Servika.Domain.Bookings.Booking", null)
                         .WithMany()

@@ -63,4 +63,8 @@ public sealed record BookingDetailDto(
     int? ArtisanNetNaira,
     /// <summary>When an AwaitingConfirmation job confirms itself (work submitted +
     /// the admin auto-confirm window); null in every other status.</summary>
-    DateTimeOffset? AutoConfirmAtUtc);
+    DateTimeOffset? AutoConfirmAtUtc,
+    /// <summary>How many artisans Servika has offered this job to (Open requests).</summary>
+    int OfferRound = 0,
+    /// <summary>Set while rotation has nobody left to ask; Servika keeps retrying.</summary>
+    DateTimeOffset? OffersExhaustedAtUtc = null);

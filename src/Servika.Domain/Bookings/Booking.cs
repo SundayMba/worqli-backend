@@ -175,6 +175,22 @@ public sealed class Booking
     /// <summary>Storage key of the customer's short job video clip, if any.</summary>
     public string? VideoKey { get; private set; }
 
+    // ── Assignment (Servika offers the job to one artisan at a time) ──
+    /// <summary>How many artisans have been offered this job so far.</summary>
+    public int OfferRound { get; private set; }
+    public DateTimeOffset? LastOfferAtUtc { get; private set; }
+    /// <summary>Set when rotation ran out of eligible artisans; the sweep retries later. Cleared by the next offer.</summary>
+    public DateTimeOffset? OffersExhaustedAtUtc { get; private set; }
+
+    public void RecordOffer(DateTimeOffset now)
+    {
+        OfferRound += 1;
+        LastOfferAtUtc = now;
+        OffersExhaustedAtUtc = null;
+    }
+
+    public void MarkOffersExhausted(DateTimeOffset now) => OffersExhaustedAtUtc = now;
+
     // EF Core rebuilds rows through this; private so app code can't skip the rules.
     private Booking() { }
 
@@ -247,7 +263,9 @@ public sealed class Booking
             CreatedAt = now,
             // Remote pricing only makes sense on an open request that artisans
             // will assess from media; a direct booking keeps the normal flow.
-            Assessment = artisanId is null ? assessment : AssessmentMode.Inspection,
+            // Servika assigns every request (Business Model v1.4): a request is never put out
+            // for bids, so the only assessment mode left is the artisan seeing the job.
+            Assessment = AssessmentMode.Inspection,
             MediaKeys = mediaKeys ?? new(),
             VideoKey = string.IsNullOrWhiteSpace(videoKey) ? null : videoKey,
         };
@@ -382,20 +400,20 @@ public sealed class Booking
     /// nothing is re-typed. With photos/video attached it reopens in bidding
     /// mode (artisans send prices); bare requests reopen first-to-claim.
     /// </summary>
+    /// <summary>Reopen a request its chosen artisan declined or did not answer, so Servika can offer
+    /// it to the next artisan in rotation. Photos stay as context; nobody bids on it.</summary>
     public void Rebroadcast()
     {
         if (ArtisanId is null)
-            throw new InvalidBookingStateException("This request is already open to all artisans.");
+            throw new InvalidBookingStateException("This request is already open.");
         if (Status is not (BookingStatus.Pending or BookingStatus.Rejected))
             throw new InvalidBookingStateException(
-                $"A booking that is {Status} can't be re-broadcast — only an unanswered or declined request can.");
+                $"A booking that is {Status} can't be reassigned — only an unanswered or declined request can.");
 
         ArtisanId = null;
         ArtisanName = null;
         Status = BookingStatus.Open;
-        Assessment = MediaKeys.Count > 0 || VideoKey is not null
-            ? AssessmentMode.RemoteQuote
-            : AssessmentMode.Inspection;
+        Assessment = AssessmentMode.Inspection;
     }
 
     /// <summary>The artisan starts the trip to the customer. Accepted → OnMyWay.</summary>

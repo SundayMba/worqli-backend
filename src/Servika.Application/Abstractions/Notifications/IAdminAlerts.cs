@@ -12,6 +12,8 @@ public enum AdminAlertKind
     PaymentMismatch,
     FloatShort,
     DailyDigest,
+    /// <summary>Rotation ran out of eligible artisans for a request.</summary>
+    NoArtisanFree,
 }
 
 /// <summary>

@@ -292,6 +292,10 @@ public sealed class ArtisanProfile
     /// <summary>Away until a date (hidden from search; accepted jobs untouched), or null to come back.</summary>
     public void SetAway(DateTimeOffset? untilUtc) => AwayUntilUtc = untilUtc;
 
+    /// <summary>When Servika last assigned this artisan a job; rotation offers the least recent first.</summary>
+    public DateTimeOffset? LastAssignedAtUtc { get; private set; }
+    public void MarkAssigned(DateTimeOffset now) => LastAssignedAtUtc = now;
+
     // ── Guarantor policy ───────────────────────────────────────────────────
     /// <summary>Admin waived the guarantor requirement for this artisan alone.</summary>
     public bool GuarantorsWaived { get; private set; }

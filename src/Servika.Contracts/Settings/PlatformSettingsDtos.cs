@@ -28,7 +28,10 @@ public sealed record PlatformSettingsDto(
     bool UsersBearFees = false,
     string? UpdatedByName = null,
     /// <summary>Whether customers may pick cash after service instead of paying in the app (default off).</summary>
-    bool AllowCashPayments = false);
+    bool AllowCashPayments = false,
+    /// <summary>Minutes an artisan has to accept a Servika-offered job / a job a customer asked them for by name.</summary>
+    int OfferWindowMinutes = 10,
+    int DirectOfferWindowMinutes = 60);
 
 /// <summary>Update the platform settings (PUT /api/v1/admin/settings). All fields required.</summary>
 public sealed record UpdatePlatformSettingsRequest(
@@ -42,7 +45,10 @@ public sealed record UpdatePlatformSettingsRequest(
     int RequiredGuarantorCount = 2,
     /// <summary>Fee schedule. Omitted (null) keeps the stored values so older admin builds still save.</summary>
     FeeSettingsRequest? Fees = null,
-    bool AllowCashPayments = false);
+    bool AllowCashPayments = false,
+    /// <summary>Minutes an artisan has to accept a Servika-offered job / a job a customer asked them for by name.</summary>
+    int OfferWindowMinutes = 10,
+    int DirectOfferWindowMinutes = 60);
 
 /// <summary>The transaction-fee levers (part of PUT /api/v1/admin/settings).</summary>
 public sealed record FeeSettingsRequest(

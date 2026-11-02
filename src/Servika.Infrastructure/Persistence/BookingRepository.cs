@@ -86,6 +86,12 @@ public sealed class BookingRepository : IBookingRepository
         return rows > 0;
     }
 
+    public async Task<IReadOnlyList<Booking>> ListOpenExhaustedBeforeAsync(DateTimeOffset cutoffUtc, CancellationToken ct) =>
+        await _db.Bookings
+            .Where(b => b.Status == BookingStatus.Open && b.OffersExhaustedAtUtc != null && b.OffersExhaustedAtUtc <= cutoffUtc)
+            .OrderBy(b => b.OffersExhaustedAtUtc)
+            .ToListAsync(ct);
+
     public Task<Booking?> FindByIdAsync(Guid id, CancellationToken ct) =>
         _db.Bookings.FirstOrDefaultAsync(b => b.Id == id, ct);
 

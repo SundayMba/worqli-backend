@@ -42,7 +42,9 @@ public sealed record FeeScheduleDto(
     int ProofPhotosMin,
     int ProofPhotosMax,
     /// <summary>Whether a customer may choose cash after service. False = every job is paid in the app.</summary>
-    bool AllowCashPayments = false);
+    bool AllowCashPayments = false,
+    /// <summary>Minutes an artisan has to accept a job Servika offers them.</summary>
+    int OfferWindowMinutes = 10);
 
 /// <summary>One transfer-charge band: amounts up to <see cref="UpToNaira"/> (null = anything above) cost <see cref="FeeNaira"/>.</summary>
 public sealed record TransferFeeTierDto(int? UpToNaira, int FeeNaira);

@@ -105,6 +105,9 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "bids" table — artisan price offers on open RemoteQuote requests.</summary>
     public DbSet<Bid> Bids => Set<Bid>();
 
+    /// <summary>The "job_offers" table — each time a job was offered to one artisan.</summary>
+    public DbSet<JobOffer> JobOffers => Set<JobOffer>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -407,6 +410,20 @@ public sealed class ServikaDbContext : DbContext
                    .WithMany()
                    .HasForeignKey(s => s.BookingId)
                    .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<JobOffer>(o =>
+        {
+            o.ToTable("job_offers");
+            o.HasKey(x => x.Id);
+            o.HasIndex(x => new { x.BookingId, x.Status });
+            o.HasIndex(x => new { x.ArtisanProfileId, x.Status });
+            o.HasIndex(x => new { x.Status, x.ExpiresAtUtc });
+            o.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            o.Property(x => x.Source).HasConversion<string>().HasMaxLength(16);
+            o.Property(x => x.DeclineReason).HasMaxLength(120);
+            // Offers die with their booking.
+            o.HasOne<Booking>().WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Bid>(bid =>

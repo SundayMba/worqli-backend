@@ -66,5 +66,8 @@ public interface IBookingRepository
     Task<IReadOnlyList<Booking>> ListAwaitingConfirmationBeforeAsync(
         DateTimeOffset cutoffUtc, CancellationToken ct);
 
+    /// <summary>Open requests that ran out of artisans before <paramref name="cutoffUtc"/> (tracked), for the retry sweep.</summary>
+    Task<IReadOnlyList<Booking>> ListOpenExhaustedBeforeAsync(DateTimeOffset cutoffUtc, CancellationToken ct);
+
     Task<int> SaveChangesAsync(CancellationToken ct);
 }
