@@ -1,0 +1,85 @@
+using Servika.Application.Abstractions.Persistence;
+using Servika.Application.Abstractions.Time;
+using Servika.Contracts.Catalogue;
+using Servika.Domain.Catalogue;
+
+namespace Servika.Application.Catalogue;
+
+/// <summary>
+/// The availability line on Home: checked artisans who could take a job at this point now (online,
+/// not away, point inside their own work radius), and how many cover it at all. Counts only, no names.
+/// </summary>
+public sealed class GetAvailabilityHandler
+{
+    private readonly ICatalogueRepository _catalogue;
+    private readonly IClock _clock;
+
+    public GetAvailabilityHandler(ICatalogueRepository catalogue, IClock clock)
+    {
+        _catalogue = catalogue;
+        _clock = clock;
+    }
+
+    public async Task<AvailabilityDto> HandleAsync(double? lat, double? lng, string? categorySlug, CancellationToken ct)
+    {
+        if (lat is < -90 or > 90 || lng is < -180 or > 180) throw new ArgumentException("That location is not valid.");
+        var slug = string.IsNullOrWhiteSpace(categorySlug) ? null : categorySlug.Trim().ToLowerInvariant();
+        var now = _clock.UtcNow;
+        var candidates = await _catalogue.ListCoverageCandidatesAsync(slug, ct);
+        int available = 0, covering = 0;
+        foreach (var c in candidates)
+        {
+            if (c.Rules.AwayUntilUtc is { } away && away > now) continue;
+            if (!Covers(c.Rules, lat, lng)) continue;
+            covering++;
+            if (c.IsAvailable) available++;
+        }
+        return new AvailabilityDto(available, covering);
+    }
+
+    /// <summary>The point is inside the artisan's radius. With no point given every artisan counts; an
+    /// artisan with no pinned base does not count for a known point (Home must never claim coverage it
+    /// cannot show), and no radius means no limit.</summary>
+    public static bool Covers(ArtisanWorkRules rules, double? lat, double? lng)
+    {
+        if (lat is not { } la || lng is not { } ln) return true;
+        if (rules.Latitude is not { } aLat || rules.Longitude is not { } aLng) return false;
+        return rules.WorkRadiusKm <= 0 || GeoDistance.Km(la, ln, aLat, aLng) <= rules.WorkRadiusKm;
+    }
+}
+
+/// <summary>Records "Tell us what you need" for a coming-soon service or an uncovered area.</summary>
+public sealed class RecordServiceInterestHandler
+{
+    private readonly ICatalogueRepository _catalogue;
+    private readonly IClock _clock;
+
+    public RecordServiceInterestHandler(ICatalogueRepository catalogue, IClock clock)
+    {
+        _catalogue = catalogue;
+        _clock = clock;
+    }
+
+    public async Task HandleAsync(Guid? userId, RecordServiceInterestRequest request, CancellationToken ct)
+    {
+        _catalogue.AddServiceInterest(ServiceInterest.Record(
+            request.CategorySlug, request.Note, request.AreaLabel, request.Latitude, request.Longitude, userId, _clock.UtcNow));
+        await _catalogue.SaveChangesAsync(ct);
+    }
+}
+
+/// <summary>The latest demand requests, newest first (admin).</summary>
+public sealed class ListServiceInterestsHandler
+{
+    private readonly ICatalogueRepository _catalogue;
+
+    public ListServiceInterestsHandler(ICatalogueRepository catalogue)
+    {
+        _catalogue = catalogue;
+    }
+
+    public async Task<IReadOnlyList<ServiceInterestDto>> HandleAsync(CancellationToken ct) =>
+        (await _catalogue.ListServiceInterestsAsync(200, ct))
+            .Select(s => new ServiceInterestDto(s.Id, s.CategorySlug, s.Note, s.AreaLabel, s.Latitude, s.Longitude, s.UserId is not null, s.CreatedAtUtc))
+            .ToList();
+}

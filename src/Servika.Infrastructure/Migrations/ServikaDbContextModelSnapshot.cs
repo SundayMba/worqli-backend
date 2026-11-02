@@ -792,7 +792,7 @@ namespace Servika.Infrastructure.Migrations
                             Id = new Guid("a0000000-0000-0000-0000-000000000002"),
                             IsActive = true,
                             IsPopular = true,
-                            Name = "Plumbing",
+                            Name = "Plumbing & Borehole",
                             Slug = "plumbing",
                             SortOrder = 2,
                             Tint = "#3B82F6"
@@ -811,7 +811,7 @@ namespace Servika.Infrastructure.Migrations
                         {
                             Id = new Guid("a0000000-0000-0000-0000-000000000004"),
                             IsActive = true,
-                            IsPopular = true,
+                            IsPopular = false,
                             Name = "Fridge Repair",
                             Slug = "fridge",
                             SortOrder = 4,
@@ -832,7 +832,7 @@ namespace Servika.Infrastructure.Migrations
                             Id = new Guid("a0000000-0000-0000-0000-000000000006"),
                             IsActive = true,
                             IsPopular = true,
-                            Name = "Solar",
+                            Name = "Solar & Inverter",
                             Slug = "solar",
                             SortOrder = 6,
                             Tint = "#F97316"
@@ -841,7 +841,7 @@ namespace Servika.Infrastructure.Migrations
                         {
                             Id = new Guid("a0000000-0000-0000-0000-000000000007"),
                             IsActive = true,
-                            IsPopular = true,
+                            IsPopular = false,
                             Name = "Painting",
                             Slug = "painting",
                             SortOrder = 7,
@@ -851,7 +851,7 @@ namespace Servika.Infrastructure.Migrations
                         {
                             Id = new Guid("a0000000-0000-0000-0000-000000000008"),
                             IsActive = true,
-                            IsPopular = true,
+                            IsPopular = false,
                             Name = "Carpentry",
                             Slug = "carpentry",
                             SortOrder = 8,
@@ -970,7 +970,7 @@ namespace Servika.Infrastructure.Migrations
                         new
                         {
                             Id = new Guid("a0000000-0000-0000-0000-000000000020"),
-                            IsActive = true,
+                            IsActive = false,
                             IsPopular = false,
                             Name = "Water Pumps",
                             Slug = "water-pump",
@@ -981,13 +981,50 @@ namespace Servika.Infrastructure.Migrations
                         {
                             Id = new Guid("a0000000-0000-0000-0000-000000000021"),
                             IconKey = "tire",
-                            IsActive = true,
+                            IsActive = false,
                             IsPopular = false,
                             Name = "Vulcanizer",
                             Slug = "vulcanizer",
                             SortOrder = 21,
                             Tint = "#334155"
                         });
+                });
+
+            modelBuilder.Entity("Servika.Domain.Catalogue.ServiceInterest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AreaLabel")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("CategorySlug")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.ToTable("service_interests", (string)null);
                 });
 
             modelBuilder.Entity("Servika.Domain.Catalogue.VerificationEvent", b =>

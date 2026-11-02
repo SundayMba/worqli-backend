@@ -57,6 +57,11 @@ public interface ICatalogueRepository
     /// <summary>Stages a new artisan profile (self-onboarding). Persisted on SaveChanges.</summary>
     void AddArtisan(ArtisanProfile profile);
 
+    /// <summary>Verified, linked artisans (optionally one category, else the popular ones) with their work rules and online flag.</summary>
+    Task<IReadOnlyList<CoverageCandidate>> ListCoverageCandidatesAsync(string? categorySlug, CancellationToken ct);
+    void AddServiceInterest(ServiceInterest interest);
+    Task<IReadOnlyList<ServiceInterest>> ListServiceInterestsAsync(int take, CancellationToken ct);
+
     /// <summary>The artisan whose personal booking code this is (already normalized), or null.</summary>
     Task<ArtisanProfile?> FindArtisanByBookingCodeAsync(string code, CancellationToken ct);
     Task<bool> BookingCodeExistsAsync(string code, CancellationToken ct);
@@ -89,3 +94,6 @@ public sealed record ArtisanRecipient(Guid ProfileId, Guid UserId, ArtisanWorkRu
 /// take emergencies, and away mode.</summary>
 public sealed record ArtisanWorkRules(
     double? Latitude, double? Longitude, int WorkRadiusKm, bool AcceptsEmergency, DateTimeOffset? AwayUntilUtc);
+
+/// <summary>An artisan who might cover a point: online flag plus their own work rules.</summary>
+public sealed record CoverageCandidate(Guid ProfileId, bool IsAvailable, ArtisanWorkRules Rules);

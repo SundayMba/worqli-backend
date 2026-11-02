@@ -116,6 +116,11 @@ public static class DependencyInjection
         services.AddScoped<Catalogue.GetArtisanByCodeHandler>();
         services.AddScoped<Catalogue.GetPastArtisansHandler>();
 
+        // Customer Home: availability line and "tell us what you need".
+        services.AddScoped<Catalogue.GetAvailabilityHandler>();
+        services.AddScoped<Catalogue.RecordServiceInterestHandler>();
+        services.AddScoped<Catalogue.ListServiceInterestsHandler>();
+
         // Live tracking (SignalR hub + stale-cleanup worker both call this).
         services.AddScoped<Tracking.TrackingService>();
         services.AddScoped<Tracking.GetRouteHandler>();

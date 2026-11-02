@@ -99,6 +99,25 @@ public sealed class CatalogueRepository : ICatalogueRepository
 
     public void AddArtisan(ArtisanProfile profile) => _db.ArtisanProfiles.Add(profile);
 
+    public async Task<IReadOnlyList<CoverageCandidate>> ListCoverageCandidatesAsync(string? categorySlug, CancellationToken ct)
+    {
+        var slugs = categorySlug is not null
+            ? new List<string> { categorySlug }
+            : await _db.ServiceCategories.AsNoTracking().Where(c => c.IsActive && c.IsPopular).Select(c => c.Slug).ToListAsync(ct);
+        if (slugs.Count == 0) return Array.Empty<CoverageCandidate>();
+        return await _db.ArtisanProfiles.AsNoTracking()
+            .Where(a => a.VerificationStatus == ArtisanVerificationStatus.Verified && a.UserId != null
+                        && a.CategorySlugs.Any(s => slugs.Contains(s)))
+            .Select(a => new CoverageCandidate(a.Id, a.IsAvailable,
+                new ArtisanWorkRules(a.Latitude, a.Longitude, a.WorkRadiusKm, a.AcceptsEmergency, a.AwayUntilUtc)))
+            .ToListAsync(ct);
+    }
+
+    public void AddServiceInterest(ServiceInterest interest) => _db.ServiceInterests.Add(interest);
+
+    public async Task<IReadOnlyList<ServiceInterest>> ListServiceInterestsAsync(int take, CancellationToken ct) =>
+        await _db.ServiceInterests.AsNoTracking().OrderByDescending(s => s.CreatedAtUtc).Take(take).ToListAsync(ct);
+
     public Task<ArtisanProfile?> FindArtisanByBookingCodeAsync(string code, CancellationToken ct) =>
         _db.ArtisanProfiles.AsNoTracking().FirstOrDefaultAsync(a => a.BookingCode == code, ct);
 

@@ -106,30 +106,32 @@ internal static class CatalogueSeed
 
     private static ServiceCategory[] Categories()
     {
-        // (slug, name, tint, isPopular, iconKey). Order here is the display order.
-        var rows = new (string Slug, string Name, string Tint, bool Popular, string? Icon)[]
+        // (slug, name, tint, isPopular, iconKey, isActive). Order here is the display order.
+        // Business Model v1.4: five launch categories are the Home tiles (popular); the rest are
+        // "coming soon". Water pumps are merged into plumbing; vulcanizer is not a home service.
+        var rows = new (string Slug, string Name, string Tint, bool Popular, string? Icon, bool Active)[]
         {
-            ("electrical", "Electrical", "#F59E0B", true, null),
-            ("plumbing", "Plumbing", "#3B82F6", true, null),
-            ("ac", "AC Repair", "#0EA5E9", true, null),
-            ("fridge", "Fridge Repair", "#06B6D4", true, null),
-            ("generator", "Generator", "#8B5CF6", true, null),
-            ("solar", "Solar", "#F97316", true, null),
-            ("painting", "Painting", "#EC4899", true, null),
-            ("carpentry", "Carpentry", "#A16207", true, null),
-            ("appliance", "Appliance Repair", "#14B8A6", false, null),
-            ("cleaning", "Cleaning", "#22C55E", false, null),
-            ("welding", "Welding", "#EF4444", false, null),
-            ("tiling", "Tiling", "#6366F1", false, null),
-            ("roofing", "Roofing", "#0EA5E9", false, null),
-            ("security", "CCTV & Security", "#64748B", false, null),
-            ("pest-control", "Pest Control", "#16A34A", false, null),
-            ("locksmith", "Locksmith", "#CA8A04", false, null),
-            ("electronics", "Electronics", "#3B82F6", false, null),
-            ("satellite", "Satellite & TV", "#0891B2", false, null),
-            ("plastering", "Plastering", "#A16207", false, null),
-            ("water-pump", "Water Pumps", "#2563EB", false, null),
-            ("vulcanizer", "Vulcanizer", "#334155", false, "tire"),
+            ("electrical", "Electrical", "#F59E0B", true, null, true),
+            ("plumbing", "Plumbing & Borehole", "#3B82F6", true, null, true),
+            ("ac", "AC Repair", "#0EA5E9", true, null, true),
+            ("fridge", "Fridge Repair", "#06B6D4", false, null, true),
+            ("generator", "Generator", "#8B5CF6", true, null, true),
+            ("solar", "Solar & Inverter", "#F97316", true, null, true),
+            ("painting", "Painting", "#EC4899", false, null, true),
+            ("carpentry", "Carpentry", "#A16207", false, null, true),
+            ("appliance", "Appliance Repair", "#14B8A6", false, null, true),
+            ("cleaning", "Cleaning", "#22C55E", false, null, true),
+            ("welding", "Welding", "#EF4444", false, null, true),
+            ("tiling", "Tiling", "#6366F1", false, null, true),
+            ("roofing", "Roofing", "#0EA5E9", false, null, true),
+            ("security", "CCTV & Security", "#64748B", false, null, true),
+            ("pest-control", "Pest Control", "#16A34A", false, null, true),
+            ("locksmith", "Locksmith", "#CA8A04", false, null, true),
+            ("electronics", "Electronics", "#3B82F6", false, null, true),
+            ("satellite", "Satellite & TV", "#0891B2", false, null, true),
+            ("plastering", "Plastering", "#A16207", false, null, true),
+            ("water-pump", "Water Pumps", "#2563EB", false, null, false),
+            ("vulcanizer", "Vulcanizer", "#334155", false, "tire", false),
         };
 
         return rows
@@ -140,7 +142,8 @@ internal static class CatalogueSeed
                 tint: r.Tint,
                 sortOrder: i + 1,
                 isPopular: r.Popular,
-                iconKey: r.Icon))
+                iconKey: r.Icon,
+                isActive: r.Active))
             .ToArray();
     }
 

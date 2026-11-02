@@ -108,6 +108,9 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "job_offers" table — each time a job was offered to one artisan.</summary>
     public DbSet<JobOffer> JobOffers => Set<JobOffer>();
 
+    /// <summary>The "service_interests" table — "tell us what you need" requests (demand before supply).</summary>
+    public DbSet<ServiceInterest> ServiceInterests => Set<ServiceInterest>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -415,6 +418,16 @@ public sealed class ServikaDbContext : DbContext
                    .WithMany()
                    .HasForeignKey(s => s.BookingId)
                    .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ServiceInterest>(si =>
+        {
+            si.ToTable("service_interests");
+            si.HasKey(x => x.Id);
+            si.HasIndex(x => x.CreatedAtUtc);
+            si.Property(x => x.CategorySlug).HasMaxLength(60);
+            si.Property(x => x.Note).HasMaxLength(ServiceInterest.MaxNoteLength);
+            si.Property(x => x.AreaLabel).HasMaxLength(120);
         });
 
         modelBuilder.Entity<JobOffer>(o =>
