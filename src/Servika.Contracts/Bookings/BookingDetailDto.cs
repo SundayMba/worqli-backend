@@ -67,4 +67,6 @@ public sealed record BookingDetailDto(
     /// <summary>How many artisans Servika has offered this job to (Open requests).</summary>
     int OfferRound = 0,
     /// <summary>Set while rotation has nobody left to ask; Servika keeps retrying.</summary>
-    DateTimeOffset? OffersExhaustedAtUtc = null);
+    DateTimeOffset? OffersExhaustedAtUtc = null,
+    /// <summary>Rotation | Direct | Code | Rebook.</summary>
+    string Source = "Direct");

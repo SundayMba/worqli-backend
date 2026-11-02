@@ -99,6 +99,15 @@ public sealed class CatalogueRepository : ICatalogueRepository
 
     public void AddArtisan(ArtisanProfile profile) => _db.ArtisanProfiles.Add(profile);
 
+    public Task<ArtisanProfile?> FindArtisanByBookingCodeAsync(string code, CancellationToken ct) =>
+        _db.ArtisanProfiles.AsNoTracking().FirstOrDefaultAsync(a => a.BookingCode == code, ct);
+
+    public Task<bool> BookingCodeExistsAsync(string code, CancellationToken ct) =>
+        _db.ArtisanProfiles.IgnoreQueryFilters().AnyAsync(a => a.BookingCode == code, ct);
+
+    public async Task<IReadOnlyList<ArtisanProfile>> ListArtisansByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
+        ids.Count == 0 ? Array.Empty<ArtisanProfile>() : await _db.ArtisanProfiles.AsNoTracking().Where(a => ids.Contains(a.Id)).ToListAsync(ct);
+
     public async Task<IReadOnlyList<ServiceCategory>> GetAllCategoriesAsync(CancellationToken ct) =>
         await _db.ServiceCategories
             .AsNoTracking()

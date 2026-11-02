@@ -175,6 +175,9 @@ public sealed class Booking
     /// <summary>Storage key of the customer's short job video clip, if any.</summary>
     public string? VideoKey { get; private set; }
 
+    /// <summary>How the customer reached this artisan: Rotation, Direct, Code or Rebook.</summary>
+    public BookingSource Source { get; private set; }
+
     // ── Assignment (Servika offers the job to one artisan at a time) ──
     /// <summary>How many artisans have been offered this job so far.</summary>
     public int OfferRound { get; private set; }
@@ -221,7 +224,8 @@ public sealed class Booking
         DateTimeOffset now,
         AssessmentMode assessment = AssessmentMode.Inspection,
         List<string>? mediaKeys = null,
-        string? videoKey = null)
+        string? videoKey = null,
+        BookingSource? source = null)
     {
         if (customerId == Guid.Empty)
             throw new ArgumentException("Customer is required.", nameof(customerId));
@@ -268,6 +272,7 @@ public sealed class Booking
             Assessment = AssessmentMode.Inspection,
             MediaKeys = mediaKeys ?? new(),
             VideoKey = string.IsNullOrWhiteSpace(videoKey) ? null : videoKey,
+            Source = source ?? (artisanId is null ? BookingSource.Rotation : BookingSource.Direct),
         };
     }
 

@@ -49,7 +49,10 @@ public sealed record MyArtisanProfileDto(
     int RequiredGuarantorCount = 2,
     /// <summary>Last NIN register check: Matched | NameMismatch | NotFound | Failed | null.</summary>
     string? NinLookupStatus = null,
-    string? NinLookupName = null);
+    string? NinLookupName = null,
+    /// <summary>Personal booking code and link, once verified.</summary>
+    string? BookingCode = null,
+    string? BookingLink = null);
 
 /// <summary>
 /// Create or update the signed-in artisan's profile (POST/PUT /api/v1/artisan/profile),

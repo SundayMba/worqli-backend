@@ -57,6 +57,12 @@ public interface ICatalogueRepository
     /// <summary>Stages a new artisan profile (self-onboarding). Persisted on SaveChanges.</summary>
     void AddArtisan(ArtisanProfile profile);
 
+    /// <summary>The artisan whose personal booking code this is (already normalized), or null.</summary>
+    Task<ArtisanProfile?> FindArtisanByBookingCodeAsync(string code, CancellationToken ct);
+    Task<bool> BookingCodeExistsAsync(string code, CancellationToken ct);
+    /// <summary>Profiles by id, any verification status (read-only).</summary>
+    Task<IReadOnlyList<ArtisanProfile>> ListArtisansByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
+
     // ── Admin category management ──────────────────────────────────────────
 
     /// <summary>All categories incl. inactive, in display order (admin view).</summary>

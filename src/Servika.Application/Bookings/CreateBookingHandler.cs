@@ -72,9 +72,23 @@ public sealed class CreateBookingHandler
         var category = await _catalogue.GetCategoryBySlugAsync(slug, ct)
             ?? throw new NotFoundException($"Category '{slug}' was not found.");
 
+        // A personal booking code names the artisan; it wins over any id the client sent.
+        var requestedArtisanId = request.ArtisanId;
+        var source = BookingSource.Direct;
+        if (!string.IsNullOrWhiteSpace(request.BookingCode))
+        {
+            var byCode = await _catalogue.FindArtisanByBookingCodeAsync(Catalogue.BookingCodes.Normalize(request.BookingCode), ct)
+                ?? throw new NotFoundException("No artisan has that booking code. Check it and try again.");
+            requestedArtisanId = byCode.Id;
+            source = BookingSource.Code;
+        }
+        else if (request.Rebook && request.ArtisanId is { } rebookId
+                 && await _bookings.HasCompletedWithArtisanAsync(customerId, rebookId, ct))
+            source = BookingSource.Rebook;
+
         string? artisanName = null;
         Domain.Catalogue.ArtisanProfile? chosenArtisan = null;
-        if (request.ArtisanId is { } artisanId)
+        if (requestedArtisanId is { } artisanId)
         {
             var artisan = await _catalogue.GetArtisanByIdAsync(artisanId, ct)
                 ?? throw new NotFoundException($"Artisan '{artisanId}' was not found.");
@@ -95,10 +109,10 @@ public sealed class CreateBookingHandler
         Domain.Catalogue.ArtisanService? fixedService = null;
         if (request.ArtisanServiceId is { } serviceId)
         {
-            if (request.ArtisanId is null)
+            if (requestedArtisanId is null)
                 throw new ArgumentException("A fixed-price service needs its artisan selected.");
             fixedService = await _artisanServices.FindAsync(serviceId, ct);
-            if (fixedService is null || fixedService.ArtisanProfileId != request.ArtisanId)
+            if (fixedService is null || fixedService.ArtisanProfileId != requestedArtisanId)
                 throw new NotFoundException("That service was not found on this artisan's profile.");
         }
 
@@ -135,7 +149,7 @@ public sealed class CreateBookingHandler
 
         var booking = Booking.Create(
             customerId: customerId,
-            artisanId: request.ArtisanId,
+            artisanId: requestedArtisanId,
             categorySlug: category.Slug,
             // A fixed-price booking is FOR that listed service — its name is the
             // one that should show everywhere ("Knotless braids", not "Beauty").
@@ -158,7 +172,8 @@ public sealed class CreateBookingHandler
             now: _clock.UtcNow,
             assessment: assessment,
             mediaKeys: mediaKeys,
-            videoKey: videoKey);
+            videoKey: videoKey,
+            source: requestedArtisanId is null ? BookingSource.Rotation : source);
 
         _bookings.Add(booking);
         var now = _clock.UtcNow;

@@ -92,6 +92,16 @@ public sealed class BookingRepository : IBookingRepository
             .OrderBy(b => b.OffersExhaustedAtUtc)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<PastArtisanStat>> ListCompletedArtisansForCustomerAsync(Guid customerId, CancellationToken ct) =>
+        await _db.Bookings.AsNoTracking()
+            .Where(b => b.CustomerId == customerId && b.Status == BookingStatus.Completed && b.ArtisanId != null)
+            .GroupBy(b => b.ArtisanId!.Value)
+            .Select(g => new PastArtisanStat(g.Key, g.Count(), g.Max(b => b.CompletedAtUtc ?? b.CreatedAt)))
+            .ToListAsync(ct);
+
+    public Task<bool> HasCompletedWithArtisanAsync(Guid customerId, Guid artisanProfileId, CancellationToken ct) =>
+        _db.Bookings.AnyAsync(b => b.CustomerId == customerId && b.ArtisanId == artisanProfileId && b.Status == BookingStatus.Completed, ct);
+
     public Task<Booking?> FindByIdAsync(Guid id, CancellationToken ct) =>
         _db.Bookings.FirstOrDefaultAsync(b => b.Id == id, ct);
 

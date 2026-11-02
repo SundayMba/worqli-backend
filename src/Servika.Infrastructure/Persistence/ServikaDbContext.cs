@@ -237,6 +237,8 @@ public sealed class ServikaDbContext : DbContext
             artisan.Property(a => a.ResponseTime).HasMaxLength(40);
             artisan.Property(a => a.JobsCount).HasMaxLength(20);
             artisan.Property(a => a.About).HasMaxLength(1000);
+            artisan.Property(a => a.BookingCode).HasMaxLength(16);
+            artisan.HasIndex(a => a.BookingCode).IsUnique().HasFilter("\"BookingCode\" IS NOT NULL");
             artisan.Property(a => a.PayoutBankCode).HasMaxLength(10);
             artisan.Property(a => a.PayoutBankName).HasMaxLength(80);
             artisan.Property(a => a.PayoutAccountNumber).HasMaxLength(10);
@@ -293,6 +295,9 @@ public sealed class ServikaDbContext : DbContext
             booking.Property(b => b.PricingModel).HasConversion<string>().HasMaxLength(20);
             booking.Property(b => b.PaymentState).HasConversion<string>().HasMaxLength(20);
             // Default backfills existing rows on migration (Online = the escrow default).
+            booking.Property(b => b.Source).HasConversion<string>().HasMaxLength(16).HasDefaultValue(BookingSource.Direct)
+                // Rotation is the enum's zero value; without a sentinel EF would treat it as "unset" and let the DB default win.
+                .HasSentinel((BookingSource)(-1));
             booking.Property(b => b.PaymentMethod).HasConversion<string>().HasMaxLength(10)
                 .HasDefaultValue(Domain.Bookings.PaymentMethod.Online);
             booking.Property(b => b.MaterialsAdvanceStatus).HasConversion<string>().HasMaxLength(16)

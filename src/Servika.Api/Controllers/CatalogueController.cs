@@ -79,6 +79,17 @@ public sealed class CatalogueController : ControllerBase
         return Ok(await handler.HandleAsync(id, lat, lng, ct));
     }
 
+    /// <summary>Who an artisan's personal booking code belongs to: enough to book them, nothing to browse by.</summary>
+    /// <response code="404">No verified artisan has that code.</response>
+    [HttpGet("api/v1/artisans/by-code/{code}")]
+    [ProducesResponseType(typeof(ArtisanByCodeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ArtisanByCodeDto>> GetArtisanByCode(
+        string code, [FromServices] GetArtisanByCodeHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(code, ct));
+    }
+
     /// <summary>The artisan's uploaded profile photo (image bytes).</summary>
     /// <remarks>The <c>photoUrl</c> field on the catalogue DTOs points here.
     /// Clients fall back to bundled art when it's null / this 404s.</remarks>

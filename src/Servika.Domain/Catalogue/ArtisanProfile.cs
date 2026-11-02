@@ -296,6 +296,15 @@ public sealed class ArtisanProfile
     public DateTimeOffset? LastAssignedAtUtc { get; private set; }
     public void MarkAssigned(DateTimeOffset now) => LastAssignedAtUtc = now;
 
+    /// <summary>Personal booking code (e.g. "EMEKA42"): customers who use it get this artisan first. Set once.</summary>
+    public string? BookingCode { get; private set; }
+    public void SetBookingCode(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) throw new ArgumentException("Code is required.", nameof(code));
+        if (BookingCode is not null) throw new InvalidOperationException("The booking code is set once.");
+        BookingCode = code.Trim().ToUpperInvariant();
+    }
+
     // ── Guarantor policy ───────────────────────────────────────────────────
     /// <summary>Admin waived the guarantor requirement for this artisan alone.</summary>
     public bool GuarantorsWaived { get; private set; }

@@ -112,6 +112,10 @@ public static class DependencyInjection
         services.AddScoped<RespondToOfferHandler>();
         services.AddScoped<OfferSweepHandler>();
 
+        // Booking codes and the customer's past artisans (Book again).
+        services.AddScoped<Catalogue.GetArtisanByCodeHandler>();
+        services.AddScoped<Catalogue.GetPastArtisansHandler>();
+
         // Live tracking (SignalR hub + stale-cleanup worker both call this).
         services.AddScoped<Tracking.TrackingService>();
         services.AddScoped<Tracking.GetRouteHandler>();

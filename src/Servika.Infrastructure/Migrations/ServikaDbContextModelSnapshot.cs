@@ -243,6 +243,13 @@ namespace Servika.Infrastructure.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("Direct");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -522,6 +529,10 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("AwayUntilUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("BookingCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.PrimitiveCollection<List<string>>("CategorySlugs")
                         .IsRequired()
                         .HasColumnType("text[]");
@@ -662,6 +673,10 @@ namespace Servika.Infrastructure.Migrations
                         .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BookingCode")
+                        .IsUnique()
+                        .HasFilter("\"BookingCode\" IS NOT NULL");
 
                     b.HasIndex("CategorySlugs");
 

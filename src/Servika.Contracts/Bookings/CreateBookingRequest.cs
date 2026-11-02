@@ -31,4 +31,8 @@ public sealed record CreateBookingRequest(
     /// <summary>One of the chosen artisan's published fixed-price services —
     /// books directly at its published price (no quote round-trip). Requires
     /// <see cref="ArtisanId"/>; the price is read server-side, never from here.</summary>
-    Guid? ArtisanServiceId = null);
+    Guid? ArtisanServiceId = null,
+    /// <summary>An artisan's personal booking code or link. Resolves the artisan server-side (overrides ArtisanId) and records the Code source.</summary>
+    string? BookingCode = null,
+    /// <summary>The customer is rebooking an artisan who already did a job for them (verified server-side).</summary>
+    bool Rebook = false);
