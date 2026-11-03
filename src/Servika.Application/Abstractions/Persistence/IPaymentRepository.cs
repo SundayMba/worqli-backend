@@ -18,6 +18,10 @@ public interface IPaymentRepository
     /// refund reverses. Tracked, so <c>MarkRefunded</c> persists.</summary>
     Task<Payment?> FindSucceededForBookingAsync(Guid bookingId, CancellationToken ct);
 
+    /// <summary>Every Succeeded escrow payment on a booking (tracked), newest first. A booking can be paid in
+    /// more than one go: a diagnosis fee, then the approved repairs.</summary>
+    Task<IReadOnlyList<Payment>> ListSucceededForBookingAsync(Guid bookingId, CancellationToken ct);
+
     /// <summary>All payments a refund was requested on (newest first), for the admin
     /// refunds view. Read-only.</summary>
     Task<IReadOnlyList<Payment>> ListRefundedAsync(CancellationToken ct);

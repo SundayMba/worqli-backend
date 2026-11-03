@@ -38,4 +38,7 @@ public sealed record CreateBookingRequest(
     bool Rebook = false,
     /// <summary>A job from Servika's price book. Booked at Servika's price (read server-side) and paid
     /// upfront; the job is offered to an artisan once the payment lands. The description may be empty.</summary>
-    Guid? PriceBookItemId = null);
+    Guid? PriceBookItemId = null,
+    /// <summary>"Not sure what's wrong?": a diagnosis visit at Servika's fixed fee, paid upfront and credited
+    /// against the repairs the artisan then picks from Servika's list.</summary>
+    bool Diagnosis = false);

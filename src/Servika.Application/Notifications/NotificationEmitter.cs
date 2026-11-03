@@ -255,6 +255,32 @@ public sealed class NotificationEmitter
     }
 
     /// <summary>Confirm to the customer that their payment settled.</summary>
+    /// <summary>Tell the customer the artisan found repairs to approve (Servika's prices, before any work).</summary>
+    public void RepairsProposed(Booking booking, int count, int totalNaira)
+    {
+        var who = booking.ArtisanName ?? "Your artisan";
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.RepairsProposed,
+            count == 1 ? "A repair to approve" : $"{count} repairs to approve",
+            $"{who} found what needs fixing: ₦{totalNaira:N0} at Servika's prices. Nothing is done until you approve it.",
+            booking.Id);
+    }
+
+    /// <summary>Tell the artisan what the customer decided on the proposed repairs.</summary>
+    public Task RepairsDecidedAsync(Booking booking, int approvedNaira, CancellationToken ct)
+    {
+        string body;
+        if (approvedNaira > 0)
+            body = booking.AmountDueNaira > 0
+                ? $"The customer approved ₦{approvedNaira:N0} of repairs. Start once their payment lands."
+                : $"The customer approved ₦{approvedNaira:N0} of repairs. You can start the work.";
+        else if (booking.Status == BookingStatus.Completed)
+            body = $"The customer did not go ahead. The ₦{booking.DiagnosisFeeNaira ?? 0:N0} diagnosis fee is yours.";
+        else
+            body = "The customer declined the extra repairs. Finish the job as booked.";
+        return NotifyArtisanAsync(booking, NotificationKinds.RepairsDecided,
+            approvedNaira > 0 ? "Repairs approved" : "Repairs declined", body, ct);
+    }
+
     public void PaymentReceived(Guid customerId, Guid bookingId, string serviceName)
     {
         var service = string.IsNullOrWhiteSpace(serviceName) ? "your booking" : serviceName;

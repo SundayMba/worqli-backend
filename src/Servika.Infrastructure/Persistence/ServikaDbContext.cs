@@ -114,6 +114,9 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "price_book_items" table — Servika's own prices: fixed jobs, add-on repairs, custom ranges.</summary>
     public DbSet<PriceBookItem> PriceBookItems => Set<PriceBookItem>();
 
+    /// <summary>The "booking_repairs" table — repairs artisans proposed from the add-on list, and the customer's answer.</summary>
+    public DbSet<BookingRepair> BookingRepairs => Set<BookingRepair>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -433,6 +436,19 @@ public sealed class ServikaDbContext : DbContext
             si.Property(x => x.CategorySlug).HasMaxLength(60);
             si.Property(x => x.Note).HasMaxLength(ServiceInterest.MaxNoteLength);
             si.Property(x => x.AreaLabel).HasMaxLength(120);
+        });
+
+        modelBuilder.Entity<BookingRepair>(r =>
+        {
+            r.ToTable("booking_repairs");
+            r.HasKey(x => x.Id);
+            r.Property(x => x.Name).IsRequired().HasMaxLength(PriceBookItem.MaxNameLength);
+            r.Property(x => x.PartsNote).HasMaxLength(BookingRepair.MaxPartsNoteLength);
+            r.Property(x => x.PhotoKey).IsRequired();
+            r.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            r.Ignore(x => x.TotalNaira);
+            r.HasIndex(x => x.BookingId);
+            r.HasOne<Booking>().WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PriceBookItem>(item =>

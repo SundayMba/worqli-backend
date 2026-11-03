@@ -120,6 +120,10 @@ public static class DependencyInjection
         services.AddScoped<Catalogue.GetAvailabilityHandler>();
         services.AddScoped<Catalogue.RecordServiceInterestHandler>();
         services.AddScoped<Catalogue.GetPriceBookHandler>();
+        services.AddScoped<Bookings.ProposeRepairsHandler>();
+        services.AddScoped<Bookings.GetBookingRepairsHandler>();
+        services.AddScoped<Bookings.GetRepairPhotoHandler>();
+        services.AddScoped<Bookings.DecideRepairsHandler>();
         services.AddScoped<Catalogue.GetCategoryPriceBookHandler>();
         services.AddScoped<Catalogue.GetPriceBookItemHandler>();
         services.AddScoped<Catalogue.GetPriceBookPhotoHandler>();

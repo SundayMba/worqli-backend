@@ -53,7 +53,11 @@ public sealed class SubmitBidHandler
         // artisan accepts or declines it as published.
         if (booking.PricingModel == PricingModel.Fixed)
             throw new ConflictException(
-                "This is a fixed-price booking. Accept or decline it — the price is already set.");
+                "This is a fixed-price booking. Accept or decline it. The price is already set.");
+        // A diagnosis visit is priced from Servika's list: the artisan picks the repairs, never writes a price.
+        if (booking.IsDiagnosis)
+            throw new ConflictException(
+                "This is a diagnosis visit. Pick the repairs it needs from Servika's list instead of sending a quote.");
 
         // The assigned artisan can quote on their own direct request before the
         // customer accepts (Pending) — and also en-route/on-site (Accepted →

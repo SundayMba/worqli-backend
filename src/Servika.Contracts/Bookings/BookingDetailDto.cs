@@ -73,4 +73,11 @@ public sealed record BookingDetailDto(
     /// <summary>The Servika price-book job this booking is for, if any (paid upfront at Servika's price).</summary>
     Guid? PriceBookItemId = null,
     /// <summary>True while a price-book job waits for its upfront payment; no artisan is offered it yet.</summary>
-    bool AwaitingUpfrontPayment = false);
+    bool AwaitingUpfrontPayment = false,
+    /// <summary>Diagnosis visit: the fee paid at booking, credited against the repairs. Null otherwise.</summary>
+    int? DiagnosisFeeNaira = null,
+    /// <summary>Repairs from Servika's list the customer approved on this job.</summary>
+    int ApprovedRepairsNaira = 0,
+    /// <summary>Held in escrow so far, and what is still owed against the agreed price.</summary>
+    int PaidNaira = 0,
+    int AmountDueNaira = 0);

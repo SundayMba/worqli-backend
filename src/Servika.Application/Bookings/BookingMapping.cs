@@ -90,7 +90,11 @@ internal static class BookingMapping
             b.OffersExhaustedAtUtc,
             b.Source.ToString(),
             b.PriceBookItemId,
-            b.AwaitingUpfrontPayment);
+            b.AwaitingUpfrontPayment,
+            b.DiagnosisFeeNaira,
+            b.ApprovedRepairsNaira,
+            b.PaidNaira,
+            b.AmountDueNaira);
 
     /// <summary>What the artisan actually receives for the job: the agreed amount
     /// minus Servika's commission at the booking's rate (rounded exactly like

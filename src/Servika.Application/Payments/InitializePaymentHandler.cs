@@ -48,8 +48,12 @@ public sealed class InitializePaymentHandler
         if (booking.PaymentState == Domain.Bookings.BookingPaymentState.Paid)
             throw new ConflictException("This booking has already been paid.");
 
-        if (booking.InitialQuoteAmountNaira is not { } amount || amount <= 0)
+        if (booking.InitialQuoteAmountNaira is not > 0)
             throw new ConflictException("This booking has nothing due to pay yet.");
+        // What is still owed: a booking can be paid in more than one go (diagnosis fee, then repairs).
+        var amount = booking.AmountDueNaira;
+        if (amount <= 0)
+            throw new ConflictException("This booking has already been paid.");
 
         // Payment starts only once the job is actually on: a fixed-price booking
         // carries its amount from creation, but paying before the artisan accepts
@@ -66,7 +70,7 @@ public sealed class InitializePaymentHandler
 
         // Reuse an in-flight Pending payment so a retry doesn't create duplicates.
         var existing = await _payments.FindActiveForBookingAsync(bookingId, ct);
-        if (existing is { Status: PaymentStatus.Pending })
+        if (existing is { Status: PaymentStatus.Pending } && existing.AmountNaira == amount)
             return ToResponse(existing);
 
         var user = await _users.FindByIdAsync(customerId, ct);

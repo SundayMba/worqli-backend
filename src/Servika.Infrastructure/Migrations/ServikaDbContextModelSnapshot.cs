@@ -112,6 +112,9 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<int?>("AgreedWorkmanshipNaira")
                         .HasColumnType("integer");
 
+                    b.Property<int>("ApprovedRepairsNaira")
+                        .HasColumnType("integer");
+
                     b.Property<Guid?>("ArtisanId")
                         .HasColumnType("uuid");
 
@@ -161,6 +164,9 @@ namespace Servika.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<int?>("DiagnosisFeeNaira")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset?>("DisputedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -205,6 +211,9 @@ namespace Servika.Infrastructure.Migrations
 
                     b.Property<DateTimeOffset?>("OffersExhaustedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PaidNaira")
+                        .HasColumnType("integer");
 
                     b.Property<string>("PaymentMethod")
                         .IsRequired()
@@ -279,6 +288,58 @@ namespace Servika.Infrastructure.Migrations
                     b.HasIndex("PriceBookItemId");
 
                     b.ToTable("bookings", (string)null);
+                });
+
+            modelBuilder.Entity("Servika.Domain.Bookings.BookingRepair", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DecidedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LabourNaira")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("PartsNaira")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PartsNote")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("PhotoKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PriceBookItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ProposedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Round")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.ToTable("booking_repairs", (string)null);
                 });
 
             modelBuilder.Entity("Servika.Domain.Bookings.CustomerRating", b =>
@@ -2069,6 +2130,15 @@ namespace Servika.Infrastructure.Migrations
                     b.HasOne("Servika.Domain.Users.User", null)
                         .WithMany()
                         .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Servika.Domain.Bookings.BookingRepair", b =>
+                {
+                    b.HasOne("Servika.Domain.Bookings.Booking", null)
+                        .WithMany()
+                        .HasForeignKey("BookingId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

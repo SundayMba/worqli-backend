@@ -161,6 +161,11 @@ public sealed class CreateBookingHandler
                 "Add at least one photo (or a short video) of the job so artisans can price it.");
         }
 
+        // "Not sure what's wrong?": a diagnosis visit at Servika's fee (nothing when the admin sets it to 0).
+        var diagnosisFee = request.Diagnosis && priceBookItem is null && fixedService is null && settings.DiagnosisFeeNaira > 0
+            ? settings.DiagnosisFeeNaira
+            : (int?)null;
+
         var booking = Booking.Create(
             customerId: customerId,
             artisanId: requestedArtisanId,
@@ -183,15 +188,17 @@ public sealed class CreateBookingHandler
             // Fixed = a published price known at booking; Variable = the price is
             // agreed later via a quote. Booking itself is always free either way —
             // payment for a fixed booking happens once the artisan accepts.
-            pricingModel: fixedService is null && priceBookItem is null ? PricingModel.Variable : PricingModel.Fixed,
-            initialQuoteAmountNaira: priceBookItem?.PriceNaira ?? fixedService?.PriceNaira,
+            pricingModel: diagnosisFee is not null ? PricingModel.Hybrid
+                : fixedService is null && priceBookItem is null ? PricingModel.Variable : PricingModel.Fixed,
+            initialQuoteAmountNaira: diagnosisFee ?? priceBookItem?.PriceNaira ?? fixedService?.PriceNaira,
             commissionRate: commissionRate,
             now: _clock.UtcNow,
             assessment: assessment,
             mediaKeys: mediaKeys,
             videoKey: videoKey,
             source: requestedArtisanId is null ? BookingSource.Rotation : source,
-            priceBookItemId: priceBookItem?.Id);
+            priceBookItemId: priceBookItem?.Id,
+            diagnosisFeeNaira: diagnosisFee);
 
         _bookings.Add(booking);
         var now = _clock.UtcNow;

@@ -29,6 +29,10 @@ public static class NotificationKinds
     public const string CounterDeclined = "CounterDeclined";
     public const string MaterialsAdvance = "MaterialsAdvance";
     public const string WorkSubmitted = "WorkSubmitted";
+    /// <summary>Customer: the artisan found repairs (from Servika's list) waiting for approval.</summary>
+    public const string RepairsProposed = "RepairsProposed";
+    /// <summary>Artisan: the customer approved or declined the proposed repairs.</summary>
+    public const string RepairsDecided = "RepairsDecided";
     public const string JobConfirmed = "JobConfirmed";
     public const string BookingCancelled = "BookingCancelled";
     public const string Dispute = "Dispute";

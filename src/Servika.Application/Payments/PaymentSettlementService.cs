@@ -121,7 +121,7 @@ public sealed class PaymentSettlementService
             $"Payment for booking {payment.BookingId}", now));
 
         var booking = await _bookings.FindByIdAsync(payment.BookingId!.Value, ct);
-        booking?.MarkPaid();
+        booking?.MarkPaid(payment.AmountNaira);
 
         _notifications.PaymentReceived(
             payment.CustomerId, payment.BookingId!.Value, booking?.ServiceName ?? string.Empty);

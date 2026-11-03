@@ -68,7 +68,7 @@ public class UpfrontBookingTests
         var b = PriceBookJob();
         Assert.True(b.PaysUpfront);
         Assert.True(b.AwaitingUpfrontPayment);
-        b.MarkPaid();
+        b.MarkPaid(15000);
         Assert.False(b.AwaitingUpfrontPayment);
     }
 
@@ -88,7 +88,7 @@ public class UpfrontBookingTests
         Assert.Equal(BookingStatus.Expired, unpaid.Status);
 
         var paid = PriceBookJob();
-        paid.MarkPaid();
+        paid.MarkPaid(15000);
         Assert.Throws<InvalidBookingStateException>(() => paid.ExpireUnpaid());
 
         var quoted = TestData.OpenJob();

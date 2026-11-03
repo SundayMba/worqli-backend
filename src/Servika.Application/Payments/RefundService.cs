@@ -15,9 +15,11 @@ namespace Servika.Application.Payments;
 /// <see cref="WalletTransactionType.Adjustment"/> entries — so every booking-scoped
 /// balance nets to zero and the "refunds" total is exactly what customers got back.
 ///
-/// <para>Stages the changes only (no <c>SaveChanges</c>), so it commits inside the
-/// caller's transaction. A no-op when the booking was never paid, and idempotent —
-/// only a <see cref="PaymentStatus.Succeeded"/> payment can be refunded, once.</para>
+/// <para>A booking can hold more than one payment (a diagnosis fee, then the approved
+/// repairs); every one of them is refunded. Stages the changes only (no
+/// <c>SaveChanges</c>), so it commits inside the caller's transaction. A no-op when the
+/// booking was never paid, and idempotent — only a <see cref="PaymentStatus.Succeeded"/>
+/// payment can be refunded, once.</para>
 /// </summary>
 public sealed class RefundService
 {
@@ -25,6 +27,7 @@ public sealed class RefundService
     private readonly IWalletRepository _wallet;
     private readonly NotificationEmitter _notifications;
     private readonly IPaymentGateway _gateway;
+    private readonly EscrowReleaseService _escrow;
     private readonly IClock _clock;
 
     public RefundService(
@@ -32,28 +35,43 @@ public sealed class RefundService
         IWalletRepository wallet,
         NotificationEmitter notifications,
         IPaymentGateway gateway,
+        EscrowReleaseService escrow,
         IClock clock)
     {
         _payments = payments;
         _wallet = wallet;
         _notifications = notifications;
         _gateway = gateway;
+        _escrow = escrow;
         _clock = clock;
     }
 
-    /// <summary>Fully refunds the booking's settled payment if there is one. Returns
-    /// the refunded amount (0 if nothing was paid).</summary>
+    private async Task<List<Payment>> RefundableAsync(Booking booking, CancellationToken ct) =>
+        (await _payments.ListSucceededForBookingAsync(booking.Id, ct)).Where(p => !p.IsRefundRequested).ToList();
+
+    /// <summary>Fully refunds every settled payment on the booking. Returns the refunded
+    /// amount (0 if nothing was paid).</summary>
     public async Task<int> RefundIfPaidAsync(Booking booking, CancellationToken ct)
     {
-        var payment = await _payments.FindSucceededForBookingAsync(booking.Id, ct);
-        if (payment is null || payment.IsRefundRequested) return 0; // never paid / already refunded
+        var payments = await RefundableAsync(booking, ct);
+        if (payments.Count == 0) return 0; // never paid / already refunded
 
         // A materials advance the customer explicitly released is theirs no longer:
         // the artisan bought the parts with it. Everything else comes back.
         var advance = booking.ReleasedMaterialsAdvanceNaira;
         if (advance > 0)
-            return await PartialRefundIfPaidAsync(booking, payment.AmountNaira - advance, ct, refundAll: true);
+            return await PartialRefundAsync(booking, payments, payments.Sum(p => p.AmountNaira) - advance, ct, refundAll: true);
 
+        var total = 0;
+        foreach (var payment in payments) total += await RefundWholeAsync(booking, payment, ct);
+        booking.MarkRefunded(total);
+        _notifications.RefundIssued(booking, total);
+        return total;
+    }
+
+    /// <summary>Refunds one payment in full and reverses whatever of it was already released.</summary>
+    private async Task<int> RefundWholeAsync(Booking booking, Payment payment, CancellationToken ct)
+    {
         var now = _clock.UtcNow;
 
         // Money back to the customer (the "refund" the KPI counts).
@@ -96,41 +114,61 @@ public sealed class RefundService
         }
 
         payment.MarkRefunded(now);
-        booking.MarkRefunded(payment.AmountNaira);
-        _notifications.RefundIssued(booking, payment.AmountNaira);
         await _gateway.RefundAsync(payment.Reference, payment.ChargedNaira, ct);
-
         return payment.AmountNaira;
     }
 
     /// <summary>Partially refunds a paid booking: the customer gets
     /// <paramref name="refundNaira"/> back and the artisan keeps the rest as their
     /// earning for work rendered. Used when an admin resolves a dispute with a partial
-    /// refund. Falls back to a full refund if the amount covers (or exceeds) the whole
-    /// payment. Returns the amount refunded to the customer (0 if nothing was paid).
+    /// refund. Falls back to a full refund if the amount covers (or exceeds) everything
+    /// paid. Returns the amount refunded to the customer (0 if nothing was paid).
     ///
-    /// <para>The remainder is settled to the artisan here (released from escrow if it
-    /// was still held, or left in place / clawed down if it had already been released
-    /// at an earlier completion), so every booking-scoped balance nets correctly.</para>
+    /// <para>With several payments the refund is taken from the newest first (the repairs before the
+    /// diagnosis fee). Whatever is kept is settled to the artisan here (released from escrow if it was
+    /// still held, or clawed down if it had already been released), so every balance nets correctly.</para>
     /// </summary>
-    public Task<int> PartialRefundIfPaidAsync(Booking booking, int refundNaira, CancellationToken ct) =>
-        PartialRefundIfPaidAsync(booking, refundNaira, ct, refundAll: false);
-
-    private async Task<int> PartialRefundIfPaidAsync(
-        Booking booking, int refundNaira, CancellationToken ct, bool refundAll)
+    public async Task<int> PartialRefundIfPaidAsync(Booking booking, int refundNaira, CancellationToken ct)
     {
-        var payment = await _payments.FindSucceededForBookingAsync(booking.Id, ct);
-        if (payment is null || payment.IsRefundRequested) return 0;
+        var payments = await RefundableAsync(booking, ct);
+        if (payments.Count == 0) return 0;
+        return await PartialRefundAsync(booking, payments, refundNaira, ct, refundAll: false);
+    }
 
-        var full = payment.AmountNaira;
+    private async Task<int> PartialRefundAsync(
+        Booking booking, List<Payment> payments, int refundNaira, CancellationToken ct, bool refundAll)
+    {
+        var full = payments.Sum(p => p.AmountNaira);
         // A released materials advance can never be refunded (see RefundIfPaidAsync).
         var advance = booking.ReleasedMaterialsAdvanceNaira;
         refundNaira = Math.Min(refundNaira, full - advance);
         if (!refundAll && refundNaira >= full) return await RefundIfPaidAsync(booking, ct); // whole thing
         if (refundNaira <= 0) return 0;
 
+        // Newest first: the repairs come back before the diagnosis fee.
+        var remaining = refundNaira;
+        foreach (var payment in payments.OrderByDescending(p => p.CreatedAt))
+        {
+            var share = Math.Min(remaining, payment.AmountNaira);
+            remaining -= share;
+            if (share == 0)
+                _escrow.Release(booking, payment);            // kept whole: the artisan earns it
+            else if (share == payment.AmountNaira && payments.Count > 1)
+                await RefundWholeAsync(booking, payment, ct);
+            else
+                await RefundPartOfAsync(booking, payment, share, payments.Count == 1 ? advance : 0, ct);
+        }
+
+        booking.MarkPartiallyRefunded(refundNaira);
+        _notifications.RefundIssued(booking, refundNaira);
+        return refundNaira;
+    }
+
+    /// <summary>Refunds part of one payment and settles the kept part to the artisan.</summary>
+    private async Task RefundPartOfAsync(Booking booking, Payment payment, int refundNaira, int advance, CancellationToken ct)
+    {
         var now = _clock.UtcNow;
-        var keep = full - refundNaira;                 // the artisan's portion (incl. any advance)
+        var keep = payment.AmountNaira - refundNaira;   // the artisan's portion (incl. any advance)
         var rate = payment.CommissionRate;
         var commissionKeep = (int)Math.Round(keep * rate, MidpointRounding.AwayFromZero);
         var earningKeep = keep - commissionKeep;
@@ -161,8 +199,10 @@ public sealed class RefundService
         }
         else
         {
-            // Escrow was still held: release only the kept portion to the artisan +
-            // platform (the refunded portion goes back to the customer, above).
+            // Escrow was still held: release only the kept portion to the artisan who did the job +
+            // the platform (the refunded portion goes back to the customer, above).
+            if (booking.ArtisanId is { } doneBy && payment.ArtisanId != doneBy)
+                payment.AttributeTo(doneBy);
             if (commissionKeep > 0)
                 _wallet.Add(WalletTransaction.Create(
                     WalletOwnerType.Platform, WalletTransaction.PlatformOwnerId,
@@ -178,10 +218,6 @@ public sealed class RefundService
         }
 
         payment.MarkPartiallyRefunded(refundNaira, now);
-        booking.MarkPartiallyRefunded(refundNaira);
-        _notifications.RefundIssued(booking, refundNaira);
         await _gateway.RefundAsync(payment.Reference, refundNaira, ct);
-
-        return refundNaira;
     }
 }
