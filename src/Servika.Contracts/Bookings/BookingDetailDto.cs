@@ -80,4 +80,8 @@ public sealed record BookingDetailDto(
     int ApprovedRepairsNaira = 0,
     /// <summary>Held in escrow so far, and what is still owed against the agreed price.</summary>
     int PaidNaira = 0,
-    int AmountDueNaira = 0);
+    int AmountDueNaira = 0,
+    /// <summary>A custom job: a paid visit, then an itemised quote checked against the typical range.</summary>
+    bool IsCustomQuote = false,
+    int? TypicalRangeMinNaira = null,
+    int? TypicalRangeMaxNaira = null);

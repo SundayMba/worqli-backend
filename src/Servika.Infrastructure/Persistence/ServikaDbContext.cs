@@ -490,6 +490,10 @@ public sealed class ServikaDbContext : DbContext
             bid.Property(b => b.ArtisanName).IsRequired().HasMaxLength(120);
             bid.Property(b => b.MaterialsNote).HasMaxLength(500);
             bid.Property(b => b.Status).HasConversion<string>().HasMaxLength(16);
+            // Ops review of a custom quote; "NotNeeded" for every existing quote.
+            bid.Property(b => b.Review).HasConversion<string>().HasMaxLength(16).HasDefaultValue(QuoteReview.NotNeeded);
+            bid.Property(b => b.ReviewNote).HasMaxLength(Bid.MaxReviewNoteLength);
+            bid.HasIndex(b => b.Review);
 
             // Itemised materials live as a JSON document on the bid: read whole,
             // written whole, never queried by line. The comparer is structural so

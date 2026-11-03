@@ -41,4 +41,8 @@ public sealed record CreateBookingRequest(
     Guid? PriceBookItemId = null,
     /// <summary>"Not sure what's wrong?": a diagnosis visit at Servika's fixed fee, paid upfront and credited
     /// against the repairs the artisan then picks from Servika's list.</summary>
-    bool Diagnosis = false);
+    bool Diagnosis = false,
+    /// <summary>"Something else? Describe it": a paid visit, then an itemised quote checked against the typical
+    /// range. Optionally the price-book custom line it matches ("New split AC installation").</summary>
+    bool CustomQuote = false,
+    Guid? CustomPriceBookItemId = null);

@@ -58,6 +58,48 @@ public sealed class Bid
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    // ── Ops review of a custom quote (Business Model v1.4, section 10) ──
+    /// <summary>Whether Servika must check this quote before the customer sees it.</summary>
+    public QuoteReview Review { get; private set; } = QuoteReview.NotNeeded;
+    /// <summary>What ops told the artisan when sending the quote back. Never shown to the customer.</summary>
+    public string? ReviewNote { get; private set; }
+    public DateTimeOffset? ReviewedAtUtc { get; private set; }
+    public Guid? ReviewedByUserId { get; private set; }
+
+    public const int MaxReviewNoteLength = 400;
+
+    /// <summary>The customer only ever sees a quote ops did not need to check, or checked and passed.</summary>
+    public bool IsVisibleToCustomer => Review is QuoteReview.NotNeeded or QuoteReview.Approved;
+
+    /// <summary>Called after every (re)quote: a quote above the limits waits for ops; any other goes straight out.</summary>
+    public void SetReviewNeeded(bool needed)
+    {
+        Review = needed ? QuoteReview.Pending : QuoteReview.NotNeeded;
+        ReviewNote = null;
+        ReviewedAtUtc = null;
+        ReviewedByUserId = null;
+    }
+
+    public void ApproveReview(Guid adminUserId, DateTimeOffset now)
+    {
+        if (Review != QuoteReview.Pending) throw new InvalidBookingStateException("This quote is not waiting for a check.");
+        Review = QuoteReview.Approved;
+        ReviewedAtUtc = now;
+        ReviewedByUserId = adminUserId;
+    }
+
+    public void SendBackForChanges(Guid adminUserId, string note, DateTimeOffset now)
+    {
+        if (Review != QuoteReview.Pending) throw new InvalidBookingStateException("This quote is not waiting for a check.");
+        var clean = note?.Trim() ?? string.Empty;
+        if (clean.Length < 10) throw new ArgumentException("Tell the artisan what to change (at least a short sentence).");
+        if (clean.Length > MaxReviewNoteLength) throw new ArgumentException($"Keep the note under {MaxReviewNoteLength} characters.");
+        Review = QuoteReview.SentBack;
+        ReviewNote = clean;
+        ReviewedAtUtc = now;
+        ReviewedByUserId = adminUserId;
+    }
+
     private Bid() { }
 
     public const int MaxMaterialsNoteLength = 500;
@@ -186,6 +228,19 @@ public sealed class Bid
 }
 
 /// <summary>Lifecycle of a bid. Stored as a string.</summary>
+/// <summary>Where a custom quote is in Servika's check.</summary>
+public enum QuoteReview
+{
+    /// <summary>Within the limits: the customer sees it at once.</summary>
+    NotNeeded = 0,
+    /// <summary>Over the threshold or far above the typical range: waiting for ops.</summary>
+    Pending = 1,
+    /// <summary>Ops checked it; the customer sees it.</summary>
+    Approved = 2,
+    /// <summary>Ops sent it back with a note; the artisan revises it.</summary>
+    SentBack = 3,
+}
+
 public enum BidStatus
 {
     /// <summary>Standing offer the customer can accept.</summary>

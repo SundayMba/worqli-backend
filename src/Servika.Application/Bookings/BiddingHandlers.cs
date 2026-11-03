@@ -24,12 +24,15 @@ public sealed class SubmitBidHandler
     private readonly ICatalogueRepository _catalogue;
     private readonly NotificationEmitter _notifications;
     private readonly Payments.ArtisanStandingService _standing;
+    private readonly IPlatformSettingsRepository _settings;
     private readonly IClock _clock;
 
     public SubmitBidHandler(
         IBookingRepository bookings, IBidRepository bids, ICatalogueRepository catalogue,
-        NotificationEmitter notifications, Payments.ArtisanStandingService standing, IClock clock)
+        NotificationEmitter notifications, Payments.ArtisanStandingService standing, IClock clock,
+        IPlatformSettingsRepository settings)
     {
+        _settings = settings;
         _bookings = bookings;
         _bids = bids;
         _catalogue = catalogue;
@@ -55,7 +58,7 @@ public sealed class SubmitBidHandler
             throw new ConflictException(
                 "This is a fixed-price booking. Accept or decline it. The price is already set.");
         // A diagnosis visit is priced from Servika's list: the artisan picks the repairs, never writes a price.
-        if (booking.IsDiagnosis)
+        if (booking.IsDiagnosis && !booking.IsCustomQuote)
             throw new ConflictException(
                 "This is a diagnosis visit. Pick the repairs it needs from Servika's list instead of sending a quote.");
 
@@ -67,7 +70,15 @@ public sealed class SubmitBidHandler
         var isDirectQuote = booking.ArtisanId == profile.Id
             && booking.Status is BookingStatus.Pending or BookingStatus.Accepted
                 or BookingStatus.OnMyWay or BookingStatus.Arrived;
-        if (isDirectQuote)
+        if (isDirectQuote && booking.IsCustomQuote)
+        {
+            // A custom job is quoted after the paid visit, once, before the customer accepts.
+            if (booking.Status != BookingStatus.Arrived)
+                throw new ConflictException("Quote once you have seen the job.");
+            if (booking.HasAcceptedCustomQuote)
+                throw new ConflictException("The customer already accepted your quote, so the price can't change.");
+        }
+        else if (isDirectQuote)
         {
             if (booking.PaymentState == BookingPaymentState.Paid)
                 throw new ConflictException("This job is already paid, so the price can't change.");
@@ -91,6 +102,7 @@ public sealed class SubmitBidHandler
 
         var existing = await _bids.FindForArtisanAsync(bookingId, profile.Id, ct);
         Bid bid;
+        var wasVisible = existing?.IsVisibleToCustomer ?? false;
         if (existing is not null)
         {
             var answeringCounter = existing.HasPendingCounter;
@@ -105,12 +117,28 @@ public sealed class SubmitBidHandler
                 bookingId, profile.Id, artisanUserId, profile.FullName,
                 workmanship, materials, request.MaterialsNote, now);
             _bids.Add(bid);
+        }
+
+        if (booking.IsCustomQuote)
+        {
+            // Business Model v1.4, section 10: ops check a large quote, or labour far above the typical
+            // range, before the customer sees it.
+            var settings = await _settings.GetOrCreateAsync(ct);
+            var reasons = QuoteReviewRules.Reasons(booking, bid, settings);
+            bid.SetReviewNeeded(reasons.Count > 0);
+            if (reasons.Count > 0)
+                await _notifications.QuoteNeedsReviewAsync(booking, bid, reasons, ct);
+            else if (!wasVisible || existing is null)
+                _notifications.BidPlaced(booking, bid);
+        }
+        else if (existing is null)
+        {
             // Only a fresh bid notifies — a price tweak shouldn't ping the customer again.
             _notifications.BidPlaced(booking, bid);
         }
 
         await _bids.SaveChangesAsync(ct);
-        return bid.ToDto(profile);
+        return bid.ToDto(profile, forArtisan: true);
     }
 }
 
@@ -132,7 +160,7 @@ public sealed class GetMyBidHandler
             ?? throw new NotFoundException("No Pro profile.");
         var bid = await _bids.FindForArtisanAsync(bookingId, profile.Id, ct)
             ?? throw new NotFoundException("You haven't bid on this request.");
-        return bid.ToDto(profile);
+        return bid.ToDto(profile, forArtisan: true);
     }
 }
 
@@ -157,7 +185,8 @@ public sealed class GetBookingBidsHandler
         var booking = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
             ?? throw new NotFoundException("Booking was not found.");
 
-        var bids = await _bids.ListForBookingAsync(bookingId, ct);
+        // A custom quote waiting for Servika's check (or sent back) is not the customer's to see yet.
+        var bids = (await _bids.ListForBookingAsync(bookingId, ct)).Where(b => b.IsVisibleToCustomer).ToList();
         var result = new List<BidDto>(bids.Count);
         foreach (var bid in bids)
         {
@@ -206,7 +235,7 @@ public sealed class AcceptBidHandler
             ?? throw new NotFoundException("Booking was not found.");
 
         var bids = await _bids.ListForBookingAsync(bookingId, ct);
-        var winner = bids.FirstOrDefault(b => b.Id == bidId)
+        var winner = bids.FirstOrDefault(b => b.Id == bidId && b.IsVisibleToCustomer)
             ?? throw new NotFoundException("That bid was not found.");
 
         var now = _clock.UtcNow;
@@ -262,6 +291,9 @@ public sealed class CounterBidHandler
     {
         var booking = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
             ?? throw new NotFoundException("Booking was not found.");
+        // A custom quote is checked against the typical range and by ops; it is accepted or declined, not haggled.
+        if (booking.IsCustomQuote)
+            throw new ConflictException("Custom quotes are checked by Servika. Accept it, or decline and pay only the visit.");
         if (booking.PaymentState == BookingPaymentState.Paid)
             throw new ConflictException("This job is already paid, so the price can't change.");
 
@@ -390,7 +422,7 @@ public sealed class GetBookingMediaHandler
 
 internal static class BidMapping
 {
-    public static BidDto ToDto(this Bid bid, ArtisanProfile? profile, double? distanceKm = null) =>
+    public static BidDto ToDto(this Bid bid, ArtisanProfile? profile, double? distanceKm = null, bool forArtisan = false) =>
         new(
             bid.Id,
             bid.BookingId,
@@ -413,5 +445,7 @@ internal static class BidMapping
             bid.PendingCounterNaira,
             bid.PendingCounterNote,
             bid.CounterRounds,
-            Bid.MaxCounterRounds);
+            Bid.MaxCounterRounds,
+            bid.Review.ToString(),
+            forArtisan ? bid.ReviewNote : null);
 }

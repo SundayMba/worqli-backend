@@ -71,6 +71,23 @@ namespace Servika.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("Review")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("NotNeeded");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -85,6 +102,8 @@ namespace Servika.Infrastructure.Migrations
                         .HasDefaultValue(0);
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Review");
 
                     b.HasIndex("BookingId", "ArtisanId")
                         .IsUnique();
@@ -156,6 +175,9 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("CustomPriceBookItemId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid");
 
@@ -172,6 +194,9 @@ namespace Servika.Infrastructure.Migrations
 
                     b.Property<int?>("InitialQuoteAmountNaira")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("IsCustomQuote")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset?>("LastOfferAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -266,6 +291,12 @@ namespace Servika.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<int?>("TypicalRangeMaxNaira")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TypicalRangeMinNaira")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Urgency")
                         .IsRequired()

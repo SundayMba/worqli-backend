@@ -205,6 +205,22 @@ public sealed class Booking
 
     public bool IsDiagnosis => DiagnosisFeeNaira is > 0;
 
+    /// <summary>A custom job (work not on the price book): after the paid visit the artisan sends an itemised
+    /// quote, shown beside a typical range and checked by ops when it is large or far above it.</summary>
+    public bool IsCustomQuote { get; private set; }
+
+    /// <summary>The price-book custom line the customer picked ("New split AC installation"), if any, and its
+    /// typical labour range copied at booking so a later edit never moves a job in flight.</summary>
+    public Guid? CustomPriceBookItemId { get; private set; }
+    public int? TypicalRangeMinNaira { get; private set; }
+    public int? TypicalRangeMaxNaira { get; private set; }
+
+    /// <summary>A quote has been accepted on this custom job (its labour and materials are agreed).</summary>
+    public bool HasAcceptedCustomQuote => IsCustomQuote && AgreedWorkmanshipNaira is not null;
+
+    /// <summary>Nothing beyond the visit has been agreed: no approved repairs and no accepted quote.</summary>
+    public bool OnlyVisitAgreed => IsDiagnosis && ApprovedRepairsNaira == 0 && !HasAcceptedCustomQuote;
+
     /// <summary>Repairs from Servika's add-on list the customer approved on this job (labour + parts).</summary>
     public int ApprovedRepairsNaira { get; private set; }
 
@@ -229,7 +245,9 @@ public sealed class Booking
             throw new InvalidBookingStateException($"Repairs can't be approved while the job is {Status}.");
         var before = InitialQuoteAmountNaira ?? 0;
         ApprovedRepairsNaira += amountNaira;
-        InitialQuoteAmountNaira = IsDiagnosis
+        // A diagnosis visit credits its fee against the repairs; on a fixed job or an accepted custom quote the
+        // extras are added to the agreed price.
+        InitialQuoteAmountNaira = IsDiagnosis && !IsCustomQuote
             ? Math.Max(DiagnosisFeeNaira!.Value, ApprovedRepairsNaira)
             : before + amountNaira;
         if (AmountDueNaira > 0 && PaymentState is BookingPaymentState.Paid)
@@ -241,7 +259,7 @@ public sealed class Booking
     public void CompleteAsDiagnosisOnly(DateTimeOffset now)
     {
         if (!IsDiagnosis) throw new InvalidBookingStateException("Only a diagnosis visit can end without repairs.");
-        if (ApprovedRepairsNaira > 0) throw new InvalidBookingStateException("Repairs were approved on this job.");
+        if (!OnlyVisitAgreed) throw new InvalidBookingStateException("More than the visit was agreed on this job.");
         if (Status is not BookingStatus.Arrived)
             throw new InvalidBookingStateException($"A diagnosis can only end at the visit (this one is {Status}).");
         Status = BookingStatus.Completed;
@@ -297,7 +315,11 @@ public sealed class Booking
         string? videoKey = null,
         BookingSource? source = null,
         Guid? priceBookItemId = null,
-        int? diagnosisFeeNaira = null)
+        int? diagnosisFeeNaira = null,
+        bool customQuote = false,
+        Guid? customPriceBookItemId = null,
+        int? typicalRangeMinNaira = null,
+        int? typicalRangeMaxNaira = null)
     {
         if (customerId == Guid.Empty)
             throw new ArgumentException("Customer is required.", nameof(customerId));
@@ -313,6 +335,8 @@ public sealed class Booking
             throw new ArgumentException("A price-book booking carries its fixed price.", nameof(priceBookItemId));
         if (diagnosisFeeNaira is > 0 && (priceBookItemId is not null || initialQuoteAmountNaira != diagnosisFeeNaira))
             throw new ArgumentException("A diagnosis visit is booked at its fee and nothing else.", nameof(diagnosisFeeNaira));
+        if (customQuote && diagnosisFeeNaira is not > 0)
+            throw new ArgumentException("A custom job starts with a paid visit.", nameof(customQuote));
 
         return new Booking
         {
@@ -351,6 +375,10 @@ public sealed class Booking
             Source = source ?? (artisanId is null ? BookingSource.Rotation : BookingSource.Direct),
             PriceBookItemId = priceBookItemId,
             DiagnosisFeeNaira = diagnosisFeeNaira is > 0 ? diagnosisFeeNaira : null,
+            IsCustomQuote = customQuote,
+            CustomPriceBookItemId = customQuote ? customPriceBookItemId : null,
+            TypicalRangeMinNaira = customQuote ? typicalRangeMinNaira : null,
+            TypicalRangeMaxNaira = customQuote ? typicalRangeMaxNaira : null,
         };
     }
 
@@ -373,6 +401,21 @@ public sealed class Booking
 
     private void AcceptBidCore(Guid artisanId, string artisanName, int amountNaira, DateTimeOffset now)
     {
+        // Custom job: the visit is paid; accepting the quote fixes the job's price (the visit fee is credited)
+        // and whatever is not yet paid becomes due before work starts.
+        if (IsCustomQuote)
+        {
+            if (ArtisanId != artisanId)
+                throw new InvalidBookingStateException("Only the assigned artisan's quote can be accepted on this job.");
+            if (HasAcceptedCustomQuote)
+                throw new InvalidBookingStateException("A quote was already accepted on this job.");
+            if (Status is not BookingStatus.Arrived)
+                throw new InvalidBookingStateException($"A quote can be accepted once the artisan has seen the job (this one is {Status}).");
+            InitialQuoteAmountNaira = Math.Max(DiagnosisFeeNaira!.Value, amountNaira);
+            if (AmountDueNaira > 0) PaymentState = BookingPaymentState.Unpaid;
+            return;
+        }
+
         // Open broadcast: any bidder can win — acceptance assigns the artisan.
         if (Status is BookingStatus.Open)
         {
@@ -533,7 +576,10 @@ public sealed class Booking
         if (InitialQuoteAmountNaira is null or <= 0)
             throw new InvalidBookingStateException(
                 "A price must be agreed before work starts — send the customer your quote first.");
-        if (IsDiagnosis && ApprovedRepairsNaira == 0)
+        if (IsCustomQuote && !HasAcceptedCustomQuote)
+            throw new InvalidBookingStateException(
+                "Send your quote first. Work starts once the customer accepts and pays.");
+        if (IsDiagnosis && !IsCustomQuote && ApprovedRepairsNaira == 0)
             throw new InvalidBookingStateException(
                 "Send the repairs for the customer to approve first. Work starts once they approve and pay.");
         if (PaymentState != BookingPaymentState.Paid && PaymentMethod != PaymentMethod.Cash)

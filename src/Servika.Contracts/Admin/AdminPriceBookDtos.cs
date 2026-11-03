@@ -63,3 +63,28 @@ public sealed record SavePriceBookItemRequest(
 
 /// <summary>Upload a cover photo for a price-book line (base64 or a data: URI).</summary>
 public sealed record SetPriceBookPhotoRequest(string PhotoBase64);
+
+/// <summary>A custom quote waiting for ops (GET /api/v1/admin/quote-reviews).</summary>
+public sealed record AdminQuoteReviewDto(
+    Guid BidId,
+    Guid BookingId,
+    string ServiceName,
+    string CategorySlug,
+    string Description,
+    string AddressText,
+    string CustomerName,
+    string ArtisanName,
+    int WorkmanshipNaira,
+    int MaterialsNaira,
+    int TotalNaira,
+    IReadOnlyList<Servika.Contracts.Bookings.BidMaterialLineDto> Materials,
+    string? MaterialsNote,
+    int? TypicalRangeMinNaira,
+    int? TypicalRangeMaxNaira,
+    int VisitFeeNaira,
+    /// <summary>Why it needs a look (over the threshold, far above the range).</summary>
+    IReadOnlyList<string> Reasons,
+    DateTimeOffset SubmittedAtUtc);
+
+/// <summary>Ops' answer (POST /api/v1/admin/quote-reviews/{bidId}): "approve", or "sendback" with a note for the artisan.</summary>
+public sealed record DecideQuoteReviewRequest(string Outcome, string? Note);

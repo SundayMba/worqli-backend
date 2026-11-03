@@ -281,6 +281,24 @@ public sealed class NotificationEmitter
             approvedNaira > 0 ? "Repairs approved" : "Repairs declined", body, ct);
     }
 
+    /// <summary>A custom quote needs ops to check it before the customer sees it: every admin is told, and the
+    /// alert channels carry the job, the amounts and why.</summary>
+    public async Task QuoteNeedsReviewAsync(Booking booking, Bid bid, IReadOnlyList<string> reasons, CancellationToken ct)
+    {
+        var admins = await _users.ListAsync(Domain.Users.Role.Admin, ct);
+        var superAdmins = await _users.ListAsync(Domain.Users.Role.SuperAdmin, ct);
+        var body = $"{bid.ArtisanName} quoted ₦{bid.AmountNaira:N0} for {booking.ServiceName}. {string.Join(". ", reasons)}.";
+        foreach (var admin in admins.Concat(superAdmins))
+            Add(admin.Id, NotificationType.System, NotificationKinds.QuoteToCheck, "Quote to check", body, booking.Id);
+        _alerts.Send(new AdminAlert(AdminAlertKind.QuoteToCheck, "A custom quote needs a check",
+            new[] { body, "The customer sees it only after you pass it." }, "/quotes", "Check the quote"));
+    }
+
+    /// <summary>Tell the artisan ops sent their quote back, with what to change.</summary>
+    public Task QuoteSentBackAsync(Booking booking, Bid bid, CancellationToken ct) =>
+        NotifyArtisanAsync(booking, NotificationKinds.QuoteSentBack, "Change your quote",
+            $"Servika checked your ₦{bid.AmountNaira:N0} quote: {bid.ReviewNote}", ct);
+
     public void PaymentReceived(Guid customerId, Guid bookingId, string serviceName)
     {
         var service = string.IsNullOrWhiteSpace(serviceName) ? "your booking" : serviceName;

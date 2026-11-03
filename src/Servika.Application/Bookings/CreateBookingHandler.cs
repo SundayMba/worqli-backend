@@ -161,8 +161,20 @@ public sealed class CreateBookingHandler
                 "Add at least one photo (or a short video) of the job so artisans can price it.");
         }
 
-        // "Not sure what's wrong?": a diagnosis visit at Servika's fee (nothing when the admin sets it to 0).
-        var diagnosisFee = request.Diagnosis && priceBookItem is null && fixedService is null && settings.DiagnosisFeeNaira > 0
+        // "Something else": a custom job. If the customer picked a listed kind of custom work, its typical labour
+        // range is copied onto the booking; the quote is shown beside it and checked against it.
+        Domain.Catalogue.PriceBookItem? customItem = null;
+        if (request.CustomQuote && request.CustomPriceBookItemId is { } customId)
+        {
+            customItem = await _priceBook.FindAsync(customId, ct);
+            if (customItem is not { IsActive: true, Kind: Domain.Catalogue.PriceBookItemKind.Custom } || customItem.CategorySlug != category.Slug)
+                throw new NotFoundException("That kind of job is no longer listed. Describe it instead.");
+        }
+        var customQuote = request.CustomQuote && priceBookItem is null && fixedService is null && settings.DiagnosisFeeNaira > 0;
+
+        // "Not sure what's wrong?" and custom jobs start with a paid visit at Servika's fee (nothing when the
+        // admin sets it to 0: then it is a free inspection with a quote, as before).
+        var diagnosisFee = (request.Diagnosis || customQuote) && priceBookItem is null && fixedService is null && settings.DiagnosisFeeNaira > 0
             ? settings.DiagnosisFeeNaira
             : (int?)null;
 
@@ -172,7 +184,7 @@ public sealed class CreateBookingHandler
             categorySlug: category.Slug,
             // A fixed-price booking is FOR that listed service — its name is the
             // one that should show everywhere ("Knotless braids", not "Beauty").
-            serviceName: priceBookItem?.Name ?? fixedService?.Name ?? category.Name,
+            serviceName: priceBookItem?.Name ?? customItem?.Name ?? fixedService?.Name ?? category.Name,
             artisanName: artisanName,
             // A price-book job's scope already says what is wanted; the customer's words are extra.
             description: string.IsNullOrWhiteSpace(request.Description) && priceBookItem is not null
@@ -198,7 +210,11 @@ public sealed class CreateBookingHandler
             videoKey: videoKey,
             source: requestedArtisanId is null ? BookingSource.Rotation : source,
             priceBookItemId: priceBookItem?.Id,
-            diagnosisFeeNaira: diagnosisFee);
+            diagnosisFeeNaira: diagnosisFee,
+            customQuote: customQuote,
+            customPriceBookItemId: customQuote ? customItem?.Id : null,
+            typicalRangeMinNaira: customQuote ? customItem?.RangeMinNaira : null,
+            typicalRangeMaxNaira: customQuote ? customItem?.RangeMaxNaira : null);
 
         _bookings.Add(booking);
         var now = _clock.UtcNow;

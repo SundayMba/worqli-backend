@@ -158,6 +158,7 @@ public sealed class AdminAlertDispatcher : IAdminAlerts
         AdminAlertKind.ApplicationOverdue => "⏰",
         AdminAlertKind.DisputeRaised or AdminAlertKind.DisputeResponse => "⚠️",
         AdminAlertKind.RefundFailed or AdminAlertKind.PaymentMismatch or AdminAlertKind.FloatShort => "🚨",
+        AdminAlertKind.QuoteToCheck => "🧾",
         _ => "☀️",
     };
 

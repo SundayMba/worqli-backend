@@ -33,6 +33,9 @@ public static class NotificationKinds
     public const string RepairsProposed = "RepairsProposed";
     /// <summary>Artisan: the customer approved or declined the proposed repairs.</summary>
     public const string RepairsDecided = "RepairsDecided";
+    /// <summary>Admin: a custom quote waits for a check. Artisan: ops sent the quote back with a note.</summary>
+    public const string QuoteToCheck = "QuoteToCheck";
+    public const string QuoteSentBack = "QuoteSentBack";
     public const string JobConfirmed = "JobConfirmed";
     public const string BookingCancelled = "BookingCancelled";
     public const string Dispute = "Dispute";

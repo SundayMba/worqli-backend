@@ -145,18 +145,26 @@ public sealed class RefundService
         if (!refundAll && refundNaira >= full) return await RefundIfPaidAsync(booking, ct); // whole thing
         if (refundNaira <= 0) return 0;
 
-        // Newest first: the repairs come back before the diagnosis fee.
+        // Newest first: the repairs come back before the diagnosis fee. A materials advance already paid out is
+        // taken off what the artisan keeps, once, so it is never paid twice.
         var remaining = refundNaira;
+        var advanceLeft = advance;
         foreach (var payment in payments.OrderByDescending(p => p.CreatedAt))
         {
             var share = Math.Min(remaining, payment.AmountNaira);
             remaining -= share;
-            if (share == 0)
-                _escrow.Release(booking, payment);            // kept whole: the artisan earns it
-            else if (share == payment.AmountNaira && payments.Count > 1)
+            if (share == payment.AmountNaira && payments.Count > 1)
+            {
                 await RefundWholeAsync(booking, payment, ct);
+                continue;
+            }
+            var keptEarning = payment.AmountNaira - share;
+            var deduct = Math.Min(advanceLeft, keptEarning);
+            advanceLeft -= deduct;
+            if (share == 0)
+                _escrow.Release(booking, payment, deduct);    // kept whole: the artisan earns it
             else
-                await RefundPartOfAsync(booking, payment, share, payments.Count == 1 ? advance : 0, ct);
+                await RefundPartOfAsync(booking, payment, share, deduct, ct);
         }
 
         booking.MarkPartiallyRefunded(refundNaira);

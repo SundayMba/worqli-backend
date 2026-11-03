@@ -16,5 +16,11 @@ public interface IBidRepository
     /// <summary>Active-bid count per booking, for list badges.</summary>
     Task<int> CountActiveForBookingAsync(Guid bookingId, CancellationToken ct);
 
+    /// <summary>Active custom quotes waiting for ops (tracked), oldest first.</summary>
+    Task<IReadOnlyList<Bid>> ListAwaitingReviewAsync(CancellationToken ct);
+
+    /// <summary>Tracked fetch by id, or null.</summary>
+    Task<Bid?> FindByIdAsync(Guid id, CancellationToken ct);
+
     Task<int> SaveChangesAsync(CancellationToken ct);
 }

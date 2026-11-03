@@ -32,7 +32,11 @@ public sealed record BidDto(
     string? PendingCounterNote = null,
     /// <summary>Counter-offers made so far / the cap.</summary>
     int CounterRounds = 0,
-    int MaxCounterRounds = 3);
+    int MaxCounterRounds = 3,
+    /// <summary>Custom quotes: NotNeeded | Pending | Approved | SentBack (Servika's check).</summary>
+    string Review = "NotNeeded",
+    /// <summary>What ops asked the artisan to change. Only on the artisan's own quote.</summary>
+    string? ReviewNote = null);
 
 /// <summary>POST /api/v1/bookings/{id}/bids/{bidId}/counter body: the customer's
 /// proposed WORKMANSHIP price (materials stay as itemised).</summary>

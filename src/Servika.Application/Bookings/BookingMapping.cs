@@ -94,7 +94,10 @@ internal static class BookingMapping
             b.DiagnosisFeeNaira,
             b.ApprovedRepairsNaira,
             b.PaidNaira,
-            b.AmountDueNaira);
+            b.AmountDueNaira,
+            b.IsCustomQuote,
+            b.TypicalRangeMinNaira,
+            b.TypicalRangeMaxNaira);
 
     /// <summary>What the artisan actually receives for the job: the agreed amount
     /// minus Servika's commission at the booking's rate (rounded exactly like

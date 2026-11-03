@@ -61,6 +61,8 @@ public sealed class ProposeRepairsHandler
 
         if (!booking.PaysUpfront)
             throw new ConflictException("This job is priced with your quote, not from Servika's list. Send a quote instead.");
+        if (booking.IsCustomQuote && !booking.HasAcceptedCustomQuote)
+            throw new ConflictException("This is a custom job. Send your itemised quote first.");
         if (booking.Status is not (BookingStatus.Arrived or BookingStatus.InProgress))
             throw new ConflictException("Repairs are added once you are at the job.");
         if (booking.PaidNaira <= 0 || booking.AmountDueNaira > 0)
