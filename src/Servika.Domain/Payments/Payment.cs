@@ -31,6 +31,15 @@ public sealed class Payment
 
     public int AmountNaira { get; private set; }
 
+    /// <summary>Records which artisan earns this escrow. An upfront payment is taken before Servika has
+    /// assigned anyone, so the artisan is set when the earning is released (the one who did the job).</summary>
+    public void AttributeTo(Guid artisanProfileId)
+    {
+        if (IsEarningReleased && ArtisanId != artisanProfileId)
+            throw new InvalidOperationException("The earning was already released to another artisan.");
+        ArtisanId = artisanProfileId;
+    }
+
     /// <summary>The payment fee charged to the customer ON TOP of <see cref="AmountNaira"/>
     /// (0 while Servika absorbs fees). Never part of the escrow or the artisan's earning.</summary>
     public int ServiceFeeNaira { get; private set; }

@@ -35,4 +35,7 @@ public sealed record CreateBookingRequest(
     /// <summary>An artisan's personal booking code or link. Resolves the artisan server-side (overrides ArtisanId) and records the Code source.</summary>
     string? BookingCode = null,
     /// <summary>The customer is rebooking an artisan who already did a job for them (verified server-side).</summary>
-    bool Rebook = false);
+    bool Rebook = false,
+    /// <summary>A job from Servika's price book. Booked at Servika's price (read server-side) and paid
+    /// upfront; the job is offered to an artisan once the payment lands. The description may be empty.</summary>
+    Guid? PriceBookItemId = null);

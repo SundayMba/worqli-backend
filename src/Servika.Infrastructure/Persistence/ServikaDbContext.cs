@@ -111,6 +111,9 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "service_interests" table — "tell us what you need" requests (demand before supply).</summary>
     public DbSet<ServiceInterest> ServiceInterests => Set<ServiceInterest>();
 
+    /// <summary>The "price_book_items" table — Servika's own prices: fixed jobs, add-on repairs, custom ranges.</summary>
+    public DbSet<PriceBookItem> PriceBookItems => Set<PriceBookItem>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -280,6 +283,8 @@ public sealed class ServikaDbContext : DbContext
 
             // A customer's history is listed by customer id + creation time.
             booking.HasIndex(b => b.CustomerId);
+            // Price signals per price-book item (bookings, drop-off, completions).
+            booking.HasIndex(b => b.PriceBookItemId);
 
             booking.Property(b => b.CategorySlug).IsRequired().HasMaxLength(60);
             booking.Property(b => b.ServiceName).IsRequired().HasMaxLength(80);
@@ -428,6 +433,19 @@ public sealed class ServikaDbContext : DbContext
             si.Property(x => x.CategorySlug).HasMaxLength(60);
             si.Property(x => x.Note).HasMaxLength(ServiceInterest.MaxNoteLength);
             si.Property(x => x.AreaLabel).HasMaxLength(120);
+        });
+
+        modelBuilder.Entity<PriceBookItem>(item =>
+        {
+            item.ToTable("price_book_items");
+            item.HasKey(x => x.Id);
+            item.Property(x => x.CategorySlug).IsRequired().HasMaxLength(60);
+            item.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16);
+            item.Property(x => x.Name).IsRequired().HasMaxLength(PriceBookItem.MaxNameLength);
+            item.Property(x => x.Scope).IsRequired().HasMaxLength(PriceBookItem.MaxScopeLength);
+            item.Property(x => x.PartsNote).HasMaxLength(PriceBookItem.MaxPartsNoteLength);
+            item.HasIndex(x => new { x.CategorySlug, x.Kind, x.SortOrder });
+            item.HasIndex(x => x.IsPopular);
         });
 
         modelBuilder.Entity<JobOffer>(o =>

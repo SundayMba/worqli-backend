@@ -37,4 +37,6 @@ public sealed record BookingSummaryDto(
     int? ArtisanNetNaira,
     /// <summary>The assigned artisan profile id (for Book again), or null.</summary>
     Guid? ArtisanId = null,
-    string Source = "Direct");
+    string Source = "Direct",
+    Guid? PriceBookItemId = null,
+    bool AwaitingUpfrontPayment = false);

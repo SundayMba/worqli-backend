@@ -45,6 +45,10 @@ public sealed class EscrowReleaseService
 
         var now = _clock.UtcNow;
 
+        // The artisan who did the job earns it (an upfront payment was taken before anyone was assigned).
+        if (booking.ArtisanId is { } doneBy && payment.ArtisanId != doneBy)
+            payment.AttributeTo(doneBy);
+
         // Platform commission (skipped at 0% launch rate).
         if (payment.CommissionNaira > 0)
             _wallet.Add(WalletTransaction.Create(

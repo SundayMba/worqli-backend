@@ -24,6 +24,7 @@ public sealed class CreateBookingHandler
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
     private readonly IArtisanServiceRepository _artisanServices;
+    private readonly IPriceBookRepository _priceBook;
     private readonly IUserRepository _users;
     private readonly IPlatformSettingsRepository _settings;
     private readonly AssignmentService _assignment;
@@ -42,8 +43,10 @@ public sealed class CreateBookingHandler
         Notifications.NotificationEmitter notifications,
         IFileStorage files,
         IClock clock,
-        AssignmentService assignment)
+        AssignmentService assignment,
+        IPriceBookRepository priceBook)
     {
+        _priceBook = priceBook;
         _bookings = bookings;
         _catalogue = catalogue;
         _artisanServices = artisanServices;
@@ -68,7 +71,18 @@ public sealed class CreateBookingHandler
                 throw new PhoneVerificationRequiredException();
         }
 
-        var slug = request.CategorySlug?.Trim() ?? string.Empty;
+        // A Servika price-book job: Servika's price, Servika's scope. Its category wins over the client's.
+        Domain.Catalogue.PriceBookItem? priceBookItem = null;
+        if (request.PriceBookItemId is { } itemId)
+        {
+            if (request.ArtisanServiceId is not null)
+                throw new ArgumentException("Book either a Servika job or an artisan's own listing, not both.");
+            priceBookItem = await _priceBook.FindAsync(itemId, ct);
+            if (priceBookItem is not { IsActive: true, Kind: Domain.Catalogue.PriceBookItemKind.Fixed, PriceNaira: > 0 })
+                throw new NotFoundException("That job is no longer offered. Pick another from the list.");
+        }
+
+        var slug = priceBookItem?.CategorySlug ?? request.CategorySlug?.Trim() ?? string.Empty;
         var category = await _catalogue.GetCategoryBySlugAsync(slug, ct)
             ?? throw new NotFoundException($"Category '{slug}' was not found.");
 
@@ -153,9 +167,12 @@ public sealed class CreateBookingHandler
             categorySlug: category.Slug,
             // A fixed-price booking is FOR that listed service — its name is the
             // one that should show everywhere ("Knotless braids", not "Beauty").
-            serviceName: fixedService?.Name ?? category.Name,
+            serviceName: priceBookItem?.Name ?? fixedService?.Name ?? category.Name,
             artisanName: artisanName,
-            description: request.Description,
+            // A price-book job's scope already says what is wanted; the customer's words are extra.
+            description: string.IsNullOrWhiteSpace(request.Description) && priceBookItem is not null
+                ? (string.IsNullOrWhiteSpace(priceBookItem.Scope) ? priceBookItem.Name : priceBookItem.Scope)
+                : request.Description,
             addressText: request.AddressText,
             locationLat: request.LocationLat,
             locationLng: request.LocationLng,
@@ -166,18 +183,24 @@ public sealed class CreateBookingHandler
             // Fixed = a published price known at booking; Variable = the price is
             // agreed later via a quote. Booking itself is always free either way —
             // payment for a fixed booking happens once the artisan accepts.
-            pricingModel: fixedService is null ? PricingModel.Variable : PricingModel.Fixed,
-            initialQuoteAmountNaira: fixedService?.PriceNaira,
+            pricingModel: fixedService is null && priceBookItem is null ? PricingModel.Variable : PricingModel.Fixed,
+            initialQuoteAmountNaira: priceBookItem?.PriceNaira ?? fixedService?.PriceNaira,
             commissionRate: commissionRate,
             now: _clock.UtcNow,
             assessment: assessment,
             mediaKeys: mediaKeys,
             videoKey: videoKey,
-            source: requestedArtisanId is null ? BookingSource.Rotation : source);
+            source: requestedArtisanId is null ? BookingSource.Rotation : source,
+            priceBookItemId: priceBookItem?.Id);
 
         _bookings.Add(booking);
         var now = _clock.UtcNow;
-        if (chosenArtisan is null)
+        if (booking.PaysUpfront)
+        {
+            // Nobody is sent to an unpaid job: the offer goes out when the payment lands
+            // (PaymentSettlementService).
+        }
+        else if (chosenArtisan is null)
         {
             // Servika assigns: the request is offered to one artisan at a time, in rotation.
             await _assignment.OfferNextAsync(booking, now, ct);

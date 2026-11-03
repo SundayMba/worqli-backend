@@ -230,6 +230,9 @@ namespace Servika.Infrastructure.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("character varying(60)");
 
+                    b.Property<Guid?>("PriceBookItemId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("PricingModel")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -272,6 +275,8 @@ namespace Servika.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CustomerId");
+
+                    b.HasIndex("PriceBookItemId");
 
                     b.ToTable("bookings", (string)null);
                 });
@@ -733,6 +738,81 @@ namespace Servika.Infrastructure.Migrations
                     b.HasIndex("ArtisanProfileId");
 
                     b.ToTable("artisan_services", (string)null);
+                });
+
+            modelBuilder.Entity("Servika.Domain.Catalogue.PriceBookItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CategorySlug")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("DurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPlaceholderPrice")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPopular")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("PartsNote")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("PhotoKey")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("PriceNaira")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RangeMaxNaira")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RangeMinNaira")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsPopular");
+
+                    b.HasIndex("CategorySlug", "Kind", "SortOrder");
+
+                    b.ToTable("price_book_items", (string)null);
                 });
 
             modelBuilder.Entity("Servika.Domain.Catalogue.ServiceCategory", b =>
@@ -1692,6 +1772,9 @@ namespace Servika.Infrastructure.Migrations
                         .HasPrecision(5, 4)
                         .HasColumnType("numeric(5,4)");
 
+                    b.Property<int>("DiagnosisFeeNaira")
+                        .HasColumnType("integer");
+
                     b.Property<int>("DirectOfferWindowMinutes")
                         .HasColumnType("integer");
 
@@ -1717,6 +1800,12 @@ namespace Servika.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("OfferWindowMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("QuoteReviewRangeFactor")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("QuoteReviewThresholdNaira")
                         .HasColumnType("integer");
 
                     b.Property<int>("ReferralRewardNaira")

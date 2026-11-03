@@ -54,15 +54,15 @@ public sealed class InitializePaymentHandler
         // Payment starts only once the job is actually on: a fixed-price booking
         // carries its amount from creation, but paying before the artisan accepts
         // would need a refund path if they decline — so the gate opens at Accepted.
-        if (booking.Status is Domain.Bookings.BookingStatus.Open
-            or Domain.Bookings.BookingStatus.Pending
-            or Domain.Bookings.BookingStatus.Rejected
+        // A price-book job is the exception: Servika's price is known, so it is paid upfront and only then
+        // offered to an artisan.
+        if (booking.Status is Domain.Bookings.BookingStatus.Rejected
             or Domain.Bookings.BookingStatus.Cancelled
             or Domain.Bookings.BookingStatus.Expired)
-        {
-            throw new ConflictException(
-                "Payment opens once the artisan accepts your booking.");
-        }
+            throw new ConflictException("This booking is closed, so there is nothing to pay.");
+        if (!booking.PaysUpfront && booking.Status is Domain.Bookings.BookingStatus.Open
+            or Domain.Bookings.BookingStatus.Pending)
+            throw new ConflictException("Payment opens once the artisan accepts your booking.");
 
         // Reuse an in-flight Pending payment so a retry doesn't create duplicates.
         var existing = await _payments.FindActiveForBookingAsync(bookingId, ct);

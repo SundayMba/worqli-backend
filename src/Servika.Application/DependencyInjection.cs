@@ -119,6 +119,13 @@ public static class DependencyInjection
         // Customer Home: availability line and "tell us what you need".
         services.AddScoped<Catalogue.GetAvailabilityHandler>();
         services.AddScoped<Catalogue.RecordServiceInterestHandler>();
+        services.AddScoped<Catalogue.GetPriceBookHandler>();
+        services.AddScoped<Catalogue.GetCategoryPriceBookHandler>();
+        services.AddScoped<Catalogue.GetPriceBookItemHandler>();
+        services.AddScoped<Catalogue.GetPriceBookPhotoHandler>();
+        services.AddScoped<Catalogue.ListAdminPriceBookHandler>();
+        services.AddScoped<Catalogue.SavePriceBookItemHandler>();
+        services.AddScoped<Catalogue.SetPriceBookPhotoHandler>();
         services.AddScoped<Catalogue.ListServiceInterestsHandler>();
 
         // Live tracking (SignalR hub + stale-cleanup worker both call this).

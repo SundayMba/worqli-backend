@@ -76,6 +76,7 @@ public static class DependencyInjection
         // Marketplace catalogue (read-only reference data), Scoped (EF).
         services.AddScoped<ICatalogueRepository, CatalogueRepository>();
         services.AddScoped<IArtisanServiceRepository, ArtisanServiceRepository>();
+        services.AddScoped<IPriceBookRepository, PriceBookRepository>();
 
         // Bookings (read + write), Scoped (EF).
         services.AddScoped<IBookingRepository, BookingRepository>();

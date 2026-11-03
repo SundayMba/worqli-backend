@@ -37,7 +37,9 @@ internal static class BookingMapping
             b.CompletedAtUtc,
             artisanSide ? b.ArtisanNetNaira() : null,
             b.ArtisanId,
-            b.Source.ToString());
+            b.Source.ToString(),
+            b.PriceBookItemId,
+            b.AwaitingUpfrontPayment);
 
     /// <param name="bidCount">Active bids to show (0 when not relevant).</param>
     /// <param name="autoConfirmHours">The admin auto-confirm window, when the caller
@@ -86,7 +88,9 @@ internal static class BookingMapping
             b.AutoConfirmAtUtc(autoConfirmHours),
             b.OfferRound,
             b.OffersExhaustedAtUtc,
-            b.Source.ToString());
+            b.Source.ToString(),
+            b.PriceBookItemId,
+            b.AwaitingUpfrontPayment);
 
     /// <summary>What the artisan actually receives for the job: the agreed amount
     /// minus Servika's commission at the booking's rate (rounded exactly like

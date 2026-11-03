@@ -86,6 +86,15 @@ public sealed class BookingRepository : IBookingRepository
         return rows > 0;
     }
 
+    public async Task<IReadOnlyList<Booking>> ListLapsedUpfrontAsync(
+        DateTimeOffset unpaidCutoffUtc, DateTimeOffset pendingCutoffUtc, CancellationToken ct) =>
+        await _db.Bookings
+            .Where(b => b.PriceBookItemId != null
+                && (b.Status == BookingStatus.Open || b.Status == BookingStatus.Pending)
+                && (b.PaymentState == BookingPaymentState.Unpaid && b.CreatedAt <= unpaidCutoffUtc
+                    || b.PaymentState == BookingPaymentState.Pending && b.CreatedAt <= pendingCutoffUtc))
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<Booking>> ListOpenExhaustedBeforeAsync(DateTimeOffset cutoffUtc, CancellationToken ct) =>
         await _db.Bookings
             .Where(b => b.Status == BookingStatus.Open && b.OffersExhaustedAtUtc != null && b.OffersExhaustedAtUtc <= cutoffUtc)

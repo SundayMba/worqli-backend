@@ -168,6 +168,11 @@ public sealed class OfferSweepHandler
         _clock = clock;
     }
 
+    /// <summary>A price-book booking with no payment started lapses after this long.</summary>
+    public const int UnpaidUpfrontLapseHours = 2;
+    /// <summary>One whose payment is still pending (a slow bank transfer) gets a day.</summary>
+    public const int PendingUpfrontLapseHours = 24;
+
     /// <summary>Returns (expired offers, retried requests).</summary>
     public async Task<(int Expired, int Retried)> RunAsync(CancellationToken ct)
     {
@@ -187,7 +192,12 @@ public sealed class OfferSweepHandler
         var retry = await _bookings.ListOpenExhaustedBeforeAsync(now.AddMinutes(-AssignmentService.RetryExhaustedAfterMinutes), ct);
         foreach (var booking in retry) await _assignment.OfferNextAsync(booking, now, ct);
 
-        if (expired.Count > 0 || retry.Count > 0) await _offers.SaveChangesAsync(ct);
+        // A price-book job nobody paid for lapses, so it never lingers as a live booking.
+        var lapsed = await _bookings.ListLapsedUpfrontAsync(
+            now.AddHours(-UnpaidUpfrontLapseHours), now.AddHours(-PendingUpfrontLapseHours), ct);
+        foreach (var booking in lapsed) booking.ExpireUnpaid();
+
+        if (expired.Count > 0 || retry.Count > 0 || lapsed.Count > 0) await _offers.SaveChangesAsync(ct);
         return (expired.Count, retry.Count);
     }
 }

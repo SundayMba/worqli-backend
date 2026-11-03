@@ -19,6 +19,8 @@ public sealed class PaymentSettlementService
     private readonly IBookingRepository _bookings;
     private readonly NotificationEmitter _notifications;
     private readonly IPlatformSettingsRepository _settings;
+    private readonly ICatalogueRepository _catalogue;
+    private readonly Bookings.AssignmentService _assignment;
     private readonly IClock _clock;
 
     public PaymentSettlementService(
@@ -26,8 +28,12 @@ public sealed class PaymentSettlementService
         IBookingRepository bookings,
         NotificationEmitter notifications,
         IPlatformSettingsRepository settings,
+        ICatalogueRepository catalogue,
+        Bookings.AssignmentService assignment,
         IClock clock)
     {
+        _catalogue = catalogue;
+        _assignment = assignment;
         _wallet = wallet;
         _bookings = bookings;
         _notifications = notifications;
@@ -119,8 +125,28 @@ public sealed class PaymentSettlementService
 
         _notifications.PaymentReceived(
             payment.CustomerId, payment.BookingId!.Value, booking?.ServiceName ?? string.Empty);
-        if (booking is not null)
-            await _notifications.ArtisanEscrowFunded(booking, ct);
+        if (booking is null) return true;
+
+        // A price-book job was waiting for this money before anyone was sent: offer it now.
+        if (booking.PaysUpfront && booking.OfferRound == 0
+            && booking.Status is Domain.Bookings.BookingStatus.Open or Domain.Bookings.BookingStatus.Pending)
+        {
+            var chosen = booking.ArtisanId is { } artisanId
+                ? await _catalogue.GetArtisanByIdAsync(artisanId, ct)
+                : null;
+            if (chosen is not null)
+            {
+                await _assignment.OfferDirectAsync(booking, chosen, now, ct);
+                await _notifications.ArtisanNewBooking(booking, ct);
+            }
+            else
+            {
+                await _assignment.OfferNextAsync(booking, now, ct);
+            }
+            return true;
+        }
+
+        await _notifications.ArtisanEscrowFunded(booking, ct);
         return true;
     }
 }

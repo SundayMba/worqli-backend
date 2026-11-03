@@ -194,6 +194,31 @@ public sealed class Booking
 
     public void MarkOffersExhausted(DateTimeOffset now) => OffersExhaustedAtUtc = now;
 
+    // ── Servika price book ──
+    /// <summary>The price-book job this booking is for (a fixed-price job at Servika's price). Null for
+    /// a request whose price is agreed after the artisan sees the job.</summary>
+    public Guid? PriceBookItemId { get; private set; }
+
+    /// <summary>A price-book job is paid upfront: the price is known, so the money goes into escrow at
+    /// booking and only then is the job offered to an artisan. Nobody is sent to an unpaid job.</summary>
+    public bool PaysUpfront => PriceBookItemId is not null;
+
+    /// <summary>Still waiting for the upfront payment before any artisan is offered the job.</summary>
+    public bool AwaitingUpfrontPayment =>
+        PaysUpfront && PaymentState is not (BookingPaymentState.Paid or BookingPaymentState.Refunded
+            or BookingPaymentState.PartiallyRefunded);
+
+    /// <summary>An upfront booking the customer never paid for lapses, so it never sits in their list
+    /// as a live job (Open/Pending → Expired).</summary>
+    public void ExpireUnpaid()
+    {
+        if (!AwaitingUpfrontPayment)
+            throw new InvalidBookingStateException("Only an unpaid upfront booking can lapse.");
+        if (Status is not (BookingStatus.Open or BookingStatus.Pending))
+            throw new InvalidBookingStateException($"A {Status} booking can't lapse.");
+        Status = BookingStatus.Expired;
+    }
+
     // EF Core rebuilds rows through this; private so app code can't skip the rules.
     private Booking() { }
 
@@ -225,7 +250,8 @@ public sealed class Booking
         AssessmentMode assessment = AssessmentMode.Inspection,
         List<string>? mediaKeys = null,
         string? videoKey = null,
-        BookingSource? source = null)
+        BookingSource? source = null,
+        Guid? priceBookItemId = null)
     {
         if (customerId == Guid.Empty)
             throw new ArgumentException("Customer is required.", nameof(customerId));
@@ -237,6 +263,8 @@ public sealed class Booking
             throw new ArgumentException("A service address is required.", nameof(addressText));
         if (commissionRate is < 0 or > 1)
             throw new ArgumentException("Commission rate must be between 0 and 1.", nameof(commissionRate));
+        if (priceBookItemId is not null && (pricingModel != PricingModel.Fixed || initialQuoteAmountNaira is not > 0))
+            throw new ArgumentException("A price-book booking carries its fixed price.", nameof(priceBookItemId));
 
         return new Booking
         {
@@ -273,6 +301,7 @@ public sealed class Booking
             MediaKeys = mediaKeys ?? new(),
             VideoKey = string.IsNullOrWhiteSpace(videoKey) ? null : videoKey,
             Source = source ?? (artisanId is null ? BookingSource.Rotation : BookingSource.Direct),
+            PriceBookItemId = priceBookItemId,
         };
     }
 

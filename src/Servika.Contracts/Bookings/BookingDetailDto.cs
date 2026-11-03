@@ -69,4 +69,8 @@ public sealed record BookingDetailDto(
     /// <summary>Set while rotation has nobody left to ask; Servika keeps retrying.</summary>
     DateTimeOffset? OffersExhaustedAtUtc = null,
     /// <summary>Rotation | Direct | Code | Rebook.</summary>
-    string Source = "Direct");
+    string Source = "Direct",
+    /// <summary>The Servika price-book job this booking is for, if any (paid upfront at Servika's price).</summary>
+    Guid? PriceBookItemId = null,
+    /// <summary>True while a price-book job waits for its upfront payment; no artisan is offered it yet.</summary>
+    bool AwaitingUpfrontPayment = false);

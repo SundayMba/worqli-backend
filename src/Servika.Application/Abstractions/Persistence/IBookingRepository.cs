@@ -69,6 +69,11 @@ public interface IBookingRepository
     /// <summary>Open requests that ran out of artisans before <paramref name="cutoffUtc"/> (tracked), for the retry sweep.</summary>
     Task<IReadOnlyList<Booking>> ListOpenExhaustedBeforeAsync(DateTimeOffset cutoffUtc, CancellationToken ct);
 
+    /// <summary>Upfront (price-book) bookings still Open/Pending with no payment (tracked): never started
+    /// paying before <paramref name="unpaidCutoffUtc"/>, or a payment still pending before
+    /// <paramref name="pendingCutoffUtc"/> (a bank transfer gets longer).</summary>
+    Task<IReadOnlyList<Booking>> ListLapsedUpfrontAsync(DateTimeOffset unpaidCutoffUtc, DateTimeOffset pendingCutoffUtc, CancellationToken ct);
+
     /// <summary>Artisans this customer completed jobs with: count and most recent completion, per artisan.</summary>
     Task<IReadOnlyList<PastArtisanStat>> ListCompletedArtisansForCustomerAsync(Guid customerId, CancellationToken ct);
 
