@@ -46,7 +46,11 @@ public sealed record FeeScheduleDto(
     /// <summary>Minutes an artisan has to accept a job Servika offers them.</summary>
     int OfferWindowMinutes = 10,
     /// <summary>The diagnosis visit fee, credited against the repair if the customer goes ahead.</summary>
-    int DiagnosisFeeNaira = 5000);
+    int DiagnosisFeeNaira = 5000,
+    /// <summary>A custom quote at or above this total, or with labour above the factor × the typical top, is
+    /// checked by Servika before the customer sees it.</summary>
+    int QuoteReviewThresholdNaira = 50000,
+    decimal QuoteReviewRangeFactor = 1.5m);
 
 /// <summary>One transfer-charge band: amounts up to <see cref="UpToNaira"/> (null = anything above) cost <see cref="FeeNaira"/>.</summary>
 public sealed record TransferFeeTierDto(int? UpToNaira, int FeeNaira);
