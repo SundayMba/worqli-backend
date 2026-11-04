@@ -178,18 +178,30 @@ public sealed class DeleteArtisanServiceHandler
 public sealed class GetServicePhotoHandler
 {
     private readonly IArtisanServiceRepository _services;
+    private readonly ICatalogueRepository _catalogue;
     private readonly IFileStorage _files;
 
-    public GetServicePhotoHandler(IArtisanServiceRepository services, IFileStorage files)
+    public GetServicePhotoHandler(IArtisanServiceRepository services, ICatalogueRepository catalogue, IFileStorage files)
     {
         _services = services;
+        _catalogue = catalogue;
         _files = files;
     }
 
-    public async Task<StoredFile> HandleAsync(Guid serviceId, CancellationToken ct)
+    /// <summary>
+    /// A live post's photo is public. One still waiting for ops, or sent back, is shown only to its artisan and
+    /// to ops: a new cover can carry a phone number or a shop sign until someone has looked at it.
+    /// </summary>
+    public async Task<StoredFile> HandleAsync(Guid serviceId, CancellationToken ct, Guid? viewerUserId = null, bool viewerIsAdmin = false)
     {
         var service = await _services.FindAsync(serviceId, ct)
             ?? throw new NotFoundException("Service was not found.");
+        if (!service.IsPublic && !viewerIsAdmin)
+        {
+            var owner = viewerUserId is { } uid ? await _catalogue.GetArtisanByUserIdAsync(uid, ct) : null;
+            if (owner is null || owner.Id != service.ArtisanProfileId)
+                throw new NotFoundException("Service was not found.");
+        }
         if (string.IsNullOrEmpty(service.PhotoKey))
             throw new NotFoundException("This service has no photo.");
         return await _files.GetAsync(service.PhotoKey, ct)

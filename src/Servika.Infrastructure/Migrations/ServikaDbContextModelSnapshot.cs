@@ -298,6 +298,7 @@ namespace Servika.Infrastructure.Migrations
                         .HasDefaultValue("Direct");
 
                     b.Property<string>("Status")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");

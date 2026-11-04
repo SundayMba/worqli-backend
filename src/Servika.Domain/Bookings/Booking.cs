@@ -205,6 +205,14 @@ public sealed class Booking
 
     public bool IsDiagnosis => DiagnosisFeeNaira is > 0;
 
+    /// <summary>
+    /// Whether this request can be opened to every artisan for bids. Only a job priced by bids can: a set-price
+    /// booking (an artisan's own listing or Servika's price book), a paid visit, a custom quote, or anything already
+    /// paid has terms only its own artisan agreed to, so a decline ends it (with a full refund) instead.
+    /// </summary>
+    public bool CanOpenForBids =>
+        PricingModel != PricingModel.Fixed && PriceBookItemId is null && DiagnosisFeeNaira is null && !IsCustomQuote && PaidNaira == 0;
+
     /// <summary>A custom job (work not on the price book): after the paid visit the artisan sends an itemised
     /// quote, shown beside a typical range and checked by ops when it is large or far above it.</summary>
     public bool IsCustomQuote { get; private set; }

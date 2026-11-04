@@ -294,6 +294,10 @@ public sealed class ServikaDbContext : DbContext
             booking.ToTable("bookings");
 
             booking.HasKey(b => b.Id);
+            // Every update checks the status it read is still the status in the row, so two people acting on
+            // the same booking at once (two bids accepted, a counter taken while another bid is picked) cannot
+            // both win: the second save fails and is answered with a 409.
+            booking.Property(b => b.Status).IsConcurrencyToken();
 
             // A customer's history is listed by customer id + creation time.
             booking.HasIndex(b => b.CustomerId);

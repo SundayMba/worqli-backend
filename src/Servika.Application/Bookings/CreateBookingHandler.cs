@@ -71,6 +71,12 @@ public sealed class CreateBookingHandler
                 throw new PhoneVerificationRequiredException();
         }
 
+        // Servika's own prices (price book, diagnosis, custom quote) are paused while jobs are priced by bids. With no
+        // artisan to take them, such a request would sit paid and open with nobody able to accept it.
+        if (request.ArtisanId is null && string.IsNullOrWhiteSpace(request.BookingCode)
+            && (request.PriceBookItemId is not null || request.Diagnosis || request.CustomQuote))
+            throw new ConflictException("This way of booking is paused. Describe the job and artisans will send prices.");
+
         // A Servika price-book job: Servika's price, Servika's scope. Its category wins over the client's.
         Domain.Catalogue.PriceBookItem? priceBookItem = null;
         if (request.PriceBookItemId is { } itemId)

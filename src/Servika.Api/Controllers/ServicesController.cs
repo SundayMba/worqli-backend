@@ -82,7 +82,11 @@ public sealed class ServicesController : ControllerBase
         [FromServices] GetServicePhotoHandler handler,
         CancellationToken ct)
     {
-        var file = await handler.HandleAsync(id, ct);
+        // Signed-in callers: the owner and admins may also see a photo still waiting for ops.
+        var sub = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+        var viewer = Guid.TryParse(sub, out var uid) ? uid : (Guid?)null;
+        var isAdmin = User.IsInRole("Admin") || User.IsInRole("SuperAdmin");
+        var file = await handler.HandleAsync(id, ct, viewer, isAdmin);
         return File(file.Content, file.ContentType);
     }
 }

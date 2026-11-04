@@ -29,6 +29,9 @@ public sealed class RebroadcastBookingHandler
         var booking = await _bookings.FindForCustomerAsync(bookingId, customerId, ct)
             ?? throw new NotFoundException($"Booking '{bookingId}' was not found.");
 
+        if (!booking.CanOpenForBids)
+            throw new ConflictException(
+                "This was a set-price booking with one artisan. Book another service, or describe the job to get prices.");
         await _assignment.ReassignAsync(booking, null, null, _clock.UtcNow, ct);
         await _bookings.SaveChangesAsync(ct);
 

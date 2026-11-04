@@ -24,11 +24,14 @@ public sealed class AssignmentService
     private readonly IPlatformSettingsRepository _settings;
     private readonly NotificationEmitter _notifications;
     private readonly IAdminAlerts _alerts;
+    private readonly Payments.RefundService _refunds;
 
     public AssignmentService(
         IJobOfferRepository offers, ICatalogueRepository catalogue, Payments.ArtisanStandingService standing,
-        IPlatformSettingsRepository settings, NotificationEmitter notifications, IAdminAlerts alerts)
+        IPlatformSettingsRepository settings, NotificationEmitter notifications, IAdminAlerts alerts,
+        Payments.RefundService refunds)
     {
+        _refunds = refunds;
         _offers = offers;
         _catalogue = catalogue;
         _standing = standing;
@@ -102,6 +105,17 @@ public sealed class AssignmentService
             if (live.Status != JobOfferStatus.Offered) continue; // already expired/declined in this unit of work
             if (declinedByProfileId is { } p && live.ArtisanProfileId == p) live.Decline(now, reason);
             else live.Withdraw(now);
+        }
+        if (!booking.CanOpenForBids)
+        {
+            // A set-price or paid request only its own artisan agreed to: it ends here, and any money comes back.
+            if (booking.Status == BookingStatus.Pending)
+            {
+                booking.Reject();
+                await _notifications.BookingAdvancedByArtisanAsync(booking, ArtisanBookingAction.Reject, 0, ct);
+            }
+            await _refunds.RefundIfPaidAsync(booking, ct);
+            return;
         }
         if (booking.Status != BookingStatus.Open) booking.Rebroadcast();
         await BroadcastAsync(booking, now, ct);

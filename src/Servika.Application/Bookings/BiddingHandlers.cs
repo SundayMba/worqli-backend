@@ -91,6 +91,8 @@ public sealed class SubmitBidHandler
                 throw new NotFoundException("This request was not found.");
             if (booking.Status != BookingStatus.Open || booking.Assessment != AssessmentMode.RemoteQuote)
                 throw new ConflictException("This job is no longer taking bids.");
+            if (!booking.CanOpenForBids)
+                throw new ConflictException("This job has a set price, so it is not taking bids.");
             if (!profile.CategorySlugs.Contains(booking.CategorySlug))
                 throw new ConflictException("This job is not in your trades.");
             if (await _standing.IsRestrictedAsync(profile.Id, ct))
