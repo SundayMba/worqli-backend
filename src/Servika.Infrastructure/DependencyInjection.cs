@@ -73,6 +73,13 @@ public static class DependencyInjection
         services.AddHttpClient("google-tokeninfo");
         services.AddSingleton<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
+        // Sign in with Apple (iPhone). Same pattern: with no Apple:BundleIds it rejects every token.
+        var appleOptions = configuration.GetSection(AppleSignInOptions.SectionName).Get<AppleSignInOptions>()
+            ?? new AppleSignInOptions();
+        services.AddSingleton(appleOptions);
+        services.AddHttpClient("apple-keys");
+        services.AddSingleton<IAppleTokenVerifier, AppleTokenVerifier>();
+
         // Marketplace catalogue (read-only reference data), Scoped (EF).
         services.AddScoped<ICatalogueRepository, CatalogueRepository>();
         services.AddScoped<IArtisanServiceRepository, ArtisanServiceRepository>();

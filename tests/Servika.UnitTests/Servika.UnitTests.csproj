@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Servika.Domain\Servika.Domain.csproj" />
     <ProjectReference Include="..\..\src\Servika.Application\Servika.Application.csproj" />
+    <ProjectReference Include="..\..\src\Servika.Infrastructure\Servika.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -38,7 +38,9 @@ public static class DependencyInjection
         services.AddScoped<ResetPasswordHandler>();
         services.AddScoped<BecomeArtisanHandler>();
         services.AddScoped<Users.Profile.UpdateProfileHandler>();
+        services.AddScoped<Users.Social.SocialSignInService>();
         services.AddScoped<Users.Google.GoogleLoginHandler>();
+        services.AddScoped<Users.Apple.AppleLoginHandler>();
 
         // Catalogue (marketplace) query handlers.
         services.AddScoped<GetCategoriesHandler>();
