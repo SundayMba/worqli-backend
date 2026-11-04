@@ -13,7 +13,11 @@ public sealed class AdminAlertOptions
     public string TelegramChatId { get; set; } = string.Empty;
     /// <summary>Ops inbox: gets money alerts, the daily summary, and anything Telegram failed to deliver.</summary>
     public string Email { get; set; } = string.Empty;
+    /// <summary>Where "Review now" links point. Blank = alerts carry no link (staging has no console of its own).</summary>
     public string ConsoleUrl { get; set; } = "https://admin.servika.com.ng";
+    /// <summary>Shown in front of every alert title, e.g. "STAGING", so a test alert in a shared chat is never
+    /// mistaken for a real one. Blank in production.</summary>
+    public string EnvironmentLabel { get; set; } = string.Empty;
     /// <summary>Hour (Africa/Lagos, 0–23) the morning summary goes out.</summary>
     public int DigestHourLagos { get; set; } = 8;
     public int SweepMinutes { get; set; } = 60;
