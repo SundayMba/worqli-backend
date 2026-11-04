@@ -348,10 +348,10 @@ public sealed class NotificationEmitter
     public Task ArtisanNewReview(Booking booking, int rating, CancellationToken ct)
     {
         return NotifyArtisanAsync(booking, NotificationKinds.Review,
-            "New review", $"A customer rated your work {rating}★. Tap to view.", ct);
+            // Ratings are Servika's (ops only), so the artisan hears that feedback came in, not the score.
+            "Feedback received", $"The customer left feedback on {booking.ServiceName}. Servika uses it to keep quality high.", ct);
     }
 
-    /// <summary>Servika offered this artisan a job. Carries the booking id so the Pro app opens the offer.</summary>
     /// <summary>Tell the artisan what ops decided on their service post.</summary>
     public void ServicePostReviewed(Guid artisanUserId, Domain.Catalogue.ArtisanService service)
     {
@@ -383,6 +383,7 @@ public sealed class NotificationEmitter
             booking.Id);
     }
 
+    /// <summary>Servika offered this artisan a job. Carries the booking id so the Pro app opens the offer.</summary>
     public void JobOffered(Guid artisanUserId, Booking booking, int windowMinutes)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
