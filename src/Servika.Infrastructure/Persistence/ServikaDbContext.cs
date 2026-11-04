@@ -614,6 +614,14 @@ public sealed class ServikaDbContext : DbContext
             kyc.Property(k => k.OpenReasonCode).HasMaxLength(64);
             kyc.Property(k => k.OpenNote).HasMaxLength(1000);
             kyc.Property(k => k.PoseSelfiesJson).HasColumnType("jsonb");
+            // Consent + phone liveness / ID signals (NDPA 2023).
+            kyc.Property(k => k.ConsentVersion).HasMaxLength(ArtisanKyc.MaxConsentVersionLength);
+            kyc.Property(k => k.LivenessMethod).HasMaxLength(16);
+            kyc.Property(k => k.LivenessAttempts).HasDefaultValue(0);
+            // text[] columns need an explicit default or existing rows fail the NOT NULL add.
+            kyc.Property(k => k.LivenessChallenges).HasDefaultValueSql("'{}'");
+            kyc.Property(k => k.LivenessChallenges).Metadata.SetValueComparer(stringListComparer);
+            kyc.HasIndex(k => new { k.Status, k.ReviewedAtUtc });
 
             kyc.Property(k => k.IdType).HasConversion<string>().HasMaxLength(20);
             kyc.Property(k => k.Status).HasConversion<string>().HasMaxLength(20);

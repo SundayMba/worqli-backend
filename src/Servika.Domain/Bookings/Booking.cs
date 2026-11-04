@@ -141,6 +141,10 @@ public sealed class Booking
     public DateTimeOffset? CompletedAtUtc { get; private set; }
     public DateTimeOffset? CancelledAtUtc { get; private set; }
 
+    /// <summary>When the customer accepted the safety note while booking (null on older app builds).</summary>
+    public DateTimeOffset? SafetyAcknowledgedAtUtc { get; private set; }
+    public void AcknowledgeSafety(DateTimeOffset now) => SafetyAcknowledgedAtUtc ??= now;
+
     /// <summary>When the artisan actually started the work (→ InProgress) —
     /// drives the live elapsed-time display on the job screen.</summary>
     public DateTimeOffset? WorkStartedAtUtc { get; private set; }

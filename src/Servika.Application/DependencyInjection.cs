@@ -76,6 +76,7 @@ public static class DependencyInjection
 
         // Artisan KYC (submit documents, read status).
         services.AddScoped<SubmitKycHandler>();
+        services.AddScoped<KycImageRetentionHandler>();
         services.AddScoped<VerifyNinHandler>();
         services.AddScoped<ResubmitKycCheckHandler>();
         services.AddScoped<GetKycStatusHandler>();

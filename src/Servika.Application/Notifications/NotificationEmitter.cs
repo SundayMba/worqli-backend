@@ -81,9 +81,9 @@ public sealed class NotificationEmitter
             ArtisanBookingAction.Reject =>
                 (NotificationKinds.BookingDeclined, "Booking declined", $"{who} can't take this {service} booking. Try another artisan."),
             ArtisanBookingAction.StartTrip =>
-                (NotificationKinds.ArtisanOnTheWay, "Artisan on the way", $"{who} is heading to your location."),
+                (NotificationKinds.ArtisanOnTheWay, "Artisan on the way", $"{who} is on the way. Put cash and small valuables away before they arrive."),
             ArtisanBookingAction.Arrive =>
-                (NotificationKinds.ArtisanArrived, "Artisan arrived", $"{who} has arrived at your location."),
+                (NotificationKinds.ArtisanArrived, "Artisan arrived", $"{who} is at your door. Check it is the person in the app before you let them in."),
             ArtisanBookingAction.StartWork =>
                 (NotificationKinds.WorkStarted, "Work started", $"{who} has started your {service} job."),
             ArtisanBookingAction.Cancel =>

@@ -116,6 +116,7 @@ public sealed class GetAdminBookingHandler
             payment?.ServiceFeeNaira ?? 0,
             payment?.ChargedNaira,
             b.RefundedAmountNaira ?? (payment is { } pr && pr.RefundedNaira > 0 ? pr.RefundedNaira : null),
-            b.ReleasedMaterialsAdvanceNaira);
+            b.ReleasedMaterialsAdvanceNaira,
+            b.SafetyAcknowledgedAtUtc);
     }
 }

@@ -18,6 +18,7 @@ public static class BackgroundJobsExtensions
         services.AddHostedService<FeeNoticeService>();
         services.AddHostedService<AdminAlertSweepService>();
         services.AddHostedService<OfferSweepService>();
+        services.AddHostedService<KycImageRetentionService>();
         return services;
     }
 }

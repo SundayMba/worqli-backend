@@ -71,7 +71,9 @@ public sealed record AdminBookingDetailDto(
     /// <summary>Amount refunded to the customer (full or partial); null when none.</summary>
     int? RefundedAmountNaira = null,
     /// <summary>Materials advance actually released to the artisan (0 when none).</summary>
-    int MaterialsAdvanceReleasedNaira = 0);
+    int MaterialsAdvanceReleasedNaira = 0,
+    /// <summary>When the customer accepted the safety note while booking; null when not sent.</summary>
+    DateTimeOffset? SafetyAcknowledgedAtUtc = null);
 
 public sealed record AdminBidDto(
     Guid Id,

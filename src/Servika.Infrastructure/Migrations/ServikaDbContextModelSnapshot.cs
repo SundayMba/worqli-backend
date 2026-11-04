@@ -285,6 +285,9 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<int?>("RefundedAmountNaira")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("SafetyAcknowledgedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("ServiceName")
                         .IsRequired()
                         .HasMaxLength(80)
@@ -547,19 +550,56 @@ namespace Servika.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ConsentVersion")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset?>("ConsentedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("IdDocumentKey")
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
+                    b.Property<bool?>("IdFaceFound")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("IdNumber")
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
+
+                    b.Property<bool?>("IdNumberFound")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("IdNumberMatches")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool?>("IdTextFound")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("IdType")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<int>("LivenessAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.PrimitiveCollection<List<string>>("LivenessChallenges")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text[]")
+                        .HasDefaultValueSql("'{}'");
+
+                    b.Property<string>("LivenessMethod")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<bool?>("LivenessPassed")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("OpenCheck")
                         .HasMaxLength(32)
@@ -589,6 +629,9 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("ReviewedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("SelfieImagesDeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("SelfieKey")
                         .IsRequired()
                         .HasMaxLength(80)
@@ -609,6 +652,8 @@ namespace Servika.Infrastructure.Migrations
 
                     b.HasIndex("UserId")
                         .IsUnique();
+
+                    b.HasIndex("Status", "ReviewedAtUtc");
 
                     b.ToTable("artisan_kyc", (string)null);
                 });

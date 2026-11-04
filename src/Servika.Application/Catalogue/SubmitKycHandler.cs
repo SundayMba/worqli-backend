@@ -58,6 +58,13 @@ public sealed class SubmitKycHandler
     {
         if (!Enum.TryParse<KycIdType>(request.IdType, ignoreCase: true, out var idType))
             throw new ArgumentException($"Unknown ID type '{request.IdType}'.");
+        // NDPA 2023: no ID or face is stored without explicit consent.
+        if (string.IsNullOrWhiteSpace(request.ConsentVersion))
+            throw new ArgumentException("Agree to the consent before sending.");
+        ValidatePoses(request.PoseSelfies);
+        if (request.Liveness is not null &&
+            !ArtisanKyc.LivenessMethods.Contains((request.Liveness.Method ?? "").Trim().ToLowerInvariant()))
+            throw new ArgumentException($"Unknown liveness method '{request.Liveness.Method}'.");
 
         // Guarantors are required unless the admin switched the rule off or waived it for this artisan.
         var settings = await _settings.GetOrCreateAsync(ct);
@@ -79,10 +86,9 @@ public sealed class SubmitKycHandler
 
         // Pose selfies (left / right): decoded and stored beside the straight one.
         var poseShots = new List<PoseShot>();
-        foreach (var p in (request.PoseSelfies ?? Array.Empty<PoseSelfieRequest>()).Take(3))
+        foreach (var p in request.PoseSelfies ?? Array.Empty<PoseSelfieRequest>())
         {
             var pose = (p.Pose ?? "").Trim().ToLowerInvariant();
-            if (pose is not ("left" or "right" or "up")) throw new ArgumentException($"Unknown pose '{p.Pose}'.");
             var bytes = DecodeImage(p.ImageBase64, $"{pose} pose selfie");
             poseShots.Add(new PoseShot(pose, await _storage.SaveAsync(bytes, "image/jpeg", ct)));
         }
@@ -95,6 +101,7 @@ public sealed class SubmitKycHandler
             var wasOpen = existing.OpenCheck;
             existing.Resubmit(idType, request.IdNumber, selfieKey, idKey, now);
             existing.SetPoseSelfies(poseJson);
+            RecordPhoneSignals(existing, request, now);
             submission = existing;
             // Name the check only when one was actually open; a plain re-send has none.
             _events.Add(VerificationEvent.Create(submission.Id, artisanUserId, null, VerificationEventAction.Resubmitted,
@@ -104,6 +111,7 @@ public sealed class SubmitKycHandler
         {
             submission = ArtisanKyc.Submit(artisanUserId, idType, request.IdNumber, selfieKey, idKey, now);
             submission.SetPoseSelfies(poseJson);
+            RecordPhoneSignals(submission, request, now);
             _kyc.Add(submission);
             _events.Add(VerificationEvent.Create(submission.Id, artisanUserId, null, VerificationEventAction.Submitted, null, null, null, now));
         }
@@ -145,6 +153,32 @@ public sealed class SubmitKycHandler
                 $"/verifications/{submission.Id}", "Review now"));
         }
         return submission.ToStatusDto((await _events.ListForKycAsync(submission.Id, ct)).ToArtisanDtos());
+    }
+
+    /// <summary>Most pose selfies one submission may carry (left, right, up, smile).</summary>
+    public const int MaxPoseSelfies = 4;
+
+    /// <summary>Checks the pose list before anything is stored: known poses only, at most four.</summary>
+    public static void ValidatePoses(IReadOnlyList<PoseSelfieRequest>? poses)
+    {
+        if (poses is null) return;
+        if (poses.Count > MaxPoseSelfies)
+            throw new ArgumentException($"Send at most {MaxPoseSelfies} pose selfies.");
+        foreach (var p in poses)
+        {
+            var pose = (p.Pose ?? "").Trim().ToLowerInvariant();
+            if (!ArtisanKyc.AllowedPoses.Contains(pose))
+                throw new ArgumentException($"Unknown pose '{p.Pose}'.");
+        }
+    }
+
+    private static void RecordPhoneSignals(ArtisanKyc submission, SubmitKycRequest request, DateTimeOffset now)
+    {
+        submission.RecordConsent(request.ConsentVersion, now);
+        var l = request.Liveness;
+        submission.RecordLiveness(l?.Method, l?.Passed, l?.Challenges, l?.Attempts ?? 0);
+        var c = request.IdChecks;
+        submission.RecordIdChecks(c?.TextFound, c?.NumberFound, c?.NumberMatches, c?.FaceFound);
     }
 
     private static byte[] DecodeImage(string? base64, string label)

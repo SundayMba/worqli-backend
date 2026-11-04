@@ -11,9 +11,26 @@ public sealed record SubmitKycRequest(
     string SelfieBase64,
     string IdImageBase64,
     /// <summary>Extra live selfies in poses the app asked for ("left", "right"), so the reviewer can tell a live face from a photo of a photo.</summary>
-    IReadOnlyList<PoseSelfieRequest>? PoseSelfies = null);
+    IReadOnlyList<PoseSelfieRequest>? PoseSelfies = null,
+    /// <summary>Version of the consent text the artisan agreed to. Required: the server refuses a submission without it.</summary>
+    string? ConsentVersion = null,
+    /// <summary>What the phone's on-device liveness check reported. Null on older app builds.</summary>
+    LivenessResultRequest? Liveness = null,
+    /// <summary>What the phone read off the ID photo. Null on older app builds.</summary>
+    IdDocumentChecksRequest? IdChecks = null);
 
+/// <summary>Pose is "left", "right", "up" or "smile". At most 4.</summary>
 public sealed record PoseSelfieRequest(string Pose, string ImageBase64);
+
+/// <summary>
+/// The phone's liveness result. Method is "on-device" (ML Kit check ran) or "manual"
+/// (the phone could not run it, photos taken anyway). Challenges are the poses that
+/// passed, e.g. ["straight","left","right","smile"]. A reviewer still decides.
+/// </summary>
+public sealed record LivenessResultRequest(string Method, bool Passed, IReadOnlyList<string> Challenges, int Attempts);
+
+/// <summary>Optional signals the phone read off the ID photo (OCR + a face on the card).</summary>
+public sealed record IdDocumentChecksRequest(bool? TextFound, bool? NumberFound, bool? NumberMatches, bool? FaceFound);
 
 /// <summary>
 /// The artisan's KYC status (GET /api/v1/artisan/kyc). <see cref="Status"/> is

@@ -45,4 +45,6 @@ public sealed record CreateBookingRequest(
     /// <summary>"Something else? Describe it": a paid visit, then an itemised quote checked against the typical
     /// range. Optionally the price-book custom line it matches ("New split AC installation").</summary>
     bool CustomQuote = false,
-    Guid? CustomPriceBookItemId = null);
+    Guid? CustomPriceBookItemId = null,
+    /// <summary>The customer accepted the safety note before sending. Optional (older app builds do not send it).</summary>
+    bool? SafetyAcknowledged = null);
