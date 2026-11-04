@@ -12,6 +12,14 @@ public enum AdminAlertKind
     PaymentMismatch,
     FloatShort,
     DailyDigest,
+    /// <summary>Rotation ran out of eligible artisans for a request.</summary>
+    NoArtisanFree,
+    /// <summary>A custom quote is waiting for ops to check it before the customer sees it.</summary>
+    QuoteToCheck,
+    /// <summary>An artisan's service post or gallery photo waits for ops to check it.</summary>
+    ServicePostToReview,
+    /// <summary>An estate or facility manager asked to talk to Servika.</summary>
+    EstateEnquiry,
 }
 
 /// <summary>

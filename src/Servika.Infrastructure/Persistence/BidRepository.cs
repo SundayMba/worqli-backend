@@ -20,6 +20,15 @@ public sealed class BidRepository : IBidRepository
         _db.Bids.FirstOrDefaultAsync(
             b => b.BookingId == bookingId && b.ArtisanId == artisanProfileId, ct);
 
+    public async Task<IReadOnlyList<Bid>> ListAwaitingReviewAsync(CancellationToken ct) =>
+        await _db.Bids
+            .Where(b => b.Status == BidStatus.Active && b.Review == QuoteReview.Pending)
+            .OrderBy(b => b.UpdatedAt)
+            .ToListAsync(ct);
+
+    public Task<Bid?> FindByIdAsync(Guid id, CancellationToken ct) =>
+        _db.Bids.FirstOrDefaultAsync(b => b.Id == id, ct);
+
     public async Task<IReadOnlyList<Bid>> ListForBookingAsync(Guid bookingId, CancellationToken ct) =>
         await _db.Bids
             .Where(b => b.BookingId == bookingId)

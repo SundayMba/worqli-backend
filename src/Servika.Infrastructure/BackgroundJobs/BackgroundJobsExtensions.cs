@@ -17,6 +17,7 @@ public static class BackgroundJobsExtensions
         services.AddHostedService<AccountPurgeService>();
         services.AddHostedService<FeeNoticeService>();
         services.AddHostedService<AdminAlertSweepService>();
+        services.AddHostedService<OfferSweepService>();
         return services;
     }
 }

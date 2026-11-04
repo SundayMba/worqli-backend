@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Servika.Contracts.Catalogue;
 
 /// <summary>
@@ -12,8 +14,9 @@ public sealed record ArtisanDetailDto(
     string ImageKey,
     string FullName,
     string Specialty,
-    double Rating,
-    int ReviewCount,
+    /// <summary>Ratings are for ops only (user decision 2026-11-04): never serialised to apps.</summary>
+    [property: JsonIgnore] double Rating,
+    [property: JsonIgnore] int ReviewCount,
     /// <summary>Km from the caller's coords (?lat=&amp;lng=); null when either location is unknown.</summary>
     double? DistanceKm,
     bool IsAvailable,
@@ -61,7 +64,13 @@ public sealed record ArtisanServiceDto(
     bool IsActive = true,
     int? DurationMinutes = null,
     IReadOnlyList<string>? Includes = null,
-    string? Description = null);
+    string? Description = null,
+    /// <summary>The trade the post sits under on Home.</summary>
+    string? CategorySlug = null,
+    /// <summary>Ops' check: Pending | Approved | Rejected. Customers only ever see Approved, active posts.</summary>
+    string Review = "Pending",
+    /// <summary>Why ops turned it down (the owner's view only).</summary>
+    string? ReviewNote = null);
 
 /// <summary>POST /api/v1/artisan/services body. Re-posting a name revises its price
 /// (and replaces the photo when one is sent; omitted = keep the current photo).</summary>
@@ -71,7 +80,9 @@ public sealed record SaveArtisanServiceRequest(
     string? PhotoBase64 = null,
     int? DurationMinutes = null,
     List<string>? Includes = null,
-    string? Description = null);
+    string? Description = null,
+    /// <summary>One of the artisan's trades; defaults to their first.</summary>
+    string? CategorySlug = null);
 
 /// <summary>PUT /api/v1/artisan/services/{id}/active body — pause or resume a listing.</summary>
 public sealed record SetServiceActiveRequest(bool Active);
@@ -87,8 +98,9 @@ public sealed record FeaturedServiceDto(
     string? PhotoUrl,
     Guid ArtisanId,
     string ArtisanName,
-    double Rating,
-    int ReviewCount,
+    /// <summary>Ratings are for ops only (user decision 2026-11-04): never serialised to apps.</summary>
+    [property: JsonIgnore] double Rating,
+    [property: JsonIgnore] int ReviewCount,
     bool HasCertificate,
     string? ArtisanPhotoUrl,
     bool IsAvailable,
@@ -101,3 +113,10 @@ public sealed record FeaturedServiceDto(
     int? DurationMinutes = null,
     IReadOnlyList<string>? Includes = null,
     string? Description = null);
+
+/// <summary>One trade's row on Home: "Electrical standard services" and the approved posts under it.</summary>
+public sealed record ServiceSectionDto(
+    string CategorySlug,
+    string CategoryName,
+    string Title,
+    IReadOnlyList<FeaturedServiceDto> Services);

@@ -175,6 +175,121 @@ public sealed class Booking
     /// <summary>Storage key of the customer's short job video clip, if any.</summary>
     public string? VideoKey { get; private set; }
 
+    /// <summary>How the customer reached this artisan: Rotation, Direct, Code or Rebook.</summary>
+    public BookingSource Source { get; private set; }
+
+    // ── Assignment (Servika offers the job to one artisan at a time) ──
+    /// <summary>How many artisans have been offered this job so far.</summary>
+    public int OfferRound { get; private set; }
+    public DateTimeOffset? LastOfferAtUtc { get; private set; }
+    /// <summary>Set when rotation ran out of eligible artisans; the sweep retries later. Cleared by the next offer.</summary>
+    public DateTimeOffset? OffersExhaustedAtUtc { get; private set; }
+
+    public void RecordOffer(DateTimeOffset now)
+    {
+        OfferRound += 1;
+        LastOfferAtUtc = now;
+        OffersExhaustedAtUtc = null;
+    }
+
+    public void MarkOffersExhausted(DateTimeOffset now) => OffersExhaustedAtUtc = now;
+
+    // ── Servika price book ──
+    /// <summary>The price-book job this booking is for (a fixed-price job at Servika's price). Null for
+    /// a request whose price is agreed after the artisan sees the job.</summary>
+    public Guid? PriceBookItemId { get; private set; }
+
+    /// <summary>A diagnosis visit ("not sure what's wrong"): the fixed fee paid at booking, credited against the
+    /// repair if the customer goes ahead. Null for every other kind of job.</summary>
+    public int? DiagnosisFeeNaira { get; private set; }
+
+    public bool IsDiagnosis => DiagnosisFeeNaira is > 0;
+
+    /// <summary>
+    /// Whether this request can be opened to every artisan for bids. Only a job priced by bids can: a set-price
+    /// booking (an artisan's own listing or Servika's price book), a paid visit, a custom quote, or anything already
+    /// paid has terms only its own artisan agreed to, so a decline ends it (with a full refund) instead.
+    /// </summary>
+    public bool CanOpenForBids =>
+        PricingModel != PricingModel.Fixed && PriceBookItemId is null && DiagnosisFeeNaira is null && !IsCustomQuote && PaidNaira == 0;
+
+    /// <summary>A custom job (work not on the price book): after the paid visit the artisan sends an itemised
+    /// quote, shown beside a typical range and checked by ops when it is large or far above it.</summary>
+    public bool IsCustomQuote { get; private set; }
+
+    /// <summary>The price-book custom line the customer picked ("New split AC installation"), if any, and its
+    /// typical labour range copied at booking so a later edit never moves a job in flight.</summary>
+    public Guid? CustomPriceBookItemId { get; private set; }
+    public int? TypicalRangeMinNaira { get; private set; }
+    public int? TypicalRangeMaxNaira { get; private set; }
+
+    /// <summary>A quote has been accepted on this custom job (its labour and materials are agreed).</summary>
+    public bool HasAcceptedCustomQuote => IsCustomQuote && AgreedWorkmanshipNaira is not null;
+
+    /// <summary>Nothing beyond the visit has been agreed: no approved repairs and no accepted quote.</summary>
+    public bool OnlyVisitAgreed => IsDiagnosis && ApprovedRepairsNaira == 0 && !HasAcceptedCustomQuote;
+
+    /// <summary>Repairs from Servika's add-on list the customer approved on this job (labour + parts).</summary>
+    public int ApprovedRepairsNaira { get; private set; }
+
+    /// <summary>Money held in escrow for this booking so far. A job can be paid in more than one go: a
+    /// diagnosis fee, then the approved repairs.</summary>
+    public int PaidNaira { get; private set; }
+
+    /// <summary>What the customer still owes against the agreed price.</summary>
+    public int AmountDueNaira => Math.Max(0, (InitialQuoteAmountNaira ?? 0) - PaidNaira);
+
+    /// <summary>A price-book job or a diagnosis visit is paid upfront: the price is known, so the money goes
+    /// into escrow at booking and only then is the job offered to an artisan. Nobody is sent to an unpaid job.</summary>
+    public bool PaysUpfront => PriceBookItemId is not null || IsDiagnosis;
+
+    /// <summary>The customer approved repairs from the add-on list. On a diagnosis visit the fee is credited
+    /// (they pay the larger of the fee and the repairs); on a fixed job the repairs are added to its price.
+    /// Whatever is not yet paid becomes due before work can start.</summary>
+    public void AddApprovedRepairs(int amountNaira)
+    {
+        if (amountNaira <= 0) throw new ArgumentException("Approved repairs must cost something.", nameof(amountNaira));
+        if (Status is not (BookingStatus.Arrived or BookingStatus.InProgress))
+            throw new InvalidBookingStateException($"Repairs can't be approved while the job is {Status}.");
+        var before = InitialQuoteAmountNaira ?? 0;
+        ApprovedRepairsNaira += amountNaira;
+        // A diagnosis visit credits its fee against the repairs; on a fixed job or an accepted custom quote the
+        // extras are added to the agreed price.
+        InitialQuoteAmountNaira = IsDiagnosis && !IsCustomQuote
+            ? Math.Max(DiagnosisFeeNaira!.Value, ApprovedRepairsNaira)
+            : before + amountNaira;
+        if (AmountDueNaira > 0 && PaymentState is BookingPaymentState.Paid)
+            PaymentState = BookingPaymentState.Unpaid;
+    }
+
+    /// <summary>The customer declined every repair after a diagnosis: the visit is the whole job. They pay only the
+    /// diagnosis fee, which the artisan earns; the job closes as Completed.</summary>
+    public void CompleteAsDiagnosisOnly(DateTimeOffset now)
+    {
+        if (!IsDiagnosis) throw new InvalidBookingStateException("Only a diagnosis visit can end without repairs.");
+        if (!OnlyVisitAgreed) throw new InvalidBookingStateException("More than the visit was agreed on this job.");
+        if (Status is not BookingStatus.Arrived)
+            throw new InvalidBookingStateException($"A diagnosis can only end at the visit (this one is {Status}).");
+        Status = BookingStatus.Completed;
+        CompletedAtUtc = now;
+    }
+
+    /// <summary>Still waiting for the upfront payment before any artisan is offered the job.</summary>
+    public bool AwaitingUpfrontPayment =>
+        PaysUpfront && PaidNaira == 0 && PaymentState is not (BookingPaymentState.Paid
+            or BookingPaymentState.Refunded or BookingPaymentState.PartiallyRefunded);
+
+    /// <summary>An upfront booking the customer never paid for lapses, so it never sits in their list
+    /// as a live job (Open/Pending → Expired).</summary>
+    public void ExpireUnpaid()
+    {
+        if (!AwaitingUpfrontPayment)
+            throw new InvalidBookingStateException("Only an unpaid upfront booking can lapse.");
+        if (Status is not (BookingStatus.Open or BookingStatus.Pending))
+            throw new InvalidBookingStateException($"A {Status} booking can't lapse.");
+        Status = BookingStatus.Expired;
+    }
+
     // EF Core rebuilds rows through this; private so app code can't skip the rules.
     private Booking() { }
 
@@ -205,7 +320,14 @@ public sealed class Booking
         DateTimeOffset now,
         AssessmentMode assessment = AssessmentMode.Inspection,
         List<string>? mediaKeys = null,
-        string? videoKey = null)
+        string? videoKey = null,
+        BookingSource? source = null,
+        Guid? priceBookItemId = null,
+        int? diagnosisFeeNaira = null,
+        bool customQuote = false,
+        Guid? customPriceBookItemId = null,
+        int? typicalRangeMinNaira = null,
+        int? typicalRangeMaxNaira = null)
     {
         if (customerId == Guid.Empty)
             throw new ArgumentException("Customer is required.", nameof(customerId));
@@ -217,6 +339,12 @@ public sealed class Booking
             throw new ArgumentException("A service address is required.", nameof(addressText));
         if (commissionRate is < 0 or > 1)
             throw new ArgumentException("Commission rate must be between 0 and 1.", nameof(commissionRate));
+        if (priceBookItemId is not null && (pricingModel != PricingModel.Fixed || initialQuoteAmountNaira is not > 0))
+            throw new ArgumentException("A price-book booking carries its fixed price.", nameof(priceBookItemId));
+        if (diagnosisFeeNaira is > 0 && (priceBookItemId is not null || initialQuoteAmountNaira != diagnosisFeeNaira))
+            throw new ArgumentException("A diagnosis visit is booked at its fee and nothing else.", nameof(diagnosisFeeNaira));
+        if (customQuote && diagnosisFeeNaira is not > 0)
+            throw new ArgumentException("A custom job starts with a paid visit.", nameof(customQuote));
 
         return new Booking
         {
@@ -247,9 +375,18 @@ public sealed class Booking
             CreatedAt = now,
             // Remote pricing only makes sense on an open request that artisans
             // will assess from media; a direct booking keeps the normal flow.
-            Assessment = artisanId is null ? assessment : AssessmentMode.Inspection,
+            // An open request is put out for bids (artisans answer with a price or "visit first"; the customer
+            // picks). A request addressed to one artisan goes to them and they quote it.
+            Assessment = artisanId is null ? AssessmentMode.RemoteQuote : AssessmentMode.Inspection,
             MediaKeys = mediaKeys ?? new(),
             VideoKey = string.IsNullOrWhiteSpace(videoKey) ? null : videoKey,
+            Source = source ?? (artisanId is null ? BookingSource.Rotation : BookingSource.Direct),
+            PriceBookItemId = priceBookItemId,
+            DiagnosisFeeNaira = diagnosisFeeNaira is > 0 ? diagnosisFeeNaira : null,
+            IsCustomQuote = customQuote,
+            CustomPriceBookItemId = customQuote ? customPriceBookItemId : null,
+            TypicalRangeMinNaira = customQuote ? typicalRangeMinNaira : null,
+            TypicalRangeMaxNaira = customQuote ? typicalRangeMaxNaira : null,
         };
     }
 
@@ -272,6 +409,21 @@ public sealed class Booking
 
     private void AcceptBidCore(Guid artisanId, string artisanName, int amountNaira, DateTimeOffset now)
     {
+        // Custom job: the visit is paid; accepting the quote fixes the job's price (the visit fee is credited)
+        // and whatever is not yet paid becomes due before work starts.
+        if (IsCustomQuote)
+        {
+            if (ArtisanId != artisanId)
+                throw new InvalidBookingStateException("Only the assigned artisan's quote can be accepted on this job.");
+            if (HasAcceptedCustomQuote)
+                throw new InvalidBookingStateException("A quote was already accepted on this job.");
+            if (Status is not BookingStatus.Arrived)
+                throw new InvalidBookingStateException($"A quote can be accepted once the artisan has seen the job (this one is {Status}).");
+            InitialQuoteAmountNaira = Math.Max(DiagnosisFeeNaira!.Value, amountNaira);
+            if (AmountDueNaira > 0) PaymentState = BookingPaymentState.Unpaid;
+            return;
+        }
+
         // Open broadcast: any bidder can win — acceptance assigns the artisan.
         if (Status is BookingStatus.Open)
         {
@@ -382,20 +534,43 @@ public sealed class Booking
     /// nothing is re-typed. With photos/video attached it reopens in bidding
     /// mode (artisans send prices); bare requests reopen first-to-claim.
     /// </summary>
+    /// <summary>Reopen a request its chosen artisan declined or did not answer, so Servika can offer
+    /// it to the next artisan in rotation. Photos stay as context; nobody bids on it.</summary>
     public void Rebroadcast()
     {
         if (ArtisanId is null)
-            throw new InvalidBookingStateException("This request is already open to all artisans.");
+            throw new InvalidBookingStateException("This request is already open.");
         if (Status is not (BookingStatus.Pending or BookingStatus.Rejected))
             throw new InvalidBookingStateException(
-                $"A booking that is {Status} can't be re-broadcast — only an unanswered or declined request can.");
+                $"A booking that is {Status} can't be reassigned — only an unanswered or declined request can.");
 
         ArtisanId = null;
         ArtisanName = null;
         Status = BookingStatus.Open;
-        Assessment = MediaKeys.Count > 0 || VideoKey is not null
-            ? AssessmentMode.RemoteQuote
-            : AssessmentMode.Inspection;
+        Assessment = AssessmentMode.RemoteQuote;
+    }
+
+    /// <summary>
+    /// The customer picks a "visit first" bid on an open job: that artisan is assigned (Open → Accepted). With a
+    /// visit fee, the visit is paid upfront and credited against the price agreed after it (the artisan quotes at
+    /// the door); with no fee it is a free look and the quote follows the same way.
+    /// </summary>
+    public void AcceptVisitBid(Guid artisanId, string artisanName, int visitFeeNaira, DateTimeOffset now)
+    {
+        if (Status is not BookingStatus.Open)
+            throw new InvalidBookingStateException($"A bid can only be picked on an open request (this one is {Status}).");
+        if (visitFeeNaira < 0) throw new ArgumentException("A visit fee can't be negative.", nameof(visitFeeNaira));
+        ArtisanId = artisanId;
+        ArtisanName = artisanName;
+        Status = BookingStatus.Accepted;
+        AcceptedAtUtc = now;
+        if (visitFeeNaira > 0)
+        {
+            DiagnosisFeeNaira = visitFeeNaira;
+            IsCustomQuote = true;
+            InitialQuoteAmountNaira = visitFeeNaira;
+            PricingModel = PricingModel.Hybrid;
+        }
     }
 
     /// <summary>The artisan starts the trip to the customer. Accepted → OnMyWay.</summary>
@@ -404,6 +579,9 @@ public sealed class Booking
         if (Status is not BookingStatus.Accepted)
             throw new InvalidBookingStateException(
                 $"The trip can only start once a booking is Accepted (this one is {Status}).");
+        if (AwaitingUpfrontPayment)
+            throw new InvalidBookingStateException(
+                "Waiting for the customer to pay the visit. Set off once it is secured.");
 
         Status = BookingStatus.OnMyWay;
     }
@@ -432,6 +610,12 @@ public sealed class Booking
         if (InitialQuoteAmountNaira is null or <= 0)
             throw new InvalidBookingStateException(
                 "A price must be agreed before work starts — send the customer your quote first.");
+        if (IsCustomQuote && !HasAcceptedCustomQuote)
+            throw new InvalidBookingStateException(
+                "Send your quote first. Work starts once the customer accepts and pays.");
+        if (IsDiagnosis && !IsCustomQuote && ApprovedRepairsNaira == 0)
+            throw new InvalidBookingStateException(
+                "Send the repairs for the customer to approve first. Work starts once they approve and pay.");
         if (PaymentState != BookingPaymentState.Paid && PaymentMethod != PaymentMethod.Cash)
             throw new InvalidBookingStateException(
                 "Waiting for the customer's payment. Work can start once it is secured in escrow.");
@@ -473,6 +657,9 @@ public sealed class Booking
                 $"Work can only be submitted from InProgress (this one is {Status}).");
         if (photoKeys is null || photoKeys.Count == 0)
             throw new InvalidBookingStateException("At least one proof-of-work photo is required.");
+        if (PaysUpfront && AmountDueNaira > 0)
+            throw new InvalidBookingStateException(
+                "The customer still has to pay for the approved repairs before the job can be closed.");
 
         CompletionPhotoKeys = photoKeys.ToList();
         CompletionReceiptKey = string.IsNullOrWhiteSpace(receiptKey) ? null : receiptKey;
@@ -548,11 +735,14 @@ public sealed class Booking
     public void MarkPaymentPending() => PaymentState = BookingPaymentState.Pending;
 
     /// <summary>Funds received and held in escrow. An escrow settlement is
-    /// online by definition, so a stale cash choice is overwritten.</summary>
-    public void MarkPaid()
+    /// online by definition, so a stale cash choice is overwritten. A booking can be paid in more than one
+    /// go (a diagnosis fee, then approved repairs); it is Paid once everything agreed is covered.</summary>
+    public void MarkPaid(int amountNaira)
     {
-        PaymentState = BookingPaymentState.Paid;
+        if (amountNaira < 0) throw new ArgumentException("A payment can't be negative.", nameof(amountNaira));
+        PaidNaira += amountNaira;
         PaymentMethod = PaymentMethod.Online;
+        PaymentState = AmountDueNaira > 0 ? BookingPaymentState.Unpaid : BookingPaymentState.Paid;
     }
 
     /// <summary>Escrow returned to the customer (e.g. a dispute resolved in their favour).</summary>

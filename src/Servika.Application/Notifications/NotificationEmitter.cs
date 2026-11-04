@@ -255,6 +255,50 @@ public sealed class NotificationEmitter
     }
 
     /// <summary>Confirm to the customer that their payment settled.</summary>
+    /// <summary>Tell the customer the artisan found repairs to approve (Servika's prices, before any work).</summary>
+    public void RepairsProposed(Booking booking, int count, int totalNaira)
+    {
+        var who = booking.ArtisanName ?? "Your artisan";
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.RepairsProposed,
+            count == 1 ? "A repair to approve" : $"{count} repairs to approve",
+            $"{who} found what needs fixing: ₦{totalNaira:N0} at Servika's prices. Nothing is done until you approve it.",
+            booking.Id);
+    }
+
+    /// <summary>Tell the artisan what the customer decided on the proposed repairs.</summary>
+    public Task RepairsDecidedAsync(Booking booking, int approvedNaira, CancellationToken ct)
+    {
+        string body;
+        if (approvedNaira > 0)
+            body = booking.AmountDueNaira > 0
+                ? $"The customer approved ₦{approvedNaira:N0} of repairs. Start once their payment lands."
+                : $"The customer approved ₦{approvedNaira:N0} of repairs. You can start the work.";
+        else if (booking.Status == BookingStatus.Completed)
+            body = $"The customer did not go ahead. The ₦{booking.DiagnosisFeeNaira ?? 0:N0} diagnosis fee is yours.";
+        else
+            body = "The customer declined the extra repairs. Finish the job as booked.";
+        return NotifyArtisanAsync(booking, NotificationKinds.RepairsDecided,
+            approvedNaira > 0 ? "Repairs approved" : "Repairs declined", body, ct);
+    }
+
+    /// <summary>A custom quote needs ops to check it before the customer sees it: every admin is told, and the
+    /// alert channels carry the job, the amounts and why.</summary>
+    public async Task QuoteNeedsReviewAsync(Booking booking, Bid bid, IReadOnlyList<string> reasons, CancellationToken ct)
+    {
+        var admins = await _users.ListAsync(Domain.Users.Role.Admin, ct);
+        var superAdmins = await _users.ListAsync(Domain.Users.Role.SuperAdmin, ct);
+        var body = $"{bid.ArtisanName} quoted ₦{bid.AmountNaira:N0} for {booking.ServiceName}. {string.Join(". ", reasons)}.";
+        foreach (var admin in admins.Concat(superAdmins))
+            Add(admin.Id, NotificationType.System, NotificationKinds.QuoteToCheck, "Quote to check", body, booking.Id);
+        _alerts.Send(new AdminAlert(AdminAlertKind.QuoteToCheck, "A custom quote needs a check",
+            new[] { body, "The customer sees it only after you pass it." }, "/quotes", "Check the quote"));
+    }
+
+    /// <summary>Tell the artisan ops sent their quote back, with what to change.</summary>
+    public Task QuoteSentBackAsync(Booking booking, Bid bid, CancellationToken ct) =>
+        NotifyArtisanAsync(booking, NotificationKinds.QuoteSentBack, "Change your quote",
+            $"Servika checked your ₦{bid.AmountNaira:N0} quote: {bid.ReviewNote}", ct);
+
     public void PaymentReceived(Guid customerId, Guid bookingId, string serviceName)
     {
         var service = string.IsNullOrWhiteSpace(serviceName) ? "your booking" : serviceName;
@@ -304,32 +348,59 @@ public sealed class NotificationEmitter
     public Task ArtisanNewReview(Booking booking, int rating, CancellationToken ct)
     {
         return NotifyArtisanAsync(booking, NotificationKinds.Review,
-            "New review", $"A customer rated your work {rating}★. Tap to view.", ct);
+            // Ratings are Servika's (ops only), so the artisan hears that feedback came in, not the score.
+            "Feedback received", $"The customer left feedback on {booking.ServiceName}. Servika uses it to keep quality high.", ct);
     }
 
-    /// <summary>Broadcast a newly-posted open request to every verified artisan whose
-    /// services include its category and whose work rules accept it (not away, within
-    /// their work radius, emergencies only if they take them). Carries the booking id
-    /// so the Pro app can open /open-job/{id}.</summary>
-    public async Task OpenJobPosted(Booking booking, CancellationToken ct)
+    /// <summary>Tell the artisan what ops decided on their service post.</summary>
+    public void ServicePostReviewed(Guid artisanUserId, Domain.Catalogue.ArtisanService service)
+    {
+        var approved = service.Review == Domain.Catalogue.ServicePostReview.Approved;
+        Add(artisanUserId, NotificationType.System, NotificationKinds.PostReviewed,
+            approved ? "Your service is live" : "Change your service post",
+            approved
+                ? $"\"{service.Name}\" passed the check. Customers can see and book it now."
+                : $"\"{service.Name}\" was not published: {service.ReviewNote}",
+            null);
+    }
+
+    /// <summary>Tell the artisan what ops decided on a gallery photo.</summary>
+    public void GalleryPhotoReviewed(Guid artisanUserId, bool approved, string? note)
+    {
+        Add(artisanUserId, NotificationType.System, NotificationKinds.PostReviewed,
+            approved ? "Your photo is on your profile" : "A photo was not added",
+            approved ? "A recent-work photo passed the check and shows on your profile." : $"A recent-work photo was not added: {note}",
+            null);
+    }
+
+    /// <summary>Tell one eligible artisan a job near them is open for bids.</summary>
+    public void OpenJobPosted(Guid artisanUserId, Booking booking)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
-        var recipients = await _catalogue.ListArtisanRecipientsInCategoryAsync(booking.CategorySlug, ct);
-        // Artisans past the commission-debt limit don't receive new requests
-        // until they settle — the enforcement half of commission-on-cash.
-        var restricted = (await _standing.GetRestrictedProfileIdsAsync(ct)).ToHashSet();
-        var bidding = booking.Assessment == Domain.Bookings.AssessmentMode.RemoteQuote;
-        var now = _clock.UtcNow;
-        foreach (var recipient in recipients.Where(r => !restricted.Contains(r.ProfileId)
-                     && OpenJobMatching.Accepts(r.Rules, booking, now)))
-        {
-            Add(recipient.UserId, NotificationType.OpenJob, NotificationKinds.OpenJob,
-                bidding ? "New job: send your price" : "New job available",
-                bidding
-                    ? $"A new {service} request is open for bids. Check the photos and offer your price."
-                    : $"A new {service} request is open near you. Tap to view and accept.",
-                booking.Id);
-        }
+        Add(artisanUserId, NotificationType.OpenJob, NotificationKinds.OpenJob,
+            "New job near you",
+            $"{service} in {Bookings.AssignmentService.Area(booking)}. Send your price, or offer to visit first.",
+            booking.Id);
+    }
+
+    /// <summary>Servika offered this artisan a job. Carries the booking id so the Pro app opens the offer.</summary>
+    public void JobOffered(Guid artisanUserId, Booking booking, int windowMinutes)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
+        Add(artisanUserId, NotificationType.Booking, NotificationKinds.JobOffer,
+            "New job for you",
+            $"{service} in {Bookings.AssignmentService.Area(booking)}. Accept within {windowMinutes} minutes or it goes to the next artisan.",
+            booking.Id);
+    }
+
+    /// <summary>Tell the customer rotation found nobody free yet. Sent once per dry spell.</summary>
+    public void NoArtisanFree(Booking booking)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "request" : $"{booking.ServiceName} request";
+        Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.NoArtisanFree,
+            "Still looking for an artisan",
+            $"No artisan is free for your {service} right now. We keep trying and will tell you the moment one accepts.",
+            booking.Id);
     }
 
     /// <summary>Tell the customer an artisan offered a price on their request.
@@ -338,6 +409,15 @@ public sealed class NotificationEmitter
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "request" : $"{booking.ServiceName} request";
         var direct = booking.ArtisanId is not null;
+        if (bid.Kind == BidKind.VisitFirst)
+        {
+            Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.BidPlaced, "New offer: visit first",
+                bid.VisitFeeNaira > 0
+                    ? $"{bid.ArtisanName} wants to see your {service} before pricing it. Visit: ₦{bid.VisitFeeNaira:N0}, taken off the price."
+                    : $"{bid.ArtisanName} can come and look at your {service} for free, then price it.",
+                booking.Id);
+            return;
+        }
         Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.BidPlaced,
             direct ? "Quote received" : "New price offer",
             direct
@@ -400,6 +480,15 @@ public sealed class NotificationEmitter
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
         var secured = booking.PaymentState == BookingPaymentState.Paid || booking.PaymentMethod == PaymentMethod.Cash;
+        if (bid.Kind == BidKind.VisitFirst)
+        {
+            Add(bid.ArtisanUserId, NotificationType.Booking, NotificationKinds.BidAccepted, "Picked to visit first",
+                bid.VisitFeeNaira > 0
+                    ? $"The customer picked you to look at the {service}. Set off once the ₦{bid.VisitFeeNaira:N0} visit is paid; send your price after."
+                    : $"The customer picked you to look at the {service}. Visit, then send your price in the app.",
+                booking.Id);
+            return;
+        }
         var body = statusBeforeAccept switch
         {
             BookingStatus.Open when secured =>

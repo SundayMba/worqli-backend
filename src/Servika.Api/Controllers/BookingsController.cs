@@ -65,6 +65,15 @@ public sealed class BookingsController : ControllerBase
         return Ok(await handler.HandleAsync(CurrentUserId(), status, ct));
     }
 
+    /// <summary>Artisans you have completed jobs with, most recent first, for "Book again".</summary>
+    [HttpGet("past-artisans")]
+    [ProducesResponseType(typeof(IReadOnlyList<Contracts.Catalogue.PastArtisanDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<Contracts.Catalogue.PastArtisanDto>>> GetPastArtisans(
+        [FromServices] Application.Catalogue.GetPastArtisansHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), ct));
+    }
+
     /// <summary>Get one of the current customer's bookings in full.</summary>
     /// <response code="200">The booking.</response>
     /// <response code="401">Not signed in.</response>

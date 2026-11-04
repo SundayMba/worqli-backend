@@ -79,6 +79,17 @@ public sealed class CatalogueController : ControllerBase
         return Ok(await handler.HandleAsync(id, lat, lng, ct));
     }
 
+    /// <summary>Who an artisan's personal booking code belongs to: enough to book them, nothing to browse by.</summary>
+    /// <response code="404">No verified artisan has that code.</response>
+    [HttpGet("api/v1/artisans/by-code/{code}")]
+    [ProducesResponseType(typeof(ArtisanByCodeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ArtisanByCodeDto>> GetArtisanByCode(
+        string code, [FromServices] GetArtisanByCodeHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(code, ct));
+    }
+
     /// <summary>The artisan's uploaded profile photo (image bytes).</summary>
     /// <remarks>The <c>photoUrl</c> field on the catalogue DTOs points here.
     /// Clients fall back to bundled art when it's null / this 404s.</remarks>
@@ -125,15 +136,21 @@ public sealed class CatalogueController : ControllerBase
         [FromServices] GetArtisanGalleryPhotoHandler handler,
         CancellationToken ct)
     {
-        var file = await handler.HandleAsync(id, photoKey, ct);
+        // Signed-in callers: the owner and admins may also see a photo still waiting for ops.
+        var sub = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+        var viewer = Guid.TryParse(sub, out var uid) ? uid : (Guid?)null;
+        var isAdmin = User.IsInRole("Admin") || User.IsInRole("SuperAdmin");
+        var file = await handler.HandleAsync(id, photoKey, ct, viewer, isAdmin);
         return File(file.Content, file.ContentType);
     }
 
-    /// <summary>List an artisan's customer reviews, newest first.</summary>
-    /// <remarks>Powers the reviews section on the artisan profile. Open to guests.</remarks>
+    /// <summary>An artisan's customer reviews, newest first (admin and ops only).</summary>
+    /// <remarks>Ratings and reviews are for ops, never shown publicly (user decision 2026-11-04), so newly
+    /// registered artisans are never starved by a star average.</remarks>
     /// <response code="200">The artisan's reviews (empty if none yet).</response>
     /// <response code="404">No artisan with this id.</response>
     [HttpGet("api/v1/artisans/{id:guid}/reviews")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,SuperAdmin")]
     [ProducesResponseType(typeof(IReadOnlyList<ReviewDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<IReadOnlyList<ReviewDto>>> GetArtisanReviews(

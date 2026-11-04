@@ -105,6 +105,21 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "bids" table — artisan price offers on open RemoteQuote requests.</summary>
     public DbSet<Bid> Bids => Set<Bid>();
 
+    /// <summary>The "job_offers" table — each time a job was offered to one artisan.</summary>
+    public DbSet<JobOffer> JobOffers => Set<JobOffer>();
+
+    /// <summary>The "service_interests" table — "tell us what you need" requests (demand before supply).</summary>
+    public DbSet<ServiceInterest> ServiceInterests => Set<ServiceInterest>();
+
+    /// <summary>The "price_book_items" table — Servika's own prices: fixed jobs, add-on repairs, custom ranges.</summary>
+    public DbSet<PriceBookItem> PriceBookItems => Set<PriceBookItem>();
+
+    /// <summary>The "booking_repairs" table — repairs artisans proposed from the add-on list, and the customer's answer.</summary>
+    public DbSet<BookingRepair> BookingRepairs => Set<BookingRepair>();
+
+    /// <summary>The "estate_enquiries" table — estates and facility managers asking to talk.</summary>
+    public DbSet<EstateEnquiry> EstateEnquiries => Set<EstateEnquiry>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -209,6 +224,11 @@ public sealed class ServikaDbContext : DbContext
                 .HasMaxLength(ArtisanService.MaxNameLength);
             service.Property(s => s.IsActive).HasDefaultValue(true);
             service.Property(s => s.Description).HasMaxLength(600);
+            // Ops review of every post (user decision 2026-11-04).
+            service.Property(s => s.CategorySlug).IsRequired().HasMaxLength(60).HasDefaultValue(string.Empty);
+            service.Property(s => s.Review).HasConversion<string>().HasMaxLength(16).HasDefaultValue(ServicePostReview.Pending);
+            service.Property(s => s.ReviewNote).HasMaxLength(ArtisanService.MaxReviewNoteLength);
+            service.HasIndex(s => s.Review);
             // text[] columns need an explicit default or existing rows fail the NOT NULL add.
             service.Property(s => s.Includes).HasDefaultValueSql("'{}'");
             service.Property(s => s.Includes).Metadata.SetValueComparer(stringListComparer);
@@ -234,6 +254,8 @@ public sealed class ServikaDbContext : DbContext
             artisan.Property(a => a.ResponseTime).HasMaxLength(40);
             artisan.Property(a => a.JobsCount).HasMaxLength(20);
             artisan.Property(a => a.About).HasMaxLength(1000);
+            artisan.Property(a => a.BookingCode).HasMaxLength(16);
+            artisan.HasIndex(a => a.BookingCode).IsUnique().HasFilter("\"BookingCode\" IS NOT NULL");
             artisan.Property(a => a.PayoutBankCode).HasMaxLength(10);
             artisan.Property(a => a.PayoutBankName).HasMaxLength(80);
             artisan.Property(a => a.PayoutAccountNumber).HasMaxLength(10);
@@ -248,6 +270,9 @@ public sealed class ServikaDbContext : DbContext
             artisan.Property(a => a.Services).Metadata.SetValueComparer(stringListComparer);
             artisan.Property(a => a.GalleryKeys).Metadata.SetValueComparer(stringListComparer);
             artisan.Property(a => a.GalleryPhotoKeys).Metadata.SetValueComparer(stringListComparer);
+            // Recent-work photos waiting for ops; text[] needs a default for existing rows.
+            artisan.Property(a => a.PendingGalleryPhotoKeys).HasDefaultValueSql("'{}'");
+            artisan.Property(a => a.PendingGalleryPhotoKeys).Metadata.SetValueComparer(stringListComparer);
             artisan.HasIndex(a => a.CategorySlugs).HasMethod("gin");
 
             // Optional link to the artisan's login account. Looked up when matching
@@ -269,9 +294,15 @@ public sealed class ServikaDbContext : DbContext
             booking.ToTable("bookings");
 
             booking.HasKey(b => b.Id);
+            // Every update checks the status it read is still the status in the row, so two people acting on
+            // the same booking at once (two bids accepted, a counter taken while another bid is picked) cannot
+            // both win: the second save fails and is answered with a 409.
+            booking.Property(b => b.Status).IsConcurrencyToken();
 
             // A customer's history is listed by customer id + creation time.
             booking.HasIndex(b => b.CustomerId);
+            // Price signals per price-book item (bookings, drop-off, completions).
+            booking.HasIndex(b => b.PriceBookItemId);
 
             booking.Property(b => b.CategorySlug).IsRequired().HasMaxLength(60);
             booking.Property(b => b.ServiceName).IsRequired().HasMaxLength(80);
@@ -290,6 +321,9 @@ public sealed class ServikaDbContext : DbContext
             booking.Property(b => b.PricingModel).HasConversion<string>().HasMaxLength(20);
             booking.Property(b => b.PaymentState).HasConversion<string>().HasMaxLength(20);
             // Default backfills existing rows on migration (Online = the escrow default).
+            booking.Property(b => b.Source).HasConversion<string>().HasMaxLength(16).HasDefaultValue(BookingSource.Direct)
+                // Rotation is the enum's zero value; without a sentinel EF would treat it as "unset" and let the DB default win.
+                .HasSentinel((BookingSource)(-1));
             booking.Property(b => b.PaymentMethod).HasConversion<string>().HasMaxLength(10)
                 .HasDefaultValue(Domain.Bookings.PaymentMethod.Online);
             booking.Property(b => b.MaterialsAdvanceStatus).HasConversion<string>().HasMaxLength(16)
@@ -409,6 +443,75 @@ public sealed class ServikaDbContext : DbContext
                    .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<ServiceInterest>(si =>
+        {
+            si.ToTable("service_interests");
+            si.HasKey(x => x.Id);
+            si.HasIndex(x => x.CreatedAtUtc);
+            si.Property(x => x.CategorySlug).HasMaxLength(60);
+            si.Property(x => x.Note).HasMaxLength(ServiceInterest.MaxNoteLength);
+            si.Property(x => x.AreaLabel).HasMaxLength(120);
+        });
+
+        modelBuilder.Entity<EstateEnquiry>(e =>
+        {
+            e.ToTable("estate_enquiries");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.OrganisationName).IsRequired().HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.ContactName).IsRequired().HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.ContactRole).HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.Phone).IsRequired().HasMaxLength(40);
+            e.Property(x => x.Email).HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.Location).IsRequired().HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.Frequency).IsRequired().HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.Notes).HasMaxLength(EstateEnquiry.MaxNotesLength);
+            e.Property(x => x.AdminNote).HasMaxLength(EstateEnquiry.MaxNotesLength);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.ServicesWanted).HasDefaultValueSql("'{}'");
+            e.Property(x => x.ServicesWanted).Metadata.SetValueComparer(stringListComparer);
+            e.HasIndex(x => x.CreatedAtUtc);
+        });
+
+        modelBuilder.Entity<BookingRepair>(r =>
+        {
+            r.ToTable("booking_repairs");
+            r.HasKey(x => x.Id);
+            r.Property(x => x.Name).IsRequired().HasMaxLength(PriceBookItem.MaxNameLength);
+            r.Property(x => x.PartsNote).HasMaxLength(BookingRepair.MaxPartsNoteLength);
+            r.Property(x => x.PhotoKey).IsRequired();
+            r.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            r.Ignore(x => x.TotalNaira);
+            r.HasIndex(x => x.BookingId);
+            r.HasOne<Booking>().WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PriceBookItem>(item =>
+        {
+            item.ToTable("price_book_items");
+            item.HasKey(x => x.Id);
+            item.Property(x => x.CategorySlug).IsRequired().HasMaxLength(60);
+            item.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16);
+            item.Property(x => x.Name).IsRequired().HasMaxLength(PriceBookItem.MaxNameLength);
+            item.Property(x => x.Scope).IsRequired().HasMaxLength(PriceBookItem.MaxScopeLength);
+            item.Property(x => x.PartsNote).HasMaxLength(PriceBookItem.MaxPartsNoteLength);
+            item.HasIndex(x => new { x.CategorySlug, x.Kind, x.SortOrder });
+            item.HasIndex(x => x.IsPopular);
+        });
+
+        modelBuilder.Entity<JobOffer>(o =>
+        {
+            o.ToTable("job_offers");
+            o.HasKey(x => x.Id);
+            o.HasIndex(x => new { x.BookingId, x.Status });
+            o.HasIndex(x => new { x.ArtisanProfileId, x.Status });
+            o.HasIndex(x => new { x.Status, x.ExpiresAtUtc });
+            o.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            o.Property(x => x.Source).HasConversion<string>().HasMaxLength(16);
+            o.Property(x => x.DeclineReason).HasMaxLength(120);
+            // Offers die with their booking.
+            o.HasOne<Booking>().WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Bid>(bid =>
         {
             bid.ToTable("bids");
@@ -421,6 +524,12 @@ public sealed class ServikaDbContext : DbContext
             bid.Property(b => b.ArtisanName).IsRequired().HasMaxLength(120);
             bid.Property(b => b.MaterialsNote).HasMaxLength(500);
             bid.Property(b => b.Status).HasConversion<string>().HasMaxLength(16);
+            // Ops review of a custom quote; "NotNeeded" for every existing quote.
+            bid.Property(b => b.Review).HasConversion<string>().HasMaxLength(16).HasDefaultValue(QuoteReview.NotNeeded);
+            bid.Property(b => b.ReviewNote).HasMaxLength(Bid.MaxReviewNoteLength);
+            bid.HasIndex(b => b.Review);
+            // Price or "visit first" (open bidding, user decision 2026-11-04).
+            bid.Property(b => b.Kind).HasConversion<string>().HasMaxLength(16).HasDefaultValue(BidKind.Price);
 
             // Itemised materials live as a JSON document on the bid: read whole,
             // written whole, never queried by line. The comparer is structural so

@@ -31,4 +31,18 @@ public sealed record CreateBookingRequest(
     /// <summary>One of the chosen artisan's published fixed-price services —
     /// books directly at its published price (no quote round-trip). Requires
     /// <see cref="ArtisanId"/>; the price is read server-side, never from here.</summary>
-    Guid? ArtisanServiceId = null);
+    Guid? ArtisanServiceId = null,
+    /// <summary>An artisan's personal booking code or link. Resolves the artisan server-side (overrides ArtisanId) and records the Code source.</summary>
+    string? BookingCode = null,
+    /// <summary>The customer is rebooking an artisan who already did a job for them (verified server-side).</summary>
+    bool Rebook = false,
+    /// <summary>A job from Servika's price book. Booked at Servika's price (read server-side) and paid
+    /// upfront; the job is offered to an artisan once the payment lands. The description may be empty.</summary>
+    Guid? PriceBookItemId = null,
+    /// <summary>"Not sure what's wrong?": a diagnosis visit at Servika's fixed fee, paid upfront and credited
+    /// against the repairs the artisan then picks from Servika's list.</summary>
+    bool Diagnosis = false,
+    /// <summary>"Something else? Describe it": a paid visit, then an itemised quote checked against the typical
+    /// range. Optionally the price-book custom line it matches ("New split AC installation").</summary>
+    bool CustomQuote = false,
+    Guid? CustomPriceBookItemId = null);

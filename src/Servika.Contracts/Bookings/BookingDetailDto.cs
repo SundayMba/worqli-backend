@@ -63,4 +63,25 @@ public sealed record BookingDetailDto(
     int? ArtisanNetNaira,
     /// <summary>When an AwaitingConfirmation job confirms itself (work submitted +
     /// the admin auto-confirm window); null in every other status.</summary>
-    DateTimeOffset? AutoConfirmAtUtc);
+    DateTimeOffset? AutoConfirmAtUtc,
+    /// <summary>How many artisans Servika has offered this job to (Open requests).</summary>
+    int OfferRound = 0,
+    /// <summary>Set while rotation has nobody left to ask; Servika keeps retrying.</summary>
+    DateTimeOffset? OffersExhaustedAtUtc = null,
+    /// <summary>Rotation | Direct | Code | Rebook.</summary>
+    string Source = "Direct",
+    /// <summary>The Servika price-book job this booking is for, if any (paid upfront at Servika's price).</summary>
+    Guid? PriceBookItemId = null,
+    /// <summary>True while a price-book job waits for its upfront payment; no artisan is offered it yet.</summary>
+    bool AwaitingUpfrontPayment = false,
+    /// <summary>Diagnosis visit: the fee paid at booking, credited against the repairs. Null otherwise.</summary>
+    int? DiagnosisFeeNaira = null,
+    /// <summary>Repairs from Servika's list the customer approved on this job.</summary>
+    int ApprovedRepairsNaira = 0,
+    /// <summary>Held in escrow so far, and what is still owed against the agreed price.</summary>
+    int PaidNaira = 0,
+    int AmountDueNaira = 0,
+    /// <summary>A custom job: a paid visit, then an itemised quote checked against the typical range.</summary>
+    bool IsCustomQuote = false,
+    int? TypicalRangeMinNaira = null,
+    int? TypicalRangeMaxNaira = null);

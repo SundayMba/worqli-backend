@@ -101,6 +101,10 @@ public sealed class ArtisanProfile
     /// manages these from the Pro app (add after a job / delete).</summary>
     public List<string> GalleryPhotoKeys { get; private set; } = new();
 
+    /// <summary>Recent-work photos waiting for ops (user decision 2026-11-04): they show on the public profile only
+    /// once passed, so no photo carries a phone number, an address or someone else's work.</summary>
+    public List<string> PendingGalleryPhotoKeys { get; private set; } = new();
+
     /// <summary>Storage key of an uploaded work certificate (optional — many
     /// excellent artisans have none). Having one boosts the ranking score while
     /// real ratings accumulate; it is never shown to customers as a document.</summary>
@@ -292,6 +296,19 @@ public sealed class ArtisanProfile
     /// <summary>Away until a date (hidden from search; accepted jobs untouched), or null to come back.</summary>
     public void SetAway(DateTimeOffset? untilUtc) => AwayUntilUtc = untilUtc;
 
+    /// <summary>When Servika last assigned this artisan a job; rotation offers the least recent first.</summary>
+    public DateTimeOffset? LastAssignedAtUtc { get; private set; }
+    public void MarkAssigned(DateTimeOffset now) => LastAssignedAtUtc = now;
+
+    /// <summary>Personal booking code (e.g. "EMEKA42"): customers who use it get this artisan first. Set once.</summary>
+    public string? BookingCode { get; private set; }
+    public void SetBookingCode(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) throw new ArgumentException("Code is required.", nameof(code));
+        if (BookingCode is not null) throw new InvalidOperationException("The booking code is set once.");
+        BookingCode = code.Trim().ToUpperInvariant();
+    }
+
     // ── Guarantor policy ───────────────────────────────────────────────────
     /// <summary>Admin waived the guarantor requirement for this artisan alone.</summary>
     public bool GuarantorsWaived { get; private set; }
@@ -353,18 +370,43 @@ public sealed class ArtisanProfile
     {
         if (string.IsNullOrWhiteSpace(photoKey))
             throw new ArgumentException("Photo key is required.", nameof(photoKey));
-        if (GalleryPhotoKeys.Count >= MaxGalleryPhotos)
+        if (GalleryPhotoKeys.Count + PendingGalleryPhotoKeys.Count >= MaxGalleryPhotos)
             throw new InvalidOperationException(
                 $"The gallery is full ({MaxGalleryPhotos} photos). Delete one to add another.");
-        // Re-assign so EF's change tracking sees a new list instance.
-        GalleryPhotoKeys = GalleryPhotoKeys.Prepend(photoKey).ToList();
+        // Waits for ops. Re-assign so EF's change tracking sees a new list instance.
+        PendingGalleryPhotoKeys = PendingGalleryPhotoKeys.Prepend(photoKey).ToList();
     }
 
-    /// <summary>Removes a gallery photo by key. False when the key isn't ours.</summary>
+    /// <summary>Removes a gallery photo (passed or waiting) by key. False when the key isn't ours.</summary>
     public bool RemoveGalleryPhoto(string photoKey)
     {
-        if (!GalleryPhotoKeys.Contains(photoKey)) return false;
-        GalleryPhotoKeys = GalleryPhotoKeys.Where(k => k != photoKey).ToList();
+        if (GalleryPhotoKeys.Contains(photoKey))
+        {
+            GalleryPhotoKeys = GalleryPhotoKeys.Where(k => k != photoKey).ToList();
+            return true;
+        }
+        if (PendingGalleryPhotoKeys.Contains(photoKey))
+        {
+            PendingGalleryPhotoKeys = PendingGalleryPhotoKeys.Where(k => k != photoKey).ToList();
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>Ops pass a waiting photo: it moves to the public gallery, newest first.</summary>
+    public bool ApproveGalleryPhoto(string photoKey)
+    {
+        if (!PendingGalleryPhotoKeys.Contains(photoKey)) return false;
+        PendingGalleryPhotoKeys = PendingGalleryPhotoKeys.Where(k => k != photoKey).ToList();
+        GalleryPhotoKeys = GalleryPhotoKeys.Prepend(photoKey).ToList();
+        return true;
+    }
+
+    /// <summary>Ops turn a waiting photo down: it is dropped (the caller deletes the file).</summary>
+    public bool RejectGalleryPhoto(string photoKey)
+    {
+        if (!PendingGalleryPhotoKeys.Contains(photoKey)) return false;
+        PendingGalleryPhotoKeys = PendingGalleryPhotoKeys.Where(k => k != photoKey).ToList();
         return true;
     }
 

@@ -33,6 +33,8 @@ public sealed class ExceptionHandlingMiddleware
             {
                 EmailAlreadyInUseException => (StatusCodes.Status409Conflict, ex.Message),
                 ConflictException => (StatusCodes.Status409Conflict, ex.Message),
+                Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException => (StatusCodes.Status409Conflict,
+                    "Someone else just changed this job. Refresh and try again."),
                 InvalidBookingStateException => (StatusCodes.Status409Conflict, ex.Message),
                 InvalidDisputeStateException => (StatusCodes.Status409Conflict, ex.Message),
                 InvalidWebhookSignatureException => (StatusCodes.Status401Unauthorized, ex.Message),

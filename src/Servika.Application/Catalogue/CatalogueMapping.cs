@@ -46,7 +46,8 @@ internal static class CatalogueMapping
             a.PayoutAccountNumber is { Length: >= 4 } acct ? $"••••{acct[^4..]}" : null,
             a.PayoutAccountName,
             a.WorkRadiusKm, a.AcceptsEmergency, a.WorkingHoursJson, a.AwayUntilUtc,
-            guarantorCount, guarantorsRequired, requiredGuarantorCount, a.NinLookupStatus, a.NinLookupName);
+            guarantorCount, guarantorsRequired, requiredGuarantorCount, a.NinLookupStatus, a.NinLookupName,
+            a.BookingCode, a.BookingCode is null ? null : BookingCodes.Link(a.BookingCode));
 
     /// <summary>API path the clients load the uploaded photo from, or null if
     /// none was uploaded (clients fall back to the bundled ImageKey art).</summary>
@@ -59,6 +60,12 @@ internal static class CatalogueMapping
     /// <summary>API paths of the uploaded work-gallery photos, newest first.</summary>
     internal static IReadOnlyList<string> GalleryUrls(this ArtisanProfile a) =>
         a.GalleryPhotoKeys
+            .Select(k => $"/api/v1/artisans/{a.Id}/gallery/{k}")
+            .ToList();
+
+    /// <summary>API paths of the photos waiting for ops (served only to the owner and admins).</summary>
+    internal static IReadOnlyList<string> PendingGalleryUrls(this ArtisanProfile a) =>
+        a.PendingGalleryPhotoKeys
             .Select(k => $"/api/v1/artisans/{a.Id}/gallery/{k}")
             .ToList();
 }

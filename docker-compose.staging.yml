@@ -76,6 +76,12 @@ services:
       Sms__SenderId: ${SMS_SENDER_ID:-Servika}
       Auth__RequirePhoneForBooking: ${REQUIRE_PHONE_FOR_BOOKING:-false}
       Google__DirectionsApiKey: ${GOOGLE_DIRECTIONS_API_KEY:-}
+      # Ops alerts: Telegram only (no ops email, no console push), marked STAGING, with no console link
+      # (the console reads production). Point the chat at a staging-only chat when one exists.
+      AdminAlerts__TelegramBotToken: ${ADMIN_ALERTS_TELEGRAM_BOT_TOKEN:-}
+      AdminAlerts__TelegramChatId: ${ADMIN_ALERTS_TELEGRAM_CHAT_ID:-}
+      AdminAlerts__EnvironmentLabel: STAGING
+      AdminAlerts__ConsoleUrl: ""
       Google__OAuthClientIds: ${GOOGLE_OAUTH_CLIENT_IDS:-}
       # Leave S3 blank → uploads go to the container's local disk (ephemeral, which
       # is fine for throwaway staging data), or point at a SEPARATE staging bucket.

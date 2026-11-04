@@ -24,8 +24,11 @@ public sealed class GetMyArtisanProfileHandler
 
     public async Task<MyArtisanProfileDto> HandleAsync(Guid artisanUserId, CancellationToken ct)
     {
-        var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct)
+        var profile = await _catalogue.GetArtisanByUserIdForUpdateAsync(artisanUserId, ct)
             ?? throw new NotFoundException("You haven't set up your artisan profile yet.");
+        // A verified artisan gets their personal booking code the first time they open the app.
+        if (await new BookingCodeAssigner(_catalogue).EnsureAsync(profile, ct))
+            await _catalogue.SaveChangesAsync(ct);
 
         return await new MyProfileDtoBuilder(_guarantors, _settings).BuildAsync(profile, artisanUserId, ct);
     }

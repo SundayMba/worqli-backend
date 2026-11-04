@@ -11,6 +11,10 @@ public static class NotificationKinds
     public const string KycDeclined = "KycDeclined";
     public const string KycResubmitted = "KycResubmitted";
     public const string OpenJob = "OpenJob";
+    /// <summary>Servika offered this artisan a job; accept before the window closes.</summary>
+    public const string JobOffer = "JobOffer";
+    /// <summary>Customer: rotation found nobody free yet; Servika keeps trying.</summary>
+    public const string NoArtisanFree = "NoArtisanFree";
     public const string OpenJobClaimed = "OpenJobClaimed";
     public const string NewJobRequest = "NewJobRequest";
     public const string BookingAccepted = "BookingAccepted";
@@ -25,6 +29,15 @@ public static class NotificationKinds
     public const string CounterDeclined = "CounterDeclined";
     public const string MaterialsAdvance = "MaterialsAdvance";
     public const string WorkSubmitted = "WorkSubmitted";
+    /// <summary>Customer: the artisan found repairs (from Servika's list) waiting for approval.</summary>
+    public const string RepairsProposed = "RepairsProposed";
+    /// <summary>Artisan: the customer approved or declined the proposed repairs.</summary>
+    public const string RepairsDecided = "RepairsDecided";
+    /// <summary>Admin: a custom quote waits for a check. Artisan: ops sent the quote back with a note.</summary>
+    public const string QuoteToCheck = "QuoteToCheck";
+    public const string QuoteSentBack = "QuoteSentBack";
+    /// <summary>Artisan: ops passed or turned down a service post or a gallery photo.</summary>
+    public const string PostReviewed = "PostReviewed";
     public const string JobConfirmed = "JobConfirmed";
     public const string BookingCancelled = "BookingCancelled";
     public const string Dispute = "Dispute";

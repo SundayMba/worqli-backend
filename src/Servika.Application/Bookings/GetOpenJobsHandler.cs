@@ -5,9 +5,8 @@ using Servika.Domain.Catalogue;
 namespace Servika.Application.Bookings;
 
 /// <summary>
-/// Lists the open (unassigned) requests a signed-in artisan can claim — the ones in
-/// their service categories, newest first. An account with no profile, or one that
-/// isn't verified yet, sees an empty pool (only verified artisans take jobs).
+/// The open jobs a signed-in artisan can bid on: in their trades, accepted by their work rules, newest first.
+/// A pending artisan may read the pool (bidding needs Verified server-side); a restricted or away one sees none.
 /// </summary>
 public sealed class GetOpenJobsHandler
 {
@@ -53,5 +52,33 @@ public sealed class GetOpenJobsHandler
             .Where(b => OpenJobMatching.Accepts(rules, b, now))
             .Select(b => b.ToSummaryDto(artisanSide: true))
             .ToList();
+    }
+}
+
+/// <summary>One open job in full, for an artisan deciding what to bid. 404 unless it is open and in their trades.</summary>
+public sealed class GetOpenJobDetailHandler
+{
+    private readonly IBookingRepository _bookings;
+    private readonly ICatalogueRepository _catalogue;
+    private readonly IBidRepository _bids;
+    private readonly ArtisanBookingDtoBuilder _dto;
+
+    public GetOpenJobDetailHandler(IBookingRepository bookings, ICatalogueRepository catalogue, IBidRepository bids, ArtisanBookingDtoBuilder dto)
+    {
+        _bookings = bookings;
+        _catalogue = catalogue;
+        _bids = bids;
+        _dto = dto;
+    }
+
+    public async Task<BookingDetailDto> HandleAsync(Guid artisanUserId, Guid bookingId, CancellationToken ct)
+    {
+        var profile = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct);
+        if (profile is null || profile.VerificationStatus == ArtisanVerificationStatus.Rejected)
+            throw new Common.NotFoundException("This request was not found.");
+        var booking = await _bookings.FindByIdReadOnlyAsync(bookingId, ct);
+        if (booking is null || booking.Status != Domain.Bookings.BookingStatus.Open || !profile.CategorySlugs.Contains(booking.CategorySlug))
+            throw new Common.NotFoundException("This request was not found.");
+        return await _dto.BuildAsync(booking, await _bids.CountActiveForBookingAsync(booking.Id, ct), ct);
     }
 }

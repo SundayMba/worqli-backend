@@ -76,10 +76,14 @@ public static class DependencyInjection
         // Marketplace catalogue (read-only reference data), Scoped (EF).
         services.AddScoped<ICatalogueRepository, CatalogueRepository>();
         services.AddScoped<IArtisanServiceRepository, ArtisanServiceRepository>();
+        services.AddScoped<IPriceBookRepository, PriceBookRepository>();
+        services.AddScoped<IBookingRepairRepository, BookingRepairRepository>();
+        services.AddScoped<IEstateEnquiryRepository, EstateEnquiryRepository>();
 
         // Bookings (read + write), Scoped (EF).
         services.AddScoped<IBookingRepository, BookingRepository>();
         services.AddScoped<IBidRepository, BidRepository>();
+        services.AddScoped<IJobOfferRepository, JobOfferRepository>();
 
         // Reviews (customer ratings on completed bookings), Scoped (EF).
         services.AddScoped<IReviewRepository, ReviewRepository>();

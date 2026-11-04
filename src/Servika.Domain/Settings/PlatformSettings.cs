@@ -43,6 +43,24 @@ public sealed class PlatformSettings
     /// built and dormant behind this switch.</summary>
     public bool AllowCashPayments { get; private set; }
 
+    /// <summary>Whether the customer app lists services that are not bookable yet as "Coming soon".
+    /// Off by default (user decision 2026-11-04): the app shows only what can be booked today.</summary>
+    public bool ShowComingSoonServices { get; private set; }
+
+    /// <summary>Minutes an artisan has to accept a job Servika offered them before it goes to the next one.</summary>
+    public int OfferWindowMinutes { get; private set; } = 10;
+    /// <summary>Minutes an artisan a customer asked for by name has to answer before the job goes into rotation.</summary>
+    public int DirectOfferWindowMinutes { get; private set; } = 60;
+
+    // ── Pricing (Business Model v1.4, sections 7 and 10) ──
+    /// <summary>The fixed diagnosis visit fee, paid at booking and credited against the repair if the
+    /// customer goes ahead. ₦5,000 is a placeholder until real phone quotes set it.</summary>
+    public int DiagnosisFeeNaira { get; private set; } = 5000;
+    /// <summary>A custom quote at or above this total is checked by ops before the customer sees it.</summary>
+    public int QuoteReviewThresholdNaira { get; private set; } = 50000;
+    /// <summary>A custom quote whose labour is above this multiple of the typical range's top is checked too.</summary>
+    public decimal QuoteReviewRangeFactor { get; private set; } = 1.5m;
+
     // ── Transaction fees (the gateway's charges and who pays them) ──
     /// <summary>When customers and artisans start paying their own transaction fees.
     /// Null = not scheduled: Servika absorbs every fee (the launch window).</summary>
@@ -87,6 +105,11 @@ public sealed class PlatformSettings
         RequireGuarantors = false,
         RequiredGuarantorCount = 2,
         AllowCashPayments = false,
+        OfferWindowMinutes = 10,
+        DirectOfferWindowMinutes = 60,
+        DiagnosisFeeNaira = 5000,
+        QuoteReviewThresholdNaira = 50000,
+        QuoteReviewRangeFactor = 1.5m,
         UpdatedAtUtc = now,
     };
 
@@ -102,7 +125,10 @@ public sealed class PlatformSettings
         DateTimeOffset now,
         bool requireGuarantors = false,
         int requiredGuarantorCount = 2,
-        bool allowCashPayments = false)
+        bool allowCashPayments = false,
+        int offerWindowMinutes = 10,
+        int directOfferWindowMinutes = 60,
+        bool showComingSoonServices = false)
     {
         CommissionRate = Rate(commissionRate, nameof(commissionRate));
         EmergencyCommissionRate = Rate(emergencyCommissionRate, nameof(emergencyCommissionRate));
@@ -126,6 +152,28 @@ public sealed class PlatformSettings
         RequireGuarantors = requireGuarantors;
         RequiredGuarantorCount = requiredGuarantorCount;
         AllowCashPayments = allowCashPayments;
+        ShowComingSoonServices = showComingSoonServices;
+        if (offerWindowMinutes is < 1 or > 180)
+            throw new ArgumentException("The offer window must be between 1 and 180 minutes.", nameof(offerWindowMinutes));
+        if (directOfferWindowMinutes is < 1 or > 1440)
+            throw new ArgumentException("The direct offer window must be between 1 minute and 24 hours.", nameof(directOfferWindowMinutes));
+        OfferWindowMinutes = offerWindowMinutes;
+        DirectOfferWindowMinutes = directOfferWindowMinutes;
+        UpdatedAtUtc = now;
+    }
+
+    /// <summary>Sets the pricing levers. Range-guarded: a diagnosis fee is a visit, not a repair.</summary>
+    public void UpdatePricing(int diagnosisFeeNaira, int quoteReviewThresholdNaira, decimal quoteReviewRangeFactor, DateTimeOffset now)
+    {
+        if (diagnosisFeeNaira is < 0 or > 100_000)
+            throw new ArgumentException("The diagnosis fee must be between ₦0 and ₦100,000.", nameof(diagnosisFeeNaira));
+        if (quoteReviewThresholdNaira is < 1000 or > 10_000_000)
+            throw new ArgumentException("The quote review threshold must be between ₦1,000 and ₦10,000,000.", nameof(quoteReviewThresholdNaira));
+        if (quoteReviewRangeFactor is < 1m or > 5m)
+            throw new ArgumentException("The range factor must be between 1 and 5.", nameof(quoteReviewRangeFactor));
+        DiagnosisFeeNaira = diagnosisFeeNaira;
+        QuoteReviewThresholdNaira = quoteReviewThresholdNaira;
+        QuoteReviewRangeFactor = quoteReviewRangeFactor;
         UpdatedAtUtc = now;
     }
 

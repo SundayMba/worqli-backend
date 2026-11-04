@@ -24,8 +24,10 @@ public sealed class CreateBookingHandler
     private readonly IBookingRepository _bookings;
     private readonly ICatalogueRepository _catalogue;
     private readonly IArtisanServiceRepository _artisanServices;
+    private readonly IPriceBookRepository _priceBook;
     private readonly IUserRepository _users;
     private readonly IPlatformSettingsRepository _settings;
+    private readonly AssignmentService _assignment;
     private readonly AuthPolicyOptions _authPolicy;
     private readonly Notifications.NotificationEmitter _notifications;
     private readonly IFileStorage _files;
@@ -40,13 +42,17 @@ public sealed class CreateBookingHandler
         AuthPolicyOptions authPolicy,
         Notifications.NotificationEmitter notifications,
         IFileStorage files,
-        IClock clock)
+        IClock clock,
+        AssignmentService assignment,
+        IPriceBookRepository priceBook)
     {
+        _priceBook = priceBook;
         _bookings = bookings;
         _catalogue = catalogue;
         _artisanServices = artisanServices;
         _users = users;
         _settings = settings;
+        _assignment = assignment;
         _authPolicy = authPolicy;
         _notifications = notifications;
         _files = files;
@@ -65,15 +71,48 @@ public sealed class CreateBookingHandler
                 throw new PhoneVerificationRequiredException();
         }
 
-        var slug = request.CategorySlug?.Trim() ?? string.Empty;
+        // Servika's own prices (price book, diagnosis, custom quote) are paused while jobs are priced by bids. With no
+        // artisan to take them, such a request would sit paid and open with nobody able to accept it.
+        if (request.ArtisanId is null && string.IsNullOrWhiteSpace(request.BookingCode)
+            && (request.PriceBookItemId is not null || request.Diagnosis || request.CustomQuote))
+            throw new ConflictException("This way of booking is paused. Describe the job and artisans will send prices.");
+
+        // A Servika price-book job: Servika's price, Servika's scope. Its category wins over the client's.
+        Domain.Catalogue.PriceBookItem? priceBookItem = null;
+        if (request.PriceBookItemId is { } itemId)
+        {
+            if (request.ArtisanServiceId is not null)
+                throw new ArgumentException("Book either a Servika job or an artisan's own listing, not both.");
+            priceBookItem = await _priceBook.FindAsync(itemId, ct);
+            if (priceBookItem is not { IsActive: true, Kind: Domain.Catalogue.PriceBookItemKind.Fixed, PriceNaira: > 0 })
+                throw new NotFoundException("That job is no longer offered. Pick another from the list.");
+        }
+
+        var slug = priceBookItem?.CategorySlug ?? request.CategorySlug?.Trim() ?? string.Empty;
         var category = await _catalogue.GetCategoryBySlugAsync(slug, ct)
             ?? throw new NotFoundException($"Category '{slug}' was not found.");
 
+        // A personal booking code names the artisan; it wins over any id the client sent.
+        var requestedArtisanId = request.ArtisanId;
+        var source = BookingSource.Direct;
+        if (!string.IsNullOrWhiteSpace(request.BookingCode))
+        {
+            var byCode = await _catalogue.FindArtisanByBookingCodeAsync(Catalogue.BookingCodes.Normalize(request.BookingCode), ct)
+                ?? throw new NotFoundException("No artisan has that booking code. Check it and try again.");
+            requestedArtisanId = byCode.Id;
+            source = BookingSource.Code;
+        }
+        else if (request.Rebook && request.ArtisanId is { } rebookId
+                 && await _bookings.HasCompletedWithArtisanAsync(customerId, rebookId, ct))
+            source = BookingSource.Rebook;
+
         string? artisanName = null;
-        if (request.ArtisanId is { } artisanId)
+        Domain.Catalogue.ArtisanProfile? chosenArtisan = null;
+        if (requestedArtisanId is { } artisanId)
         {
             var artisan = await _catalogue.GetArtisanByIdAsync(artisanId, ct)
                 ?? throw new NotFoundException($"Artisan '{artisanId}' was not found.");
+            chosenArtisan = artisan;
             // Only verified artisans take bookings (unpaid commission is deliberately
             // NOT checked here: online jobs are how that debt nets down).
             if (artisan.VerificationStatus != Domain.Catalogue.ArtisanVerificationStatus.Verified)
@@ -90,10 +129,10 @@ public sealed class CreateBookingHandler
         Domain.Catalogue.ArtisanService? fixedService = null;
         if (request.ArtisanServiceId is { } serviceId)
         {
-            if (request.ArtisanId is null)
+            if (requestedArtisanId is null)
                 throw new ArgumentException("A fixed-price service needs its artisan selected.");
             fixedService = await _artisanServices.FindAsync(serviceId, ct);
-            if (fixedService is null || fixedService.ArtisanProfileId != request.ArtisanId)
+            if (fixedService is null || fixedService.ArtisanProfileId != requestedArtisanId || !fixedService.IsPublic)
                 throw new NotFoundException("That service was not found on this artisan's profile.");
         }
 
@@ -128,15 +167,35 @@ public sealed class CreateBookingHandler
                 "Add at least one photo (or a short video) of the job so artisans can price it.");
         }
 
+        // "Something else": a custom job. If the customer picked a listed kind of custom work, its typical labour
+        // range is copied onto the booking; the quote is shown beside it and checked against it.
+        Domain.Catalogue.PriceBookItem? customItem = null;
+        if (request.CustomQuote && request.CustomPriceBookItemId is { } customId)
+        {
+            customItem = await _priceBook.FindAsync(customId, ct);
+            if (customItem is not { IsActive: true, Kind: Domain.Catalogue.PriceBookItemKind.Custom } || customItem.CategorySlug != category.Slug)
+                throw new NotFoundException("That kind of job is no longer listed. Describe it instead.");
+        }
+        var customQuote = request.CustomQuote && priceBookItem is null && fixedService is null && settings.DiagnosisFeeNaira > 0;
+
+        // "Not sure what's wrong?" and custom jobs start with a paid visit at Servika's fee (nothing when the
+        // admin sets it to 0: then it is a free inspection with a quote, as before).
+        var diagnosisFee = (request.Diagnosis || customQuote) && priceBookItem is null && fixedService is null && settings.DiagnosisFeeNaira > 0
+            ? settings.DiagnosisFeeNaira
+            : (int?)null;
+
         var booking = Booking.Create(
             customerId: customerId,
-            artisanId: request.ArtisanId,
+            artisanId: requestedArtisanId,
             categorySlug: category.Slug,
             // A fixed-price booking is FOR that listed service — its name is the
             // one that should show everywhere ("Knotless braids", not "Beauty").
-            serviceName: fixedService?.Name ?? category.Name,
+            serviceName: priceBookItem?.Name ?? customItem?.Name ?? fixedService?.Name ?? category.Name,
             artisanName: artisanName,
-            description: request.Description,
+            // A price-book job's scope already says what is wanted; the customer's words are extra.
+            description: string.IsNullOrWhiteSpace(request.Description) && priceBookItem is not null
+                ? (string.IsNullOrWhiteSpace(priceBookItem.Scope) ? priceBookItem.Name : priceBookItem.Scope)
+                : request.Description,
             addressText: request.AddressText,
             locationLat: request.LocationLat,
             locationLng: request.LocationLng,
@@ -147,21 +206,40 @@ public sealed class CreateBookingHandler
             // Fixed = a published price known at booking; Variable = the price is
             // agreed later via a quote. Booking itself is always free either way —
             // payment for a fixed booking happens once the artisan accepts.
-            pricingModel: fixedService is null ? PricingModel.Variable : PricingModel.Fixed,
-            initialQuoteAmountNaira: fixedService?.PriceNaira,
+            pricingModel: diagnosisFee is not null ? PricingModel.Hybrid
+                : fixedService is null && priceBookItem is null ? PricingModel.Variable : PricingModel.Fixed,
+            initialQuoteAmountNaira: diagnosisFee ?? priceBookItem?.PriceNaira ?? fixedService?.PriceNaira,
             commissionRate: commissionRate,
             now: _clock.UtcNow,
             assessment: assessment,
             mediaKeys: mediaKeys,
-            videoKey: videoKey);
+            videoKey: videoKey,
+            source: requestedArtisanId is null ? BookingSource.Rotation : source,
+            priceBookItemId: priceBookItem?.Id,
+            diagnosisFeeNaira: diagnosisFee,
+            customQuote: customQuote,
+            customPriceBookItemId: customQuote ? customItem?.Id : null,
+            typicalRangeMinNaira: customQuote ? customItem?.RangeMinNaira : null,
+            typicalRangeMaxNaira: customQuote ? customItem?.RangeMaxNaira : null);
 
         _bookings.Add(booking);
-        if (booking.ArtisanId is null)
-            // Open request — broadcast to every matching artisan so one can claim it.
-            await _notifications.OpenJobPosted(booking, ct);
+        var now = _clock.UtcNow;
+        if (booking.PaysUpfront)
+        {
+            // Nobody is sent to an unpaid job: the offer goes out when the payment lands
+            // (PaymentSettlementService).
+        }
+        else if (chosenArtisan is null)
+        {
+            // Servika assigns: the request is offered to one artisan at a time, in rotation.
+            await _assignment.BroadcastAsync(booking, now, ct);
+        }
         else
-            // Pre-selected — let the assigned artisan know a job came in.
+        {
+            // Asked for by name: that artisan gets an exclusive window, then rotation takes over.
+            await _assignment.OfferDirectAsync(booking, chosenArtisan, now, ct);
             await _notifications.ArtisanNewBooking(booking, ct);
+        }
         await _bookings.SaveChangesAsync(ct);
 
         return booking.ToDetailDto(0, null, null);

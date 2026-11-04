@@ -40,6 +40,12 @@ public sealed class PaymentRepository : IPaymentRepository
             .OrderByDescending(p => p.CreatedAt)
             .FirstOrDefaultAsync(ct);
 
+    public async Task<IReadOnlyList<Payment>> ListSucceededForBookingAsync(Guid bookingId, CancellationToken ct) =>
+        await _db.Payments
+            .Where(p => p.BookingId == bookingId && p.Status == PaymentStatus.Succeeded)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<Payment>> ListHeldEscrowAsync(CancellationToken ct) =>
         await _db.Payments
             .AsNoTracking()

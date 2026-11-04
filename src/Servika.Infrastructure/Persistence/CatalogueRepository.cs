@@ -83,7 +83,8 @@ public sealed class CatalogueRepository : ICatalogueRepository
                         && a.IsAvailable
                         && a.CategorySlugs.Contains(categorySlug))
             .Select(a => new ArtisanRecipient(a.Id, a.UserId!.Value,
-                new ArtisanWorkRules(a.Latitude, a.Longitude, a.WorkRadiusKm, a.AcceptsEmergency, a.AwayUntilUtc)))
+                new ArtisanWorkRules(a.Latitude, a.Longitude, a.WorkRadiusKm, a.AcceptsEmergency, a.AwayUntilUtc),
+                a.FullName, a.LastAssignedAtUtc))
             .ToListAsync(ct);
 
     // Tracked (no AsNoTracking) so a rating-aggregate change persists on SaveChanges.
@@ -97,6 +98,34 @@ public sealed class CatalogueRepository : ICatalogueRepository
         _db.ArtisanProfiles.IgnoreQueryFilters().FirstOrDefaultAsync(a => a.UserId == userId, ct);
 
     public void AddArtisan(ArtisanProfile profile) => _db.ArtisanProfiles.Add(profile);
+
+    public async Task<IReadOnlyList<CoverageCandidate>> ListCoverageCandidatesAsync(string? categorySlug, CancellationToken ct)
+    {
+        var slugs = categorySlug is not null
+            ? new List<string> { categorySlug }
+            : await _db.ServiceCategories.AsNoTracking().Where(c => c.IsActive && c.IsPopular).Select(c => c.Slug).ToListAsync(ct);
+        if (slugs.Count == 0) return Array.Empty<CoverageCandidate>();
+        return await _db.ArtisanProfiles.AsNoTracking()
+            .Where(a => a.VerificationStatus == ArtisanVerificationStatus.Verified && a.UserId != null
+                        && a.CategorySlugs.Any(s => slugs.Contains(s)))
+            .Select(a => new CoverageCandidate(a.Id, a.IsAvailable,
+                new ArtisanWorkRules(a.Latitude, a.Longitude, a.WorkRadiusKm, a.AcceptsEmergency, a.AwayUntilUtc)))
+            .ToListAsync(ct);
+    }
+
+    public void AddServiceInterest(ServiceInterest interest) => _db.ServiceInterests.Add(interest);
+
+    public async Task<IReadOnlyList<ServiceInterest>> ListServiceInterestsAsync(int take, CancellationToken ct) =>
+        await _db.ServiceInterests.AsNoTracking().OrderByDescending(s => s.CreatedAtUtc).Take(take).ToListAsync(ct);
+
+    public Task<ArtisanProfile?> FindArtisanByBookingCodeAsync(string code, CancellationToken ct) =>
+        _db.ArtisanProfiles.AsNoTracking().FirstOrDefaultAsync(a => a.BookingCode == code, ct);
+
+    public Task<bool> BookingCodeExistsAsync(string code, CancellationToken ct) =>
+        _db.ArtisanProfiles.IgnoreQueryFilters().AnyAsync(a => a.BookingCode == code, ct);
+
+    public async Task<IReadOnlyList<ArtisanProfile>> ListArtisansByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
+        ids.Count == 0 ? Array.Empty<ArtisanProfile>() : await _db.ArtisanProfiles.AsNoTracking().Where(a => ids.Contains(a.Id)).ToListAsync(ct);
 
     public async Task<IReadOnlyList<ServiceCategory>> GetAllCategoriesAsync(CancellationToken ct) =>
         await _db.ServiceCategories

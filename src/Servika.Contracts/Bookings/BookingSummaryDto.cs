@@ -34,4 +34,9 @@ public sealed record BookingSummaryDto(
     /// <summary>ARTISAN-facing only: what the artisan receives for this job (agreed
     /// amount − commission at the booking's rate − any released materials advance).
     /// Null on customer-facing responses and when no amount is agreed.</summary>
-    int? ArtisanNetNaira);
+    int? ArtisanNetNaira,
+    /// <summary>The assigned artisan profile id (for Book again), or null.</summary>
+    Guid? ArtisanId = null,
+    string Source = "Direct",
+    Guid? PriceBookItemId = null,
+    bool AwaitingUpfrontPayment = false);

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Servika.Contracts.Catalogue;
 
 /// <summary>
@@ -10,8 +12,9 @@ public sealed record MyArtisanProfileDto(
     string ImageKey,
     string FullName,
     string Specialty,
-    double Rating,
-    int ReviewCount,
+    /// <summary>Ratings are for ops only (user decision 2026-11-04): never serialised to apps.</summary>
+    [property: JsonIgnore] double Rating,
+    [property: JsonIgnore] int ReviewCount,
     bool IsAvailable,
     string VerificationStatus,
     int ExperienceYears,
@@ -49,7 +52,12 @@ public sealed record MyArtisanProfileDto(
     int RequiredGuarantorCount = 2,
     /// <summary>Last NIN register check: Matched | NameMismatch | NotFound | Failed | null.</summary>
     string? NinLookupStatus = null,
-    string? NinLookupName = null);
+    string? NinLookupName = null,
+    /// <summary>Personal booking code and link, once verified.</summary>
+    string? BookingCode = null,
+    string? BookingLink = null,
+    /// <summary>Recent-work photos still waiting for ops (the owner's view only).</summary>
+    IReadOnlyList<string>? PendingGalleryUrls = null);
 
 /// <summary>
 /// Create or update the signed-in artisan's profile (POST/PUT /api/v1/artisan/profile),
@@ -80,7 +88,10 @@ public sealed record SaveArtisanProfileRequest(
 public sealed record AddGalleryPhotoRequest(string PhotoBase64);
 
 /// <summary>The artisan's own gallery after an add/remove.</summary>
-public sealed record GalleryDto(IReadOnlyList<string> GalleryUrls);
+public sealed record GalleryDto(
+    IReadOnlyList<string> GalleryUrls,
+    /// <summary>Photos waiting for ops; the owner loads them with their token.</summary>
+    IReadOnlyList<string>? PendingGalleryUrls = null);
 
 /// <summary>PUT /api/v1/artisan/profile/availability body — the online toggle.</summary>
 public sealed record SetAvailabilityRequest(bool Available);

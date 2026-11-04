@@ -45,7 +45,11 @@ public sealed class AdminAlertDispatcher : IAdminAlerts
             try
             {
                 await Task.Delay(1000);
-                var link = alert.LinkPath is null ? null : $"{_options.ConsoleUrl.TrimEnd('/')}{alert.LinkPath}";
+                if (!string.IsNullOrWhiteSpace(_options.EnvironmentLabel))
+                    alert = alert with { Title = $"[{_options.EnvironmentLabel.Trim()}] {alert.Title}" };
+                var link = alert.LinkPath is null || string.IsNullOrWhiteSpace(_options.ConsoleUrl)
+                    ? null
+                    : $"{_options.ConsoleUrl.TrimEnd('/')}{alert.LinkPath}";
 
                 var telegramOk = false;
                 if (_options.TelegramConfigured)
@@ -158,6 +162,9 @@ public sealed class AdminAlertDispatcher : IAdminAlerts
         AdminAlertKind.ApplicationOverdue => "⏰",
         AdminAlertKind.DisputeRaised or AdminAlertKind.DisputeResponse => "⚠️",
         AdminAlertKind.RefundFailed or AdminAlertKind.PaymentMismatch or AdminAlertKind.FloatShort => "🚨",
+        AdminAlertKind.QuoteToCheck => "🧾",
+        AdminAlertKind.ServicePostToReview => "🖼️",
+        AdminAlertKind.EstateEnquiry => "🏢",
         _ => "☀️",
     };
 

@@ -104,11 +104,46 @@ public static class DependencyInjection
         services.AddScoped<GetArtisanJobByIdHandler>();
         services.AddScoped<AdvanceBookingByArtisanHandler>();
 
-        // Open (unassigned) requests: the pool a matching artisan can browse + claim.
-        services.AddScoped<GetOpenJobsHandler>();
-        services.AddScoped<GetOpenJobDetailHandler>();
         services.AddScoped<GetArtisanJobCompletionHandler>();
-        services.AddScoped<ClaimOpenJobHandler>();
+
+        // Assignment: Servika offers each request to one artisan at a time, in rotation.
+        services.AddScoped<AssignmentService>();
+        services.AddScoped<GetMyOffersHandler>();
+        services.AddScoped<RespondToOfferHandler>();
+        services.AddScoped<OfferSweepHandler>();
+
+        // Booking codes and the customer's past artisans (Book again).
+        services.AddScoped<Catalogue.GetArtisanByCodeHandler>();
+        services.AddScoped<Catalogue.GetPastArtisansHandler>();
+
+        // Customer Home: availability line and "tell us what you need".
+        services.AddScoped<Catalogue.GetAvailabilityHandler>();
+        services.AddScoped<Catalogue.RecordServiceInterestHandler>();
+        services.AddScoped<Catalogue.GetPriceBookHandler>();
+        services.AddScoped<Bookings.ProposeRepairsHandler>();
+        services.AddScoped<Bookings.GetOpenJobsHandler>();
+        services.AddScoped<Catalogue.GetServiceSectionsHandler>();
+        services.AddScoped<Catalogue.SubmitEstateEnquiryHandler>();
+        services.AddScoped<Catalogue.ListEstateEnquiriesHandler>();
+        services.AddScoped<Catalogue.UpdateEstateEnquiryHandler>();
+        services.AddScoped<Catalogue.ListServicePostsHandler>();
+        services.AddScoped<Catalogue.DecideServicePostHandler>();
+        services.AddScoped<Catalogue.ListPendingGalleryPhotosHandler>();
+        services.AddScoped<Catalogue.DecideGalleryPhotoHandler>();
+        services.AddScoped<Bookings.GetOpenJobDetailHandler>();
+        services.AddScoped<Bookings.ListQuoteReviewsHandler>();
+        services.AddScoped<Bookings.DecideQuoteReviewHandler>();
+        services.AddScoped<Bookings.DeclineCustomQuoteHandler>();
+        services.AddScoped<Bookings.GetBookingRepairsHandler>();
+        services.AddScoped<Bookings.GetRepairPhotoHandler>();
+        services.AddScoped<Bookings.DecideRepairsHandler>();
+        services.AddScoped<Catalogue.GetCategoryPriceBookHandler>();
+        services.AddScoped<Catalogue.GetPriceBookItemHandler>();
+        services.AddScoped<Catalogue.GetPriceBookPhotoHandler>();
+        services.AddScoped<Catalogue.ListAdminPriceBookHandler>();
+        services.AddScoped<Catalogue.SavePriceBookItemHandler>();
+        services.AddScoped<Catalogue.SetPriceBookPhotoHandler>();
+        services.AddScoped<Catalogue.ListServiceInterestsHandler>();
 
         // Live tracking (SignalR hub + stale-cleanup worker both call this).
         services.AddScoped<Tracking.TrackingService>();
