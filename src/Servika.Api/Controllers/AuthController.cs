@@ -93,6 +93,27 @@ public sealed class AuthController : ControllerBase
         return Ok(await handler.HandleAsync(request, ct));
     }
 
+    /// <summary>Sign in (or sign up) with Apple, for iPhone users.</summary>
+    /// <remarks>
+    /// The app runs Apple's native sign-in sheet and posts the identity token (plus the name, which Apple
+    /// only shares the first time). The server checks it against Apple's keys (signature, issuer, expiry,
+    /// audience = our iOS app ids), then logs in the matching account or creates a Customer account.
+    /// </remarks>
+    /// <response code="200">Session issued (tokens + profile).</response>
+    /// <response code="401">Token invalid/expired/for another app, or Apple sign-in not configured.</response>
+    /// <response code="403">Account suspended.</response>
+    [HttpPost("apple")]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<AuthResponse>> Apple(
+        [FromBody] AppleLoginRequest request,
+        [FromServices] Servika.Application.Users.Apple.AppleLoginHandler handler,
+        CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(request, ct));
+    }
+
     /// <summary>Exchange a refresh token for a new token pair (with rotation).</summary>
     /// <remarks>
     /// The presented refresh token is revoked and a brand-new pair is issued.
