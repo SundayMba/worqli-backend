@@ -11,7 +11,7 @@ public enum BidKind
 }
 
 /// <summary>
-/// An artisan's answer to a request: a competing bid on an open job (inDrive-style: artisans compete, the
+/// An artisan's answer to a request: a bid on an open job (inDrive-style: several artisans bid, the
 /// customer picks), or the assigned artisan's quote on their own job. A bid is either a price or "visit first"
 /// with the artisan's visit fee. One bid per (booking, artisan); re-bidding revises it. The customer accepts one.
 /// </summary>

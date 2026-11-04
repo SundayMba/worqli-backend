@@ -11,7 +11,7 @@ using Servika.Domain.Catalogue;
 namespace Servika.Application.Bookings;
 
 /// <summary>
-/// An artisan places (or revises) a price offer. Two cases: a competing bid on
+/// An artisan places (or revises) a price offer. Two cases: a bid on
 /// an open RemoteQuote broadcast (verified profile, category match, request
 /// still Open, bidding mode), or the pre-selected artisan quoting on their own
 /// direct Pending request (they were chosen by name — no category gate; the

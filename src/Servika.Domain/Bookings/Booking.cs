@@ -367,7 +367,7 @@ public sealed class Booking
             CreatedAt = now,
             // Remote pricing only makes sense on an open request that artisans
             // will assess from media; a direct booking keeps the normal flow.
-            // An open request is put out for bids (artisans compete with a price or "visit first"; the customer
+            // An open request is put out for bids (artisans answer with a price or "visit first"; the customer
             // picks). A request addressed to one artisan goes to them and they quote it.
             Assessment = artisanId is null ? AssessmentMode.RemoteQuote : AssessmentMode.Inspection,
             MediaKeys = mediaKeys ?? new(),
