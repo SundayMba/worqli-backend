@@ -50,7 +50,9 @@ public sealed record FeeScheduleDto(
     /// <summary>A custom quote at or above this total, or with labour above the factor × the typical top, is
     /// checked by Servika before the customer sees it.</summary>
     int QuoteReviewThresholdNaira = 50000,
-    decimal QuoteReviewRangeFactor = 1.5m);
+    decimal QuoteReviewRangeFactor = 1.5m,
+    /// <summary>Whether the app lists not-yet-bookable services as "Coming soon" (admin switch, off by default).</summary>
+    bool ShowComingSoonServices = false);
 
 /// <summary>One transfer-charge band: amounts up to <see cref="UpToNaira"/> (null = anything above) cost <see cref="FeeNaira"/>.</summary>
 public sealed record TransferFeeTierDto(int? UpToNaira, int FeeNaira);

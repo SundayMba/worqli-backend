@@ -2034,6 +2034,9 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<int>("RequiredGuarantorCount")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("ShowComingSoonServices")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("TransferFeeTier1MaxNaira")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")

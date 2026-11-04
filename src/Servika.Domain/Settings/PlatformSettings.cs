@@ -43,6 +43,10 @@ public sealed class PlatformSettings
     /// built and dormant behind this switch.</summary>
     public bool AllowCashPayments { get; private set; }
 
+    /// <summary>Whether the customer app lists services that are not bookable yet as "Coming soon".
+    /// Off by default (user decision 2026-11-04): the app shows only what can be booked today.</summary>
+    public bool ShowComingSoonServices { get; private set; }
+
     /// <summary>Minutes an artisan has to accept a job Servika offered them before it goes to the next one.</summary>
     public int OfferWindowMinutes { get; private set; } = 10;
     /// <summary>Minutes an artisan a customer asked for by name has to answer before the job goes into rotation.</summary>
@@ -123,7 +127,8 @@ public sealed class PlatformSettings
         int requiredGuarantorCount = 2,
         bool allowCashPayments = false,
         int offerWindowMinutes = 10,
-        int directOfferWindowMinutes = 60)
+        int directOfferWindowMinutes = 60,
+        bool showComingSoonServices = false)
     {
         CommissionRate = Rate(commissionRate, nameof(commissionRate));
         EmergencyCommissionRate = Rate(emergencyCommissionRate, nameof(emergencyCommissionRate));
@@ -147,6 +152,7 @@ public sealed class PlatformSettings
         RequireGuarantors = requireGuarantors;
         RequiredGuarantorCount = requiredGuarantorCount;
         AllowCashPayments = allowCashPayments;
+        ShowComingSoonServices = showComingSoonServices;
         if (offerWindowMinutes is < 1 or > 180)
             throw new ArgumentException("The offer window must be between 1 and 180 minutes.", nameof(offerWindowMinutes));
         if (directOfferWindowMinutes is < 1 or > 1440)
