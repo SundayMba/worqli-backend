@@ -186,11 +186,11 @@ public sealed class OfferSweepHandler
             if (offer.Source == JobOfferSource.Direct && booking.Status == BookingStatus.Pending)
                 await _assignment.ReassignAsync(booking, null, null, now, ct);
             else if (booking.Status == BookingStatus.Open)
-                await _assignment.OfferNextAsync(booking, now, ct);
+                await _assignment.BroadcastAsync(booking, now, ct);
         }
 
         var retry = await _bookings.ListOpenExhaustedBeforeAsync(now.AddMinutes(-AssignmentService.RetryExhaustedAfterMinutes), ct);
-        foreach (var booking in retry) await _assignment.OfferNextAsync(booking, now, ct);
+        foreach (var booking in retry) await _assignment.BroadcastAsync(booking, now, ct);
 
         // A price-book job nobody paid for lapses, so it never lingers as a live booking.
         var lapsed = await _bookings.ListLapsedUpfrontAsync(

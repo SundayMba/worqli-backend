@@ -117,6 +117,9 @@ public sealed class ServikaDbContext : DbContext
     /// <summary>The "booking_repairs" table — repairs artisans proposed from the add-on list, and the customer's answer.</summary>
     public DbSet<BookingRepair> BookingRepairs => Set<BookingRepair>();
 
+    /// <summary>The "estate_enquiries" table — estates and facility managers asking to talk.</summary>
+    public DbSet<EstateEnquiry> EstateEnquiries => Set<EstateEnquiry>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -221,6 +224,11 @@ public sealed class ServikaDbContext : DbContext
                 .HasMaxLength(ArtisanService.MaxNameLength);
             service.Property(s => s.IsActive).HasDefaultValue(true);
             service.Property(s => s.Description).HasMaxLength(600);
+            // Ops review of every post (user decision 2026-11-04).
+            service.Property(s => s.CategorySlug).IsRequired().HasMaxLength(60).HasDefaultValue(string.Empty);
+            service.Property(s => s.Review).HasConversion<string>().HasMaxLength(16).HasDefaultValue(ServicePostReview.Pending);
+            service.Property(s => s.ReviewNote).HasMaxLength(ArtisanService.MaxReviewNoteLength);
+            service.HasIndex(s => s.Review);
             // text[] columns need an explicit default or existing rows fail the NOT NULL add.
             service.Property(s => s.Includes).HasDefaultValueSql("'{}'");
             service.Property(s => s.Includes).Metadata.SetValueComparer(stringListComparer);
@@ -262,6 +270,9 @@ public sealed class ServikaDbContext : DbContext
             artisan.Property(a => a.Services).Metadata.SetValueComparer(stringListComparer);
             artisan.Property(a => a.GalleryKeys).Metadata.SetValueComparer(stringListComparer);
             artisan.Property(a => a.GalleryPhotoKeys).Metadata.SetValueComparer(stringListComparer);
+            // Recent-work photos waiting for ops; text[] needs a default for existing rows.
+            artisan.Property(a => a.PendingGalleryPhotoKeys).HasDefaultValueSql("'{}'");
+            artisan.Property(a => a.PendingGalleryPhotoKeys).Metadata.SetValueComparer(stringListComparer);
             artisan.HasIndex(a => a.CategorySlugs).HasMethod("gin");
 
             // Optional link to the artisan's login account. Looked up when matching
@@ -438,6 +449,25 @@ public sealed class ServikaDbContext : DbContext
             si.Property(x => x.AreaLabel).HasMaxLength(120);
         });
 
+        modelBuilder.Entity<EstateEnquiry>(e =>
+        {
+            e.ToTable("estate_enquiries");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.OrganisationName).IsRequired().HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.ContactName).IsRequired().HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.ContactRole).HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.Phone).IsRequired().HasMaxLength(40);
+            e.Property(x => x.Email).HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.Location).IsRequired().HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.Frequency).IsRequired().HasMaxLength(EstateEnquiry.MaxTextLength);
+            e.Property(x => x.Notes).HasMaxLength(EstateEnquiry.MaxNotesLength);
+            e.Property(x => x.AdminNote).HasMaxLength(EstateEnquiry.MaxNotesLength);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+            e.Property(x => x.ServicesWanted).HasDefaultValueSql("'{}'");
+            e.Property(x => x.ServicesWanted).Metadata.SetValueComparer(stringListComparer);
+            e.HasIndex(x => x.CreatedAtUtc);
+        });
+
         modelBuilder.Entity<BookingRepair>(r =>
         {
             r.ToTable("booking_repairs");
@@ -494,6 +524,8 @@ public sealed class ServikaDbContext : DbContext
             bid.Property(b => b.Review).HasConversion<string>().HasMaxLength(16).HasDefaultValue(QuoteReview.NotNeeded);
             bid.Property(b => b.ReviewNote).HasMaxLength(Bid.MaxReviewNoteLength);
             bid.HasIndex(b => b.Review);
+            // Price or "visit first" (open bidding, user decision 2026-11-04).
+            bid.Property(b => b.Kind).HasConversion<string>().HasMaxLength(16).HasDefaultValue(BidKind.Price);
 
             // Itemised materials live as a JSON document on the bid: read whole,
             // written whole, never queried by line. The comparer is structural so

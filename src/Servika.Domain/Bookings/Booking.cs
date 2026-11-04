@@ -367,9 +367,9 @@ public sealed class Booking
             CreatedAt = now,
             // Remote pricing only makes sense on an open request that artisans
             // will assess from media; a direct booking keeps the normal flow.
-            // Servika assigns every request (Business Model v1.4): a request is never put out
-            // for bids, so the only assessment mode left is the artisan seeing the job.
-            Assessment = AssessmentMode.Inspection,
+            // An open request is put out for bids (artisans compete with a price or "visit first"; the customer
+            // picks). A request addressed to one artisan goes to them and they quote it.
+            Assessment = artisanId is null ? AssessmentMode.RemoteQuote : AssessmentMode.Inspection,
             MediaKeys = mediaKeys ?? new(),
             VideoKey = string.IsNullOrWhiteSpace(videoKey) ? null : videoKey,
             Source = source ?? (artisanId is null ? BookingSource.Rotation : BookingSource.Direct),
@@ -539,7 +539,30 @@ public sealed class Booking
         ArtisanId = null;
         ArtisanName = null;
         Status = BookingStatus.Open;
-        Assessment = AssessmentMode.Inspection;
+        Assessment = AssessmentMode.RemoteQuote;
+    }
+
+    /// <summary>
+    /// The customer picks a "visit first" bid on an open job: that artisan is assigned (Open → Accepted). With a
+    /// visit fee, the visit is paid upfront and credited against the price agreed after it (the artisan quotes at
+    /// the door); with no fee it is a free look and the quote follows the same way.
+    /// </summary>
+    public void AcceptVisitBid(Guid artisanId, string artisanName, int visitFeeNaira, DateTimeOffset now)
+    {
+        if (Status is not BookingStatus.Open)
+            throw new InvalidBookingStateException($"A bid can only be picked on an open request (this one is {Status}).");
+        if (visitFeeNaira < 0) throw new ArgumentException("A visit fee can't be negative.", nameof(visitFeeNaira));
+        ArtisanId = artisanId;
+        ArtisanName = artisanName;
+        Status = BookingStatus.Accepted;
+        AcceptedAtUtc = now;
+        if (visitFeeNaira > 0)
+        {
+            DiagnosisFeeNaira = visitFeeNaira;
+            IsCustomQuote = true;
+            InitialQuoteAmountNaira = visitFeeNaira;
+            PricingModel = PricingModel.Hybrid;
+        }
     }
 
     /// <summary>The artisan starts the trip to the customer. Accepted → OnMyWay.</summary>
@@ -548,6 +571,9 @@ public sealed class Booking
         if (Status is not BookingStatus.Accepted)
             throw new InvalidBookingStateException(
                 $"The trip can only start once a booking is Accepted (this one is {Status}).");
+        if (AwaitingUpfrontPayment)
+            throw new InvalidBookingStateException(
+                "Waiting for the customer to pay the visit. Set off once it is secured.");
 
         Status = BookingStatus.OnMyWay;
     }

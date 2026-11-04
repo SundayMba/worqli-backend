@@ -36,6 +36,8 @@ public static class NotificationKinds
     /// <summary>Admin: a custom quote waits for a check. Artisan: ops sent the quote back with a note.</summary>
     public const string QuoteToCheck = "QuoteToCheck";
     public const string QuoteSentBack = "QuoteSentBack";
+    /// <summary>Artisan: ops passed or turned down a service post or a gallery photo.</summary>
+    public const string PostReviewed = "PostReviewed";
     public const string JobConfirmed = "JobConfirmed";
     public const string BookingCancelled = "BookingCancelled";
     public const string Dispute = "Dispute";

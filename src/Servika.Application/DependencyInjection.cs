@@ -121,6 +121,16 @@ public static class DependencyInjection
         services.AddScoped<Catalogue.RecordServiceInterestHandler>();
         services.AddScoped<Catalogue.GetPriceBookHandler>();
         services.AddScoped<Bookings.ProposeRepairsHandler>();
+        services.AddScoped<Bookings.GetOpenJobsHandler>();
+        services.AddScoped<Catalogue.GetServiceSectionsHandler>();
+        services.AddScoped<Catalogue.SubmitEstateEnquiryHandler>();
+        services.AddScoped<Catalogue.ListEstateEnquiriesHandler>();
+        services.AddScoped<Catalogue.UpdateEstateEnquiryHandler>();
+        services.AddScoped<Catalogue.ListServicePostsHandler>();
+        services.AddScoped<Catalogue.DecideServicePostHandler>();
+        services.AddScoped<Catalogue.ListPendingGalleryPhotosHandler>();
+        services.AddScoped<Catalogue.DecideGalleryPhotoHandler>();
+        services.AddScoped<Bookings.GetOpenJobDetailHandler>();
         services.AddScoped<Bookings.ListQuoteReviewsHandler>();
         services.AddScoped<Bookings.DecideQuoteReviewHandler>();
         services.AddScoped<Bookings.DeclineCustomQuoteHandler>();

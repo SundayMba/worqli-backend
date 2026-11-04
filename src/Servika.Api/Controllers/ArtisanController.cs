@@ -343,4 +343,24 @@ public sealed class ArtisanController : ControllerBase
 
         return userId;
     }
+
+    /// <summary>Open jobs you can bid on: in your trades and inside your work rules, newest first.</summary>
+    [HttpGet("open")]
+    [ProducesResponseType(typeof(IReadOnlyList<BookingSummaryDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<BookingSummaryDto>>> GetOpenJobs(
+        [FromServices] GetOpenJobsHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), ct));
+    }
+
+    /// <summary>One open job in full, with how many bids it has.</summary>
+    /// <response code="404">Not open, or not in your trades.</response>
+    [HttpGet("open/{id:guid}")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<BookingDetailDto>> GetOpenJob(
+        Guid id, [FromServices] GetOpenJobDetailHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+    }
 }

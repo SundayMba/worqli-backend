@@ -37,19 +37,24 @@ public sealed class AssignmentService
         _alerts = alerts;
     }
 
-    /// <summary>Offers an Open request to the next artisan in rotation. Null when nobody is left.</summary>
-    public async Task<JobOffer?> OfferNextAsync(Booking booking, DateTimeOffset now, CancellationToken ct)
+    /// <summary>
+    /// Puts an Open request out for bids (inDrive-style): every verified, online artisan in the trade whose work
+    /// rules accept it (not away, inside their radius, emergencies only if they take them, not restricted for
+    /// unpaid commission) is told at once and can send a price or "visit first". Nobody is picked by Servika;
+    /// the customer picks from the bids. When nobody can take it the request stays open, the customer is told,
+    /// ops are alerted and the sweep tries again as artisans come online. Returns how many were told.
+    /// </summary>
+    public async Task<int> BroadcastAsync(Booking booking, DateTimeOffset now, CancellationToken ct)
     {
-        if (booking.Status != BookingStatus.Open) return null;
+        if (booking.Status != BookingStatus.Open) return 0;
 
-        var settings = await _settings.GetOrCreateAsync(ct);
         var recipients = await _catalogue.ListArtisanRecipientsInCategoryAsync(booking.CategorySlug, ct);
-        var excluded = new HashSet<Guid>(await _standing.GetRestrictedProfileIdsAsync(ct));
-        excluded.UnionWith(await _offers.ListOfferedProfileIdsAsync(booking.Id, ct));
-        if (booking.ArtisanId is { } previous) excluded.Add(previous);
+        var restricted = new HashSet<Guid>(await _standing.GetRestrictedProfileIdsAsync(ct));
+        var eligible = recipients
+            .Where(r => !restricted.Contains(r.ProfileId) && OpenJobMatching.Accepts(r.Rules, booking, now))
+            .ToList();
 
-        var next = AssignmentPicker.Order(recipients, booking, excluded, now).FirstOrDefault();
-        if (next is null)
+        if (eligible.Count == 0)
         {
             var firstTime = booking.OffersExhaustedAtUtc is null;
             booking.MarkOffersExhausted(now);
@@ -60,19 +65,16 @@ public sealed class AssignmentService
                     new[]
                     {
                         $"{booking.ServiceName} in {Area(booking)}, wanted {booking.PreferredDate:d MMM} {booking.PreferredTimeSlot}.",
-                        $"{booking.OfferRound} artisan{(booking.OfferRound == 1 ? "" : "s")} were offered it. It stays open and we retry every {RetryExhaustedAfterMinutes} minutes.",
+                        $"No artisan in the trade could take it. It stays open and we try again every {RetryExhaustedAfterMinutes} minutes.",
                     },
                     $"/bookings/{booking.Id}", "Open booking"));
             }
-            return null;
+            return 0;
         }
 
-        var offer = JobOffer.Create(booking.Id, next.ProfileId, next.UserId, booking.OfferRound + 1,
-            JobOfferSource.Rotation, now, now.AddMinutes(settings.OfferWindowMinutes));
-        _offers.Add(offer);
+        foreach (var r in eligible) _notifications.OpenJobPosted(r.UserId, booking);
         booking.RecordOffer(now);
-        _notifications.JobOffered(next.UserId, booking, settings.OfferWindowMinutes);
-        return offer;
+        return eligible.Count;
     }
 
     /// <summary>A booking addressed to one artisan: an exclusive offer with the longer direct window.
@@ -90,10 +92,10 @@ public sealed class AssignmentService
 
     /// <summary>
     /// The chosen artisan declined, timed out, or the customer asked for someone else: close every
-    /// live offer (the decliner's as Declined, the rest Withdrawn), reopen the request and offer it
-    /// to the next artisan in rotation.
+    /// live offer (the decliner's as Declined, the rest Withdrawn), reopen the request and put it out
+    /// for bids.
     /// </summary>
-    public async Task<JobOffer?> ReassignAsync(Booking booking, Guid? declinedByProfileId, string? reason, DateTimeOffset now, CancellationToken ct)
+    public async Task ReassignAsync(Booking booking, Guid? declinedByProfileId, string? reason, DateTimeOffset now, CancellationToken ct)
     {
         foreach (var live in await _offers.ListLiveForBookingAsync(booking.Id, ct))
         {
@@ -102,7 +104,7 @@ public sealed class AssignmentService
             else live.Withdraw(now);
         }
         if (booking.Status != BookingStatus.Open) booking.Rebroadcast();
-        return await OfferNextAsync(booking, now, ct);
+        await BroadcastAsync(booking, now, ct);
     }
 
     /// <summary>The artisan accepted their direct request through the plain accept action: close the offer as Accepted.</summary>

@@ -14,11 +14,13 @@ public sealed class AddGalleryPhotoHandler
 {
     private readonly ICatalogueRepository _catalogue;
     private readonly IFileStorage _files;
+    private readonly Abstractions.Notifications.IAdminAlerts _alerts;
 
-    public AddGalleryPhotoHandler(ICatalogueRepository catalogue, IFileStorage files)
+    public AddGalleryPhotoHandler(ICatalogueRepository catalogue, IFileStorage files, Abstractions.Notifications.IAdminAlerts alerts)
     {
         _catalogue = catalogue;
         _files = files;
+        _alerts = alerts;
     }
 
     public async Task<GalleryDto> HandleAsync(
@@ -31,8 +33,10 @@ public sealed class AddGalleryPhotoHandler
         var key = await _files.SaveAsync(bytes, "image/jpeg", ct);
         profile.AddGalleryPhoto(key);
         await _catalogue.SaveChangesAsync(ct);
+        _alerts.Send(new Abstractions.Notifications.AdminAlert(Abstractions.Notifications.AdminAlertKind.ServicePostToReview,
+            "A recent-work photo to check", new[] { $"{profile.FullName} added a photo to their recent work." }, "/posts", "Review posts"));
 
-        return new GalleryDto(profile.GalleryUrls());
+        return new GalleryDto(profile.GalleryUrls(), profile.PendingGalleryUrls());
     }
 
     private static byte[] DecodeImage(string? base64)
@@ -76,7 +80,7 @@ public sealed class RemoveGalleryPhotoHandler
 
         // The stored file is left in place (cheap, and old URLs just 404 via
         // the ownership check below) — a cleanup sweep can reap orphans later.
-        return new GalleryDto(profile.GalleryUrls());
+        return new GalleryDto(profile.GalleryUrls(), profile.PendingGalleryUrls());
     }
 }
 
@@ -95,14 +99,78 @@ public sealed class GetArtisanGalleryPhotoHandler
         _files = files;
     }
 
-    public async Task<StoredFile> HandleAsync(Guid artisanId, string photoKey, CancellationToken ct)
+    /// <param name="viewerUserId">The caller, when signed in: the owner and admins may also see photos waiting for ops.</param>
+    public async Task<StoredFile> HandleAsync(Guid artisanId, string photoKey, CancellationToken ct, Guid? viewerUserId = null, bool viewerIsAdmin = false)
     {
         var artisan = await _catalogue.GetArtisanByIdAsync(artisanId, ct)
             ?? throw new NotFoundException("Artisan was not found.");
-        if (!artisan.GalleryPhotoKeys.Contains(photoKey))
+        var waitingAndAllowed = artisan.PendingGalleryPhotoKeys.Contains(photoKey)
+            && (viewerIsAdmin || (viewerUserId is { } v && artisan.UserId == v));
+        if (!artisan.GalleryPhotoKeys.Contains(photoKey) && !waitingAndAllowed)
             throw new NotFoundException("No such gallery photo.");
 
         return await _files.GetAsync(photoKey, ct)
             ?? throw new NotFoundException("The photo file was not found.");
+    }
+}
+
+/// <summary>Recent-work photos waiting for ops, with the image inline (the console has no token for img tags).</summary>
+public sealed class ListPendingGalleryPhotosHandler
+{
+    private readonly ICatalogueRepository _catalogue;
+    private readonly IFileStorage _files;
+
+    public ListPendingGalleryPhotosHandler(ICatalogueRepository catalogue, IFileStorage files)
+    {
+        _catalogue = catalogue;
+        _files = files;
+    }
+
+    public async Task<IReadOnlyList<Contracts.Admin.AdminGalleryPhotoDto>> HandleAsync(CancellationToken ct)
+    {
+        var result = new List<Contracts.Admin.AdminGalleryPhotoDto>();
+        foreach (var a in (await _catalogue.ListAllArtisansAsync(ct)).Where(a => a.PendingGalleryPhotoKeys.Count > 0))
+        foreach (var key in a.PendingGalleryPhotoKeys)
+        {
+            var file = await _files.GetAsync(key, ct);
+            if (file is null) continue;
+            result.Add(new Contracts.Admin.AdminGalleryPhotoDto(a.Id, a.FullName, key,
+                $"data:{file.ContentType};base64,{Convert.ToBase64String(file.Content)}"));
+        }
+        return result;
+    }
+}
+
+/// <summary>Ops pass a recent-work photo (it shows on the profile) or turn it down (it is deleted, the artisan told why).</summary>
+public sealed class DecideGalleryPhotoHandler
+{
+    private readonly ICatalogueRepository _catalogue;
+    private readonly IFileStorage _files;
+    private readonly Notifications.NotificationEmitter _notifications;
+
+    public DecideGalleryPhotoHandler(ICatalogueRepository catalogue, IFileStorage files, Notifications.NotificationEmitter notifications)
+    {
+        _catalogue = catalogue;
+        _files = files;
+        _notifications = notifications;
+    }
+
+    public async Task HandleAsync(Guid artisanId, string photoKey, Contracts.Admin.DecidePostRequest request, CancellationToken ct)
+    {
+        var artisan = await _catalogue.FindArtisanForUpdateAsync(artisanId, ct) ?? throw new NotFoundException("Artisan was not found.");
+        var approve = request.Outcome?.Trim().ToLowerInvariant() switch
+        {
+            "approve" => true,
+            "reject" => false,
+            _ => throw new ArgumentException("Outcome must be 'approve' or 'reject'."),
+        };
+        var note = request.Note?.Trim();
+        if (!approve && (note is null || note.Length < 10))
+            throw new ArgumentException("Tell the artisan why (at least a short sentence).");
+        var done = approve ? artisan.ApproveGalleryPhoto(photoKey) : artisan.RejectGalleryPhoto(photoKey);
+        if (!done) throw new NotFoundException("That photo is not waiting for a check.");
+        if (artisan.UserId is { } userId) _notifications.GalleryPhotoReviewed(userId, approve, note);
+        await _catalogue.SaveChangesAsync(ct);
+        if (!approve) await _files.DeleteAsync(photoKey, ct);
     }
 }

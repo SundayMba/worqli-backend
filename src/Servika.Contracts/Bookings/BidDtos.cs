@@ -10,8 +10,8 @@ public sealed record BidDto(
     Guid BookingId,
     Guid ArtisanId,
     string ArtisanName,
-    double Rating,
-    int ReviewCount,
+    /// <summary>Jobs this artisan has completed on Servika. Ratings are never shown to customers.</summary>
+    int CompletedJobs,
     bool HasCertificate,
     string? PhotoUrl,
     int AmountNaira,
@@ -36,7 +36,10 @@ public sealed record BidDto(
     /// <summary>Custom quotes: NotNeeded | Pending | Approved | SentBack (Servika's check).</summary>
     string Review = "NotNeeded",
     /// <summary>What ops asked the artisan to change. Only on the artisan's own quote.</summary>
-    string? ReviewNote = null);
+    string? ReviewNote = null,
+    /// <summary>"Price" or "VisitFirst" (no price yet; <see cref="VisitFeeNaira"/> to come and look).</summary>
+    string Kind = "Price",
+    int VisitFeeNaira = 0);
 
 /// <summary>POST /api/v1/bookings/{id}/bids/{bidId}/counter body: the customer's
 /// proposed WORKMANSHIP price (materials stay as itemised).</summary>
@@ -53,4 +56,8 @@ public sealed record SubmitBidRequest(
     int AmountNaira,
     string? MaterialsNote,
     int? WorkmanshipNaira = null,
-    IReadOnlyList<BidMaterialLineDto>? Materials = null);
+    IReadOnlyList<BidMaterialLineDto>? Materials = null,
+    /// <summary>"I need to see it first": no price yet, only <see cref="VisitFeeNaira"/> (₦0 = free visit).
+    /// Open jobs only; the price follows after the visit.</summary>
+    bool VisitFirst = false,
+    int VisitFeeNaira = 0);

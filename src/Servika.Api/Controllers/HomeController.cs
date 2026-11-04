@@ -35,6 +35,41 @@ public sealed class HomeController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>An estate or facility manager says what they need; ops follow up. Guests may send it.</summary>
+    [HttpPost("api/v1/estate-enquiries")]
+    [ProducesResponseType(typeof(EstateEnquiryDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<EstateEnquiryDto>> SubmitEstateEnquiry(
+        [FromBody] SubmitEstateEnquiryRequest request, [FromServices] SubmitEstateEnquiryHandler handler, CancellationToken ct)
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        var e = await handler.HandleAsync(Guid.TryParse(sub, out var id) ? id : null, request, ct);
+        return StatusCode(StatusCodes.Status201Created, e);
+    }
+
+    /// <summary>Estate enquiries, new first (admin).</summary>
+    [HttpGet("api/v1/admin/estate-enquiries")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    [ProducesResponseType(typeof(IReadOnlyList<EstateEnquiryDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<EstateEnquiryDto>>> ListEstateEnquiries(
+        [FromServices] ListEstateEnquiriesHandler handler, CancellationToken ct)
+    {
+        return Ok(await handler.HandleAsync(ct));
+    }
+
+    /// <summary>Where the follow-up is, and ops' note (admin).</summary>
+    [HttpPut("api/v1/admin/estate-enquiries/{id:guid}")]
+    [Authorize(Roles = "Admin,SuperAdmin")]
+    [ProducesResponseType(typeof(EstateEnquiryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<EstateEnquiryDto>> UpdateEstateEnquiry(
+        Guid id, [FromBody] UpdateEstateEnquiryRequest request, [FromServices] UpdateEstateEnquiryHandler handler, CancellationToken ct)
+    {
+        var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return Ok(await handler.HandleAsync(Guid.TryParse(sub, out var uid) ? uid : Guid.Empty, id, request, ct));
+    }
+
     /// <summary>The latest "tell us what you need" requests (admin).</summary>
     [HttpGet("api/v1/admin/service-interest")]
     [Authorize(Roles = "Admin,SuperAdmin")]

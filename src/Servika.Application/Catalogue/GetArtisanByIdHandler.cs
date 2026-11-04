@@ -29,6 +29,6 @@ public sealed class GetArtisanByIdHandler
         return artisan.ToDetailDto(
             artisan.DistanceFrom(lat, lng),
             completed.GetValueOrDefault(artisan.Id),
-            priced.Where(s => s.IsActive).Select(s => s.ToDto()).ToList());
+            priced.Where(s => s.IsPublic).Select(s => s.ToDto() with { ReviewNote = null }).ToList());
     }
 }

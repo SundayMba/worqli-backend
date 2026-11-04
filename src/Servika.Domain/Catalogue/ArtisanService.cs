@@ -1,5 +1,13 @@
 namespace Servika.Domain.Catalogue;
 
+/// <summary>Where a service post is in ops' check.</summary>
+public enum ServicePostReview
+{
+    Pending = 0,
+    Approved = 1,
+    Rejected = 2,
+}
+
 /// <summary>
 /// A fixed-price service an artisan publishes on their profile — "Knotless
 /// braids — ₦15,000". The price is known before booking, so a customer books
@@ -38,6 +46,58 @@ public sealed class ArtisanService
     public string? Description { get; private set; }
 
     public void SetActive(bool active) => IsActive = active;
+
+    // ── Ops review (user decision 2026-11-04) ──
+    // Every post is checked before customers see it, cover photo included: it must show the artisan at work or the
+    // work itself, never a phone number, office or shop address. Any change sends it back for a check.
+    /// <summary>The trade this post sits under on Home ("Electrical standard services").</summary>
+    public string CategorySlug { get; private set; } = string.Empty;
+    public ServicePostReview Review { get; private set; } = ServicePostReview.Pending;
+    /// <summary>Why ops turned the post down, shown to the artisan.</summary>
+    public string? ReviewNote { get; private set; }
+    public DateTimeOffset? SubmittedAtUtc { get; private set; }
+    public DateTimeOffset? ReviewedAtUtc { get; private set; }
+    public Guid? ReviewedByUserId { get; private set; }
+    public const int MaxReviewNoteLength = 400;
+
+    /// <summary>Customers see a post only when it is live and ops passed it.</summary>
+    public bool IsPublic => IsActive && Review == ServicePostReview.Approved;
+
+    public void SetCategory(string categorySlug)
+    {
+        var slug = categorySlug?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (slug.Length == 0) throw new ArgumentException("Pick the trade this service belongs to.");
+        CategorySlug = slug;
+    }
+
+    /// <summary>Something the customer sees changed: back to ops for a check.</summary>
+    public void SubmitForReview(DateTimeOffset now)
+    {
+        Review = ServicePostReview.Pending;
+        ReviewNote = null;
+        SubmittedAtUtc = now;
+        ReviewedAtUtc = null;
+        ReviewedByUserId = null;
+    }
+
+    public void Approve(Guid adminUserId, DateTimeOffset now)
+    {
+        Review = ServicePostReview.Approved;
+        ReviewNote = null;
+        ReviewedAtUtc = now;
+        ReviewedByUserId = adminUserId;
+    }
+
+    public void Reject(Guid adminUserId, string note, DateTimeOffset now)
+    {
+        var clean = note?.Trim() ?? string.Empty;
+        if (clean.Length < 10) throw new ArgumentException("Tell the artisan what to change (at least a short sentence).");
+        if (clean.Length > MaxReviewNoteLength) throw new ArgumentException($"Keep the note under {MaxReviewNoteLength} characters.");
+        Review = ServicePostReview.Rejected;
+        ReviewNote = clean;
+        ReviewedAtUtc = now;
+        ReviewedByUserId = adminUserId;
+    }
 
     public void UpdateDetails(int? durationMinutes, IEnumerable<string>? includes, string? description)
     {

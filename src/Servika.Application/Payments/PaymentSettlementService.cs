@@ -141,7 +141,7 @@ public sealed class PaymentSettlementService
             }
             else
             {
-                await _assignment.OfferNextAsync(booking, now, ct);
+                await _assignment.BroadcastAsync(booking, now, ct);
             }
             return true;
         }

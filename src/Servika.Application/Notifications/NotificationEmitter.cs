@@ -352,6 +352,37 @@ public sealed class NotificationEmitter
     }
 
     /// <summary>Servika offered this artisan a job. Carries the booking id so the Pro app opens the offer.</summary>
+    /// <summary>Tell the artisan what ops decided on their service post.</summary>
+    public void ServicePostReviewed(Guid artisanUserId, Domain.Catalogue.ArtisanService service)
+    {
+        var approved = service.Review == Domain.Catalogue.ServicePostReview.Approved;
+        Add(artisanUserId, NotificationType.System, NotificationKinds.PostReviewed,
+            approved ? "Your service is live" : "Change your service post",
+            approved
+                ? $"\"{service.Name}\" passed the check. Customers can see and book it now."
+                : $"\"{service.Name}\" was not published: {service.ReviewNote}",
+            null);
+    }
+
+    /// <summary>Tell the artisan what ops decided on a gallery photo.</summary>
+    public void GalleryPhotoReviewed(Guid artisanUserId, bool approved, string? note)
+    {
+        Add(artisanUserId, NotificationType.System, NotificationKinds.PostReviewed,
+            approved ? "Your photo is on your profile" : "A photo was not added",
+            approved ? "A recent-work photo passed the check and shows on your profile." : $"A recent-work photo was not added: {note}",
+            null);
+    }
+
+    /// <summary>Tell one eligible artisan a job near them is open for bids.</summary>
+    public void OpenJobPosted(Guid artisanUserId, Booking booking)
+    {
+        var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
+        Add(artisanUserId, NotificationType.OpenJob, NotificationKinds.OpenJob,
+            "New job near you",
+            $"{service} in {Bookings.AssignmentService.Area(booking)}. Send your price, or offer to visit first.",
+            booking.Id);
+    }
+
     public void JobOffered(Guid artisanUserId, Booking booking, int windowMinutes)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
@@ -377,6 +408,15 @@ public sealed class NotificationEmitter
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "request" : $"{booking.ServiceName} request";
         var direct = booking.ArtisanId is not null;
+        if (bid.Kind == BidKind.VisitFirst)
+        {
+            Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.BidPlaced, "New offer: visit first",
+                bid.VisitFeeNaira > 0
+                    ? $"{bid.ArtisanName} wants to see your {service} before pricing it. Visit: ₦{bid.VisitFeeNaira:N0}, taken off the price."
+                    : $"{bid.ArtisanName} can come and look at your {service} for free, then price it.",
+                booking.Id);
+            return;
+        }
         Add(booking.CustomerId, NotificationType.Booking, NotificationKinds.BidPlaced,
             direct ? "Quote received" : "New price offer",
             direct
@@ -439,6 +479,15 @@ public sealed class NotificationEmitter
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : $"{booking.ServiceName} job";
         var secured = booking.PaymentState == BookingPaymentState.Paid || booking.PaymentMethod == PaymentMethod.Cash;
+        if (bid.Kind == BidKind.VisitFirst)
+        {
+            Add(bid.ArtisanUserId, NotificationType.Booking, NotificationKinds.BidAccepted, "Picked to visit first",
+                bid.VisitFeeNaira > 0
+                    ? $"The customer picked you to look at the {service}. Set off once the ₦{bid.VisitFeeNaira:N0} visit is paid; send your price after."
+                    : $"The customer picked you to look at the {service}. Visit, then send your price in the app.",
+                booking.Id);
+            return;
+        }
         var body = statusBeforeAccept switch
         {
             BookingStatus.Open when secured =>

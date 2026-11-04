@@ -78,6 +78,7 @@ public static class DependencyInjection
         services.AddScoped<IArtisanServiceRepository, ArtisanServiceRepository>();
         services.AddScoped<IPriceBookRepository, PriceBookRepository>();
         services.AddScoped<IBookingRepairRepository, BookingRepairRepository>();
+        services.AddScoped<IEstateEnquiryRepository, EstateEnquiryRepository>();
 
         // Bookings (read + write), Scoped (EF).
         services.AddScoped<IBookingRepository, BookingRepository>();

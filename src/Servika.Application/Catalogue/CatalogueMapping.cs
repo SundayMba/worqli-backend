@@ -62,4 +62,10 @@ internal static class CatalogueMapping
         a.GalleryPhotoKeys
             .Select(k => $"/api/v1/artisans/{a.Id}/gallery/{k}")
             .ToList();
+
+    /// <summary>API paths of the photos waiting for ops (served only to the owner and admins).</summary>
+    internal static IReadOnlyList<string> PendingGalleryUrls(this ArtisanProfile a) =>
+        a.PendingGalleryPhotoKeys
+            .Select(k => $"/api/v1/artisans/{a.Id}/gallery/{k}")
+            .ToList();
 }

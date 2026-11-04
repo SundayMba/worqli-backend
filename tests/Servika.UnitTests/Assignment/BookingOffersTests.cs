@@ -6,13 +6,17 @@ namespace Servika.UnitTests.Assignment;
 public class BookingOffersTests
 {
     [Fact]
-    public void Open_requests_are_never_put_out_for_bids()
+    public void Open_requests_are_put_out_for_bids_and_direct_ones_are_not()
     {
-        var b = Booking.Create(Guid.NewGuid(), null, "electrical", "Electrical", null, "x", "Lekki", null, null, null,
+        var open = Booking.Create(Guid.NewGuid(), null, "electrical", "Electrical", null, "x", "Lekki", null, null, null,
+            TestData.Now.AddDays(1), "Morning", Urgency.Standard, PricingModel.Variable, null, 0m, TestData.Now);
+        Assert.Equal(BookingStatus.Open, open.Status);
+        Assert.Equal(AssessmentMode.RemoteQuote, open.Assessment);
+
+        var direct = Booking.Create(Guid.NewGuid(), Guid.NewGuid(), "electrical", "Electrical", "Emeka", "x", "Lekki", null, null, null,
             TestData.Now.AddDays(1), "Morning", Urgency.Standard, PricingModel.Variable, null, 0m, TestData.Now,
             assessment: AssessmentMode.RemoteQuote);
-        Assert.Equal(BookingStatus.Open, b.Status);
-        Assert.Equal(AssessmentMode.Inspection, b.Assessment);
+        Assert.Equal(AssessmentMode.Inspection, direct.Assessment);
     }
 
     [Fact]
@@ -30,7 +34,7 @@ public class BookingOffersTests
     }
 
     [Fact]
-    public void A_declined_direct_request_reopens_for_rotation_as_inspection()
+    public void A_declined_direct_request_reopens_for_bids()
     {
         var b = Booking.Create(Guid.NewGuid(), Guid.NewGuid(), "plumbing", "Plumbing", "Ibrahim", "leak", "Ikate", null, null, null,
             TestData.Now.AddDays(1), "Morning", Urgency.Standard, PricingModel.Variable, null, 0m, TestData.Now,
@@ -40,7 +44,7 @@ public class BookingOffersTests
         b.Rebroadcast();
         Assert.Equal(BookingStatus.Open, b.Status);
         Assert.Null(b.ArtisanId);
-        Assert.Equal(AssessmentMode.Inspection, b.Assessment);
+        Assert.Equal(AssessmentMode.RemoteQuote, b.Assessment);
         Assert.Single(b.MediaKeys);
     }
 

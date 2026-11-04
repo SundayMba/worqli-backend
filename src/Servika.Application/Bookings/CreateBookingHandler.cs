@@ -126,7 +126,7 @@ public sealed class CreateBookingHandler
             if (requestedArtisanId is null)
                 throw new ArgumentException("A fixed-price service needs its artisan selected.");
             fixedService = await _artisanServices.FindAsync(serviceId, ct);
-            if (fixedService is null || fixedService.ArtisanProfileId != requestedArtisanId)
+            if (fixedService is null || fixedService.ArtisanProfileId != requestedArtisanId || !fixedService.IsPublic)
                 throw new NotFoundException("That service was not found on this artisan's profile.");
         }
 
@@ -226,7 +226,7 @@ public sealed class CreateBookingHandler
         else if (chosenArtisan is null)
         {
             // Servika assigns: the request is offered to one artisan at a time, in rotation.
-            await _assignment.OfferNextAsync(booking, now, ct);
+            await _assignment.BroadcastAsync(booking, now, ct);
         }
         else
         {

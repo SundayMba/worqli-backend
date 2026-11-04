@@ -88,3 +88,29 @@ public sealed record AdminQuoteReviewDto(
 
 /// <summary>Ops' answer (POST /api/v1/admin/quote-reviews/{bidId}): "approve", or "sendback" with a note for the artisan.</summary>
 public sealed record DecideQuoteReviewRequest(string Outcome, string? Note);
+
+/// <summary>An artisan's service post as ops review it (GET /api/v1/admin/service-posts).</summary>
+public sealed record AdminServicePostDto(
+    Guid Id,
+    string Name,
+    int PriceNaira,
+    string? PhotoUrl,
+    string CategorySlug,
+    string CategoryName,
+    Guid ArtisanId,
+    string ArtisanName,
+    string? ArtisanPhotoUrl,
+    int? DurationMinutes,
+    IReadOnlyList<string> Includes,
+    string? Description,
+    bool IsActive,
+    string Review,
+    string? ReviewNote,
+    DateTimeOffset? SubmittedAtUtc,
+    DateTimeOffset? ReviewedAtUtc);
+
+/// <summary>Ops' answer on a post or a gallery photo: "approve", or "reject" with a note for the artisan.</summary>
+public sealed record DecidePostRequest(string Outcome, string? Note);
+
+/// <summary>A recent-work photo waiting for ops, image inline.</summary>
+public sealed record AdminGalleryPhotoDto(Guid ArtisanId, string ArtisanName, string PhotoKey, string DataUri);

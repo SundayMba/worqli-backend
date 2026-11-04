@@ -13,6 +13,20 @@ namespace Servika.Api.Controllers;
 [Route("api/v1/services")]
 public sealed class ServicesController : ControllerBase
 {
+    /// <summary>Home, section by section: one row per trade ("Electrical standard services") with the approved
+    /// posts under it. <c>category</c> narrows it to one trade with every post (the trade's screen).</summary>
+    [HttpGet("sections")]
+    [ProducesResponseType(typeof(IReadOnlyList<ServiceSectionDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<ServiceSectionDto>>> Sections(
+        [FromServices] GetServiceSectionsHandler handler,
+        CancellationToken ct,
+        [FromQuery] double? lat = null,
+        [FromQuery] double? lng = null,
+        [FromQuery] string? category = null)
+    {
+        return Ok(await handler.HandleAsync(lat, lng, category, ct));
+    }
+
     /// <summary>Fixed-price services across verified artisans, ranked available-first,
     /// then reputation, then proximity to the given coords.</summary>
     /// <response code="200">Up to 12 bookable services (empty until artisans publish).</response>

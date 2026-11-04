@@ -27,6 +27,6 @@ public sealed class MyProfileDtoBuilder
         return profile.ToMyProfileDto(
             await _guarantors.CountForUserAsync(artisanUserId, ct),
             settings.RequireGuarantors && !profile.GuarantorsWaived,
-            settings.RequiredGuarantorCount);
+            settings.RequiredGuarantorCount) with { PendingGalleryUrls = profile.PendingGalleryUrls() };
     }
 }

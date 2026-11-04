@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Servika.Contracts.Catalogue;
 
 /// <summary>
@@ -10,8 +12,9 @@ public sealed record ArtisanSummaryDto(
     string ImageKey,
     string FullName,
     string Specialty,
-    double Rating,
-    int ReviewCount,
+    /// <summary>Ratings are for ops only (user decision 2026-11-04): never serialised to apps.</summary>
+    [property: JsonIgnore] double Rating,
+    [property: JsonIgnore] int ReviewCount,
     /// <summary>Km from the caller's coords; null when the caller's or the artisan's
     /// location is unknown.</summary>
     double? DistanceKm,

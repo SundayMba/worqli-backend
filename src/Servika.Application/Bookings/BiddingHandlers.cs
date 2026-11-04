@@ -85,12 +85,21 @@ public sealed class SubmitBidHandler
         }
         else
         {
-            // Servika assigns every request (Business Model v1.4): nobody bids on an open job.
-            // A request only visible to its assigned artisan stays invisible to everyone else.
+            // Open bidding (inDrive-style): any verified artisan in the trade whose work rules accept the job may
+            // bid. A request assigned to someone else stays invisible.
             if (booking.ArtisanId is not null)
                 throw new NotFoundException("This request was not found.");
-            throw new ConflictException("Servika now offers each request to one artisan at a time. Wait for a job offer; you can only quote on a job assigned to you.");
+            if (booking.Status != BookingStatus.Open || booking.Assessment != AssessmentMode.RemoteQuote)
+                throw new ConflictException("This job is no longer taking bids.");
+            if (!profile.CategorySlugs.Contains(booking.CategorySlug))
+                throw new ConflictException("This job is not in your trades.");
+            if (await _standing.IsRestrictedAsync(profile.Id, ct))
+                throw new ConflictException("Settle your service fees to bid on new jobs.");
+            if (OpenJobMatching.RefusalReason(profile, booking, _clock.UtcNow) is { } refusal)
+                throw new ConflictException(refusal);
         }
+        if (request.VisitFirst && isDirectQuote)
+            throw new ArgumentException("This job was sent to you. Accept it to visit first, or send your price.");
 
         var now = _clock.UtcNow;
         // Itemised quote: labour + material lines (total derived). A legacy
@@ -103,7 +112,22 @@ public sealed class SubmitBidHandler
         var existing = await _bids.FindForArtisanAsync(bookingId, profile.Id, ct);
         Bid bid;
         var wasVisible = existing?.IsVisibleToCustomer ?? false;
-        if (existing is not null)
+        // The artisan who was picked to visit first now prices the job: that quote is news to the customer.
+        var pricingAfterVisit = existing?.Kind == BidKind.VisitFirst && !request.VisitFirst && isDirectQuote;
+        if (request.VisitFirst)
+        {
+            if (existing is not null)
+            {
+                existing.ReviseToVisit(request.VisitFeeNaira, request.MaterialsNote, now);
+                bid = existing;
+            }
+            else
+            {
+                bid = Bid.PlaceVisit(bookingId, profile.Id, artisanUserId, profile.FullName, request.VisitFeeNaira, request.MaterialsNote, now);
+                _bids.Add(bid);
+            }
+        }
+        else if (existing is not null)
         {
             var answeringCounter = existing.HasPendingCounter;
             existing.Revise(workmanship, materials, request.MaterialsNote, now);
@@ -119,10 +143,10 @@ public sealed class SubmitBidHandler
             _bids.Add(bid);
         }
 
-        if (booking.IsCustomQuote)
+        if (booking.IsCustomQuote && booking.CustomPriceBookItemId is not null)
         {
-            // Business Model v1.4, section 10: ops check a large quote, or labour far above the typical
-            // range, before the customer sees it.
+            // A job booked from a listed kind of bigger work (Business Model v1.4, section 10): ops check a large
+            // quote, or labour far above the typical range, before the customer sees it.
             var settings = await _settings.GetOrCreateAsync(ct);
             var reasons = QuoteReviewRules.Reasons(booking, bid, settings);
             bid.SetReviewNeeded(reasons.Count > 0);
@@ -131,9 +155,9 @@ public sealed class SubmitBidHandler
             else if (!wasVisible || existing is null)
                 _notifications.BidPlaced(booking, bid);
         }
-        else if (existing is null)
+        else if (existing is null || pricingAfterVisit)
         {
-            // Only a fresh bid notifies — a price tweak shouldn't ping the customer again.
+            // A fresh bid, or the price after a visit, notifies; a tweak shouldn't ping the customer again.
             _notifications.BidPlaced(booking, bid);
         }
 
@@ -188,12 +212,13 @@ public sealed class GetBookingBidsHandler
         // A custom quote waiting for Servika's check (or sent back) is not the customer's to see yet.
         var bids = (await _bids.ListForBookingAsync(bookingId, ct)).Where(b => b.IsVisibleToCustomer).ToList();
         var result = new List<BidDto>(bids.Count);
+        var jobsDone = await _bookings.CountCompletedForArtisansAsync(bids.Select(b => b.ArtisanId).Distinct().ToList(), ct);
         foreach (var bid in bids)
         {
-            // Bids are few per request — per-bid profile lookups are fine and keep
-            // the reputation data (rating, certificate, photo) live, not stale.
+            // Bids are few per request — per-bid profile lookups are fine and keep the trust data (jobs done,
+            // certificate, photo) live. No rating: ratings are for ops only.
             var profile = await _catalogue.GetArtisanByIdAsync(bid.ArtisanId, ct);
-            result.Add(bid.ToDto(profile, DistanceToJobKm(booking, profile)));
+            result.Add(bid.ToDto(profile, DistanceToJobKm(booking, profile), completedJobs: jobsDone.GetValueOrDefault(bid.ArtisanId)));
         }
         return result;
     }
@@ -240,7 +265,19 @@ public sealed class AcceptBidHandler
 
         var now = _clock.UtcNow;
         var statusBeforeAccept = booking.Status;
-        SettleOnBooking(booking, winner, bids, now);
+        if (winner.Kind == BidKind.VisitFirst)
+        {
+            // "Visit first": the artisan is assigned; the visit fee (if any) is paid now and credited against the
+            // price they send after seeing the job. Their bid stays open so they can turn it into that price.
+            if (statusBeforeAccept != BookingStatus.Open)
+                throw new ConflictException("An offer to visit can only be picked on an open request.");
+            booking.AcceptVisitBid(winner.ArtisanId, winner.ArtisanName, winner.VisitFeeNaira, now);
+            foreach (var other in bids.Where(b => b.Id != winner.Id)) other.MarkClosed(now);
+        }
+        else
+        {
+            SettleOnBooking(booking, winner, bids, now);
+        }
 
         _notifications.BidAccepted(booking, winner, statusBeforeAccept);
         await _bookings.SaveChangesAsync(ct);
@@ -422,14 +459,13 @@ public sealed class GetBookingMediaHandler
 
 internal static class BidMapping
 {
-    public static BidDto ToDto(this Bid bid, ArtisanProfile? profile, double? distanceKm = null, bool forArtisan = false) =>
+    public static BidDto ToDto(this Bid bid, ArtisanProfile? profile, double? distanceKm = null, bool forArtisan = false, int completedJobs = 0) =>
         new(
             bid.Id,
             bid.BookingId,
             bid.ArtisanId,
             bid.ArtisanName,
-            profile?.Rating ?? 0,
-            profile?.ReviewCount ?? 0,
+            completedJobs,
             profile?.HasCertificate ?? false,
             profile is { PhotoKey: not null and not "" }
                 ? $"/api/v1/artisans/{profile.Id}/photo"
@@ -447,5 +483,7 @@ internal static class BidMapping
             bid.CounterRounds,
             Bid.MaxCounterRounds,
             bid.Review.ToString(),
-            forArtisan ? bid.ReviewNote : null);
+            forArtisan ? bid.ReviewNote : null,
+            bid.Kind.ToString(),
+            bid.VisitFeeNaira);
 }

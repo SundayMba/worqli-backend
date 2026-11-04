@@ -159,6 +159,8 @@ public sealed class AdminAlertDispatcher : IAdminAlerts
         AdminAlertKind.DisputeRaised or AdminAlertKind.DisputeResponse => "⚠️",
         AdminAlertKind.RefundFailed or AdminAlertKind.PaymentMismatch or AdminAlertKind.FloatShort => "🚨",
         AdminAlertKind.QuoteToCheck => "🧾",
+        AdminAlertKind.ServicePostToReview => "🖼️",
+        AdminAlertKind.EstateEnquiry => "🏢",
         _ => "☀️",
     };
 
