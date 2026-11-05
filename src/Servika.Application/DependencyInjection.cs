@@ -76,6 +76,7 @@ public static class DependencyInjection
 
         // Artisan KYC (submit documents, read status).
         services.AddScoped<SubmitKycHandler>();
+        services.AddScoped<KycImageRetentionHandler>();
         services.AddScoped<VerifyNinHandler>();
         services.AddScoped<ResubmitKycCheckHandler>();
         services.AddScoped<GetKycStatusHandler>();
@@ -110,6 +111,7 @@ public static class DependencyInjection
 
         // Assignment: Servika offers each request to one artisan at a time, in rotation.
         services.AddScoped<AssignmentService>();
+        services.AddScoped<ArtisanCapacity>();
         services.AddScoped<GetMyOffersHandler>();
         services.AddScoped<RespondToOfferHandler>();
         services.AddScoped<OfferSweepHandler>();

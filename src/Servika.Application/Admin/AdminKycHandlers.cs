@@ -127,7 +127,18 @@ public sealed class GetKycSubmissionHandler
             k.ResubmittedAtUtc,
             k.ResubmissionCount,
             await (await _events.ListForKycAsync(k.Id, ct)).ToAdminDtosAsync(_users, user?.FullName ?? "Artisan", ct),
-            await PoseSelfiesAsync(k.PoseSelfiesJson, ct));
+            await PoseSelfiesAsync(k.PoseSelfiesJson, ct),
+            k.ConsentVersion,
+            k.ConsentedAtUtc,
+            k.LivenessMethod,
+            k.LivenessPassed,
+            k.LivenessChallenges.ToArray(),
+            k.LivenessAttempts,
+            k.IdTextFound,
+            k.IdNumberFound,
+            k.IdNumberMatches,
+            k.IdFaceFound,
+            k.SelfieImagesDeletedAtUtc);
     }
 
     private async Task<IReadOnlyList<AdminPoseSelfieDto>> PoseSelfiesAsync(string? json, CancellationToken ct)
@@ -176,8 +187,10 @@ public sealed class GetKycSubmissionHandler
         return result;
     }
 
-    private async Task<string?> DataUriAsync(string key, CancellationToken ct)
+    private async Task<string?> DataUriAsync(string? key, CancellationToken ct)
     {
+        // Selfies are deleted under the retention rule; their keys are then empty.
+        if (string.IsNullOrWhiteSpace(key)) return null;
         var file = await _storage.GetAsync(key, ct);
         return file is null ? null : $"data:{file.ContentType};base64,{Convert.ToBase64String(file.Content)}";
     }

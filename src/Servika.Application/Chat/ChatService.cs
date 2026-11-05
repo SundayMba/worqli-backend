@@ -1,3 +1,4 @@
+using Servika.Domain.Notifications;
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Time;
 using Servika.Application.Common;
@@ -220,7 +221,9 @@ public sealed class ChatService
         }
 
         if (recipientUserId is not { } recipient) return; // unlinked artisan profile
-        await _notifications.ChatMessageReceivedAsync(recipient, senderName, preview, conversation.Id, ct);
+        // The recipient reads it in their own app: a customer's message lands in Pro, an artisan's in the customer app.
+        var audience = senderRole == ChatSenderRole.Customer ? NotificationAudience.Artisan : NotificationAudience.Customer;
+        await _notifications.ChatMessageReceivedAsync(recipient, senderName, preview, conversation.Id, audience, ct);
     }
 
     private static ChatSenderRole? RoleFor(Conversation conversation, Guid userId)

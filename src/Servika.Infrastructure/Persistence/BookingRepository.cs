@@ -137,6 +137,43 @@ public sealed class BookingRepository : IBookingRepository
     public Task<int> CountCompletedForCustomerAsync(Guid customerId, CancellationToken ct) =>
         _db.Bookings.CountAsync(b => b.CustomerId == customerId && b.Status == BookingStatus.Completed, ct);
 
+    public Task<bool> IsArtisanBusyAsync(Guid artisanProfileId, DateTimeOffset now, CancellationToken ct) =>
+        Busy(now).AnyAsync(b => b.ArtisanId == artisanProfileId, ct);
+
+    public async Task<IReadOnlyCollection<Guid>> ListBusyArtisanIdsAsync(DateTimeOffset now, CancellationToken ct) =>
+        await Busy(now).Where(b => b.ArtisanId != null).Select(b => b.ArtisanId!.Value).Distinct().ToListAsync(ct);
+
+    /// <summary>Jobs that make an artisan busy (ArtisanBusy): Arrived within 12h, or In progress within 24h. Rows from
+    /// before the timestamps existed fall back to when the job was accepted.</summary>
+    private IQueryable<Booking> Busy(DateTimeOffset now)
+    {
+        var arrivedSince = now - Servika.Application.Bookings.ArtisanBusy.ArrivedCountsFor;
+        var workingSince = now - Servika.Application.Bookings.ArtisanBusy.WorkingCountsFor;
+        return _db.Bookings.Where(b =>
+            (b.Status == BookingStatus.Arrived && (b.ArrivedAtUtc ?? b.AcceptedAtUtc ?? b.CreatedAt) >= arrivedSince)
+            || (b.Status == BookingStatus.InProgress && (b.WorkStartedAtUtc ?? b.AcceptedAtUtc ?? b.CreatedAt) >= workingSince));
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, (int Active, int Timed, int Late)>> ArtisanReliabilityAsync(CancellationToken ct)
+    {
+        var rows = await _db.Bookings.AsNoTracking()
+            .Where(b => b.ArtisanId != null
+                && (b.Status == BookingStatus.Accepted || b.Status == BookingStatus.OnMyWay
+                    || b.Status == BookingStatus.Arrived || b.Status == BookingStatus.InProgress
+                    || (b.PromisedStartUtc != null && b.TripStartedAtUtc != null)))
+            .Select(b => new { Id = b.ArtisanId!.Value, b.Status, b.PromisedStartUtc, b.TripStartedAtUtc })
+            .ToListAsync(ct);
+        return rows.GroupBy(r => r.Id).ToDictionary(g => g.Key, g => (
+            g.Count(r => r.Status is BookingStatus.Accepted or BookingStatus.OnMyWay or BookingStatus.Arrived or BookingStatus.InProgress),
+            g.Count(r => r.PromisedStartUtc != null && r.TripStartedAtUtc != null),
+            g.Count(r => r.PromisedStartUtc is { } p && r.TripStartedAtUtc is { } t && t > p + Booking.LateStartGrace)));
+    }
+
+    public Task<int> CountActiveForArtisanAsync(Guid artisanProfileId, CancellationToken ct) =>
+        _db.Bookings.CountAsync(b => b.ArtisanId == artisanProfileId
+            && (b.Status == BookingStatus.Accepted || b.Status == BookingStatus.OnMyWay
+                || b.Status == BookingStatus.Arrived || b.Status == BookingStatus.InProgress), ct);
+
     public async Task<IReadOnlyDictionary<Guid, int>> CountCompletedForArtisansAsync(
         IReadOnlyCollection<Guid> artisanProfileIds, CancellationToken ct)
     {

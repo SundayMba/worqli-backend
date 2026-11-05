@@ -13,9 +13,11 @@ public sealed class GetNotificationsHandler
         _notifications = notifications;
     }
 
-    public async Task<IReadOnlyList<NotificationDto>> HandleAsync(Guid userId, CancellationToken ct)
+    /// <param name="audience">"customer" / "artisan" to list only that app's notices (plus shared ones);
+    /// null lists everything.</param>
+    public async Task<IReadOnlyList<NotificationDto>> HandleAsync(Guid userId, string? audience, CancellationToken ct)
     {
-        var items = await _notifications.ListForUserAsync(userId, ct);
+        var items = await _notifications.ListForUserAsync(userId, NotificationAudienceFilter.ParseQuery(audience), ct);
         return items.Select(n => n.ToDto()).ToList();
     }
 }

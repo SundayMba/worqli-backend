@@ -33,6 +33,10 @@ public sealed class Notification
     /// apps can route a tap precisely. Null on rows written before kinds existed.</summary>
     public string? Kind { get; private set; }
 
+    /// <summary>Which app this notice belongs to (customer, Pro, or either). Push and the
+    /// per-app feed filter on it.</summary>
+    public NotificationAudience Audience { get; private set; } = NotificationAudience.Any;
+
     public bool IsRead { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
@@ -50,7 +54,8 @@ public sealed class Notification
         Guid? bookingId,
         Guid? conversationId,
         DateTimeOffset now,
-        string? kind = null)
+        string? kind = null,
+        NotificationAudience audience = NotificationAudience.Any)
     {
         if (userId == Guid.Empty)
             throw new ArgumentException("Recipient is required.", nameof(userId));
@@ -67,6 +72,7 @@ public sealed class Notification
             BookingId = bookingId,
             ConversationId = conversationId,
             Kind = string.IsNullOrWhiteSpace(kind) ? null : kind.Trim(),
+            Audience = audience,
             IsRead = false,
             CreatedAt = now,
         };

@@ -25,12 +25,14 @@ public sealed class AssignmentService
     private readonly NotificationEmitter _notifications;
     private readonly IAdminAlerts _alerts;
     private readonly Payments.RefundService _refunds;
+    private readonly IBookingRepository _bookings;
 
     public AssignmentService(
         IJobOfferRepository offers, ICatalogueRepository catalogue, Payments.ArtisanStandingService standing,
         IPlatformSettingsRepository settings, NotificationEmitter notifications, IAdminAlerts alerts,
-        Payments.RefundService refunds)
+        Payments.RefundService refunds, IBookingRepository bookings)
     {
+        _bookings = bookings;
         _refunds = refunds;
         _offers = offers;
         _catalogue = catalogue;

@@ -1,6 +1,7 @@
 using Servika.Application.Abstractions.Persistence;
 using Servika.Contracts.Bookings;
 using Servika.Domain.Catalogue;
+using Servika.Domain.Bookings;
 
 namespace Servika.Application.Bookings;
 

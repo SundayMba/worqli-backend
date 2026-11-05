@@ -47,6 +47,10 @@ public sealed class PlatformSettings
     /// Off by default (user decision 2026-11-04): the app shows only what can be booked today.</summary>
     public bool ShowComingSoonServices { get; private set; }
 
+    /// <summary>Most accepted, unfinished jobs (Accepted, On the way, Arrived, In progress) one artisan may hold.
+    /// Stops anyone winning more work than they can turn up for.</summary>
+    public int MaxActiveJobs { get; private set; } = 3;
+
     /// <summary>Minutes an artisan has to accept a job Servika offered them before it goes to the next one.</summary>
     public int OfferWindowMinutes { get; private set; } = 10;
     /// <summary>Minutes an artisan a customer asked for by name has to answer before the job goes into rotation.</summary>
@@ -128,7 +132,8 @@ public sealed class PlatformSettings
         bool allowCashPayments = false,
         int offerWindowMinutes = 10,
         int directOfferWindowMinutes = 60,
-        bool showComingSoonServices = false)
+        bool showComingSoonServices = false,
+        int maxActiveJobs = 3)
     {
         CommissionRate = Rate(commissionRate, nameof(commissionRate));
         EmergencyCommissionRate = Rate(emergencyCommissionRate, nameof(emergencyCommissionRate));
@@ -153,6 +158,9 @@ public sealed class PlatformSettings
         RequiredGuarantorCount = requiredGuarantorCount;
         AllowCashPayments = allowCashPayments;
         ShowComingSoonServices = showComingSoonServices;
+        if (maxActiveJobs is < 1 or > 20)
+            throw new ArgumentException("Jobs at once must be between 1 and 20.", nameof(maxActiveJobs));
+        MaxActiveJobs = maxActiveJobs;
         if (offerWindowMinutes is < 1 or > 180)
             throw new ArgumentException("The offer window must be between 1 and 180 minutes.", nameof(offerWindowMinutes));
         if (directOfferWindowMinutes is < 1 or > 1440)

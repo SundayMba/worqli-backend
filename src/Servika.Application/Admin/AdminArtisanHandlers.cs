@@ -19,14 +19,17 @@ public sealed class ListAdminArtisansHandler
     private readonly IWalletRepository _wallet;
     private readonly IPlatformSettingsRepository _settings;
     private readonly IArtisanServiceRepository _artisanServices;
+    private readonly IBookingRepository _bookings;
 
     public ListAdminArtisansHandler(
         ICatalogueRepository catalogue,
         IUserRepository users,
         IWalletRepository wallet,
         IPlatformSettingsRepository settings,
-        IArtisanServiceRepository artisanServices)
+        IArtisanServiceRepository artisanServices,
+        IBookingRepository bookings)
     {
+        _bookings = bookings;
         _catalogue = catalogue;
         _users = users;
         _wallet = wallet;
@@ -40,6 +43,7 @@ public sealed class ListAdminArtisansHandler
         var emails = (await _users.ListAsync(null, ct)).ToDictionary(u => u.Id, u => u.Email);
         var balances = await _wallet.ListBalancesAsync(WalletOwnerType.Artisan, ct);
         var maxDebt = (await _settings.GetOrCreateAsync(ct)).MaxCommissionDebtNaira;
+        var reliability = await _bookings.ArtisanReliabilityAsync(ct);
         // Published fixed-price services, grouped per artisan — these names show on
         // the customer Home rail, so the directory surfaces them for spot checks.
         var services = (await _artisanServices.ListAllAsync(ct))
@@ -68,7 +72,10 @@ public sealed class ListAdminArtisansHandler
                 owed,
                 balance < -maxDebt,
                 services.TryGetValue(a.Id, out var sv) ? sv : Array.Empty<string>(),
-                a.GuarantorsWaived);
+                a.GuarantorsWaived,
+                reliability.TryGetValue(a.Id, out var r) ? r.Timed : 0,
+                r.Late,
+                r.Active);
         }).ToList();
     }
 }

@@ -594,6 +594,12 @@ public sealed class ServikaDbContext : DbContext
             notification.Property(n => n.Title).IsRequired().HasMaxLength(120);
             notification.Property(n => n.Body).HasMaxLength(500);
             notification.Property(n => n.Kind).HasMaxLength(40);
+            // Which app the notice belongs to. The default backfills existing rows as Any
+            // (seen in both apps, as before). Any is the enum's zero value, so a sentinel
+            // stops EF treating it as "unset"; every insert writes the real value.
+            notification.Property(n => n.Audience).HasConversion<string>().HasMaxLength(16)
+                .HasDefaultValue(NotificationAudience.Any)
+                .HasSentinel((NotificationAudience)(-1));
 
             // A notification belongs to its recipient; it dies with the user.
             notification.HasOne<User>()
@@ -614,6 +620,14 @@ public sealed class ServikaDbContext : DbContext
             kyc.Property(k => k.OpenReasonCode).HasMaxLength(64);
             kyc.Property(k => k.OpenNote).HasMaxLength(1000);
             kyc.Property(k => k.PoseSelfiesJson).HasColumnType("jsonb");
+            // Consent + phone liveness / ID signals (NDPA 2023).
+            kyc.Property(k => k.ConsentVersion).HasMaxLength(ArtisanKyc.MaxConsentVersionLength);
+            kyc.Property(k => k.LivenessMethod).HasMaxLength(16);
+            kyc.Property(k => k.LivenessAttempts).HasDefaultValue(0);
+            // text[] columns need an explicit default or existing rows fail the NOT NULL add.
+            kyc.Property(k => k.LivenessChallenges).HasDefaultValueSql("'{}'");
+            kyc.Property(k => k.LivenessChallenges).Metadata.SetValueComparer(stringListComparer);
+            kyc.HasIndex(k => new { k.Status, k.ReviewedAtUtc });
 
             kyc.Property(k => k.IdType).HasConversion<string>().HasMaxLength(20);
             kyc.Property(k => k.Status).HasConversion<string>().HasMaxLength(20);
@@ -764,6 +778,7 @@ public sealed class ServikaDbContext : DbContext
             settings.Property(s => s.CardFeeFlatNaira).HasDefaultValue(100);
             settings.Property(s => s.CardFeeFlatFromNaira).HasDefaultValue(2500);
             settings.Property(s => s.CardFeeCapNaira).HasDefaultValue(2000);
+            settings.Property(s => s.MaxActiveJobs).HasDefaultValue(3);
             settings.Property(s => s.TransferFeeTier1Naira).HasDefaultValue(10);
             settings.Property(s => s.TransferFeeTier1MaxNaira).HasDefaultValue(5000);
             settings.Property(s => s.TransferFeeTier2Naira).HasDefaultValue(25);
@@ -793,6 +808,8 @@ public sealed class ServikaDbContext : DbContext
             pt.HasIndex(t => t.UserId);
             pt.Property(t => t.Token).IsRequired().HasMaxLength(200);
             pt.Property(t => t.Platform).HasMaxLength(20);
+            // "customer" / "pro"; null = an older build that did not say (gets every push).
+            pt.Property(t => t.App).HasMaxLength(16);
             pt.HasOne<User>().WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 

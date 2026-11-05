@@ -56,6 +56,25 @@ public sealed class Bid
     /// customer picks it, credited against the price they agree after the visit. 0 = a free visit.</summary>
     public int VisitFeeNaira { get; private set; }
 
+    /// <summary>When the artisan says they can come. Null = as soon as the customer picks them. A busy artisan
+    /// (on another job right now) must give one, so the customer can weigh a later start against the price.</summary>
+    public DateTimeOffset? AvailableFromUtc { get; private set; }
+
+    /// <summary>Furthest ahead an artisan may promise a start; beyond that the offer is not really for this request.</summary>
+    public static readonly TimeSpan MaxAvailabilityAhead = TimeSpan.FromDays(14);
+
+    public void SetAvailability(DateTimeOffset? availableFromUtc, DateTimeOffset now)
+    {
+        if (availableFromUtc is { } from)
+        {
+            if (from > now + MaxAvailabilityAhead)
+                throw new ArgumentException("Pick a time within the next two weeks.");
+            // A time that has already passed simply means "now".
+            AvailableFromUtc = from <= now ? null : from.ToUniversalTime();
+        }
+        else AvailableFromUtc = null;
+    }
+
     /// <summary>Highest visit fee an artisan may ask; anything more is a job, not a visit.</summary>
     public const int MaxVisitFeeNaira = 50_000;
 

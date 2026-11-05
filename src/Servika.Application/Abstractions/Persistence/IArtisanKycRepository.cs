@@ -18,5 +18,10 @@ public interface IArtisanKycRepository
     /// <summary>A submission by id (tracked, so an admin decision persists), or null.</summary>
     Task<ArtisanKyc?> GetByIdForUpdateAsync(Guid id, CancellationToken ct);
 
+    /// <summary>Reviewed applications whose selfies still exist and are past their retention window
+    /// (Verified reviewed before <paramref name="verifiedBefore"/>, Rejected before <paramref name="rejectedBefore"/>). Tracked.</summary>
+    Task<IReadOnlyList<ArtisanKyc>> ListSelfieRetentionDueAsync(
+        DateTimeOffset verifiedBefore, DateTimeOffset rejectedBefore, int max, CancellationToken ct);
+
     Task<int> SaveChangesAsync(CancellationToken ct);
 }

@@ -13,6 +13,6 @@ public sealed class GetUnreadCountHandler
         _notifications = notifications;
     }
 
-    public async Task<UnreadCountDto> HandleAsync(Guid userId, CancellationToken ct) =>
-        new(await _notifications.CountUnreadAsync(userId, ct));
+    public async Task<UnreadCountDto> HandleAsync(Guid userId, string? audience, CancellationToken ct) =>
+        new(await _notifications.CountUnreadAsync(userId, NotificationAudienceFilter.ParseQuery(audience), ct));
 }

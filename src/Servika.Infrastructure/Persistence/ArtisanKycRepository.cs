@@ -33,5 +33,15 @@ public sealed class ArtisanKycRepository : IArtisanKycRepository
     public Task<ArtisanKyc?> GetByIdForUpdateAsync(Guid id, CancellationToken ct) =>
         _db.ArtisanKycSubmissions.FirstOrDefaultAsync(k => k.Id == id, ct);
 
+    public async Task<IReadOnlyList<ArtisanKyc>> ListSelfieRetentionDueAsync(
+        DateTimeOffset verifiedBefore, DateTimeOffset rejectedBefore, int max, CancellationToken ct) =>
+        await _db.ArtisanKycSubmissions
+            .Where(k => k.SelfieImagesDeletedAtUtc == null && k.ReviewedAtUtc != null &&
+                        ((k.Status == ArtisanVerificationStatus.Verified && k.ReviewedAtUtc <= verifiedBefore) ||
+                         (k.Status == ArtisanVerificationStatus.Rejected && k.ReviewedAtUtc <= rejectedBefore)))
+            .OrderBy(k => k.ReviewedAtUtc)
+            .Take(max)
+            .ToListAsync(ct);
+
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }

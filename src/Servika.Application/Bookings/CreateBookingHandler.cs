@@ -222,6 +222,7 @@ public sealed class CreateBookingHandler
             typicalRangeMinNaira: customQuote ? customItem?.RangeMinNaira : null,
             typicalRangeMaxNaira: customQuote ? customItem?.RangeMaxNaira : null);
 
+        if (request.SafetyAcknowledged == true) booking.AcknowledgeSafety(_clock.UtcNow);
         _bookings.Add(booking);
         var now = _clock.UtcNow;
         if (booking.PaysUpfront)

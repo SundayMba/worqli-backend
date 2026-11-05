@@ -32,6 +32,106 @@ public sealed class ArtisanKyc
     public string? PoseSelfiesJson { get; private set; }
     public void SetPoseSelfies(string? json) => PoseSelfiesJson = string.IsNullOrWhiteSpace(json) ? null : json;
 
+    // ── Consent (NDPA 2023): recorded before any ID or face is collected ──
+    /// <summary>Version of the consent text the artisan agreed to, e.g. "kyc-2026-11".</summary>
+    public string? ConsentVersion { get; private set; }
+    public DateTimeOffset? ConsentedAtUtc { get; private set; }
+
+    // ── Liveness signals from the phone (the reviewer still decides) ──
+    /// <summary>"on-device" (ML Kit face check ran) or "manual" (the phone could not run it).</summary>
+    public string? LivenessMethod { get; private set; }
+    public bool? LivenessPassed { get; private set; }
+    /// <summary>Poses that passed on the phone: straight, left, right, smile.</summary>
+    public List<string> LivenessChallenges { get; private set; } = new();
+    public int LivenessAttempts { get; private set; }
+
+    // ── ID photo checks from the phone (OCR + face on the card) ──
+    public bool? IdTextFound { get; private set; }
+    public bool? IdNumberFound { get; private set; }
+    public bool? IdNumberMatches { get; private set; }
+    public bool? IdFaceFound { get; private set; }
+
+    /// <summary>When the selfie and pose selfies were deleted under the retention rule. The ID image is kept.</summary>
+    public DateTimeOffset? SelfieImagesDeletedAtUtc { get; private set; }
+
+    public const int MaxConsentVersionLength = 40;
+    public static readonly string[] LivenessMethods = { "on-device", "manual" };
+    public static readonly string[] AllowedPoses = { "left", "right", "up", "smile" };
+    public static readonly string[] AllowedChallenges = { "straight", "left", "right", "up", "smile" };
+
+    /// <summary>Selfies of an approved artisan are deleted this long after approval.</summary>
+    public static readonly TimeSpan VerifiedSelfieRetention = TimeSpan.FromHours(24);
+    /// <summary>Selfies of a declined application are kept this long (they may send a fix back).</summary>
+    public static readonly TimeSpan RejectedSelfieRetention = TimeSpan.FromDays(30);
+
+    /// <summary>Records the consent the artisan gave for this submission. Required on every submit and resubmit.</summary>
+    public void RecordConsent(string? consentVersion, DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(consentVersion))
+            throw new ArgumentException("Agree to the consent before sending.", nameof(consentVersion));
+        var v = consentVersion.Trim();
+        ConsentVersion = v.Length > MaxConsentVersionLength ? v[..MaxConsentVersionLength] : v;
+        ConsentedAtUtc = now;
+    }
+
+    /// <summary>Records what the phone's liveness check reported. Null means an older app that ran no check.</summary>
+    public void RecordLiveness(string? method, bool? passed, IEnumerable<string>? challenges, int attempts)
+    {
+        if (method is null)
+        {
+            LivenessMethod = null;
+            LivenessPassed = null;
+            LivenessChallenges = new();
+            LivenessAttempts = 0;
+            return;
+        }
+        var m = method.Trim().ToLowerInvariant();
+        if (!LivenessMethods.Contains(m))
+            throw new ArgumentException($"Unknown liveness method '{method}'.", nameof(method));
+        LivenessMethod = m;
+        LivenessPassed = passed;
+        LivenessChallenges = (challenges ?? Array.Empty<string>())
+            .Select(c => (c ?? "").Trim().ToLowerInvariant())
+            .Where(c => AllowedChallenges.Contains(c))
+            .Distinct()
+            .ToList();
+        LivenessAttempts = Math.Clamp(attempts, 0, 1000);
+    }
+
+    /// <summary>Records the ID photo signals the phone reported (all optional).</summary>
+    public void RecordIdChecks(bool? textFound, bool? numberFound, bool? numberMatches, bool? faceFound)
+    {
+        IdTextFound = textFound;
+        IdNumberFound = numberFound;
+        IdNumberMatches = numberMatches;
+        IdFaceFound = faceFound;
+    }
+
+    /// <summary>True when this application's selfies are due for deletion under the retention rule.</summary>
+    public bool IsSelfieDeletionDue(DateTimeOffset now) =>
+        IsSelfieDeletionDue(Status, ReviewedAtUtc, SelfieImagesDeletedAtUtc, now);
+
+    /// <summary>Pure retention rule: Verified → 24h after review, Rejected → 30 days after review, Pending never.</summary>
+    public static bool IsSelfieDeletionDue(
+        ArtisanVerificationStatus status, DateTimeOffset? reviewedAtUtc, DateTimeOffset? deletedAtUtc, DateTimeOffset now)
+    {
+        if (deletedAtUtc is not null || reviewedAtUtc is null) return false;
+        return status switch
+        {
+            ArtisanVerificationStatus.Verified => now - reviewedAtUtc.Value >= VerifiedSelfieRetention,
+            ArtisanVerificationStatus.Rejected => now - reviewedAtUtc.Value >= RejectedSelfieRetention,
+            _ => false,
+        };
+    }
+
+    /// <summary>The selfie files were deleted: clear their keys and stamp the time. The ID document stays.</summary>
+    public void MarkSelfieImagesDeleted(DateTimeOffset now)
+    {
+        SelfieKey = string.Empty;
+        PoseSelfiesJson = null;
+        SelfieImagesDeletedAtUtc = now;
+    }
+
     /// <summary>Review state (Pending → Verified/Rejected), same vocabulary as the profile.</summary>
     public ArtisanVerificationStatus Status { get; private set; }
 
@@ -122,6 +222,7 @@ public sealed class ArtisanKyc
         IdNumber = string.IsNullOrWhiteSpace(idNumber) ? null : idNumber.Trim();
         SelfieKey = selfieKey;
         IdDocumentKey = idDocumentKey;
+        SelfieImagesDeletedAtUtc = null;
         Status = ArtisanVerificationStatus.Pending;
         ReviewNote = null;
         ReviewedAtUtc = null;

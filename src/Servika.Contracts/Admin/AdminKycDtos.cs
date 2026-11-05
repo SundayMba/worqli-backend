@@ -63,7 +63,23 @@ public sealed record KycSubmissionDetailDto(
     /// <summary>Full history with reviewer names, newest first.</summary>
     IReadOnlyList<Servika.Contracts.Catalogue.VerificationEventDto>? Events = null,
     /// <summary>Live pose selfies (left / right) as data URIs, for the liveness comparison.</summary>
-    IReadOnlyList<AdminPoseSelfieDto>? PoseSelfies = null);
+    IReadOnlyList<AdminPoseSelfieDto>? PoseSelfies = null,
+    /// <summary>Consent text version the artisan agreed to, and when. Null on older applications.</summary>
+    string? ConsentVersion = null,
+    DateTimeOffset? ConsentedAtUtc = null,
+    /// <summary>"on-device" | "manual" | null (older app, no live check).</summary>
+    string? LivenessMethod = null,
+    bool? LivenessPassed = null,
+    /// <summary>Poses that passed on the phone: straight, left, right, smile.</summary>
+    IReadOnlyList<string>? LivenessChallenges = null,
+    int LivenessAttempts = 0,
+    /// <summary>ID photo signals from the phone (OCR + face on the card).</summary>
+    bool? IdTextFound = null,
+    bool? IdNumberFound = null,
+    bool? IdNumberMatches = null,
+    bool? IdFaceFound = null,
+    /// <summary>When the selfies were deleted under the retention rule; the selfie data URIs are then null.</summary>
+    DateTimeOffset? SelfieImagesDeletedAtUtc = null);
 
 public sealed record AdminPoseSelfieDto(string Pose, string? DataUri);
 

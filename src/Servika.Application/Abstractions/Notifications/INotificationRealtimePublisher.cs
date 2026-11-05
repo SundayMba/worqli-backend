@@ -17,5 +17,6 @@ public interface INotificationRealtimePublisher
         Guid? conversationId,
         string? kind,
         string? type,
+        string audience,
         CancellationToken ct);
 }

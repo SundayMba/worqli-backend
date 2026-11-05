@@ -21,15 +21,14 @@ public sealed class NotificationRepository : INotificationRepository
 
     public void Add(Notification notification) => _db.Notifications.Add(notification);
 
-    public async Task<IReadOnlyList<Notification>> ListForUserAsync(Guid userId, CancellationToken ct) =>
-        await _db.Notifications
-            .AsNoTracking()
-            .Where(n => n.UserId == userId)
+    public async Task<IReadOnlyList<Notification>> ListForUserAsync(
+        Guid userId, NotificationAudience? audience, CancellationToken ct) =>
+        await ForAudience(_db.Notifications.AsNoTracking().Where(n => n.UserId == userId), audience)
             .OrderByDescending(n => n.CreatedAt)
             .ToListAsync(ct);
 
-    public Task<int> CountUnreadAsync(Guid userId, CancellationToken ct) =>
-        _db.Notifications.CountAsync(n => n.UserId == userId && !n.IsRead, ct);
+    public Task<int> CountUnreadAsync(Guid userId, NotificationAudience? audience, CancellationToken ct) =>
+        ForAudience(_db.Notifications.Where(n => n.UserId == userId && !n.IsRead), audience).CountAsync(ct);
 
     public Task<bool> HasUnreadChatAsync(Guid userId, Guid conversationId, CancellationToken ct) =>
         _db.Notifications.AnyAsync(
@@ -43,12 +42,15 @@ public sealed class NotificationRepository : INotificationRepository
     public Task<Notification?> FindForUserAsync(Guid id, Guid userId, CancellationToken ct) =>
         _db.Notifications.FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId, ct);
 
-    public Task<int> MarkAllReadAsync(Guid userId, DateTimeOffset now, CancellationToken ct) =>
-        _db.Notifications
-            .Where(n => n.UserId == userId && !n.IsRead)
+    public Task<int> MarkAllReadAsync(Guid userId, NotificationAudience? audience, DateTimeOffset now, CancellationToken ct) =>
+        ForAudience(_db.Notifications.Where(n => n.UserId == userId && !n.IsRead), audience)
             .ExecuteUpdateAsync(
                 s => s.SetProperty(n => n.IsRead, true).SetProperty(n => n.ReadAtUtc, now),
                 ct);
+
+    /// <summary>One app's notices plus those for either app; no audience = everything.</summary>
+    private static IQueryable<Notification> ForAudience(IQueryable<Notification> q, NotificationAudience? audience) =>
+        audience is { } a ? q.Where(n => n.Audience == a || n.Audience == NotificationAudience.Any) : q;
 
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }
