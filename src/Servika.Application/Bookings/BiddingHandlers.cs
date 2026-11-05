@@ -26,12 +26,14 @@ public sealed class SubmitBidHandler
     private readonly Payments.ArtisanStandingService _standing;
     private readonly IPlatformSettingsRepository _settings;
     private readonly IClock _clock;
+    private readonly ArtisanCapacity _capacity;
 
     public SubmitBidHandler(
         IBookingRepository bookings, IBidRepository bids, ICatalogueRepository catalogue,
         NotificationEmitter notifications, Payments.ArtisanStandingService standing, IClock clock,
-        IPlatformSettingsRepository settings)
+        IPlatformSettingsRepository settings, ArtisanCapacity capacity)
     {
+        _capacity = capacity;
         _settings = settings;
         _bookings = bookings;
         _bids = bids;
@@ -101,8 +103,9 @@ public sealed class SubmitBidHandler
                 throw new ConflictException(refusal);
             // On another job right now (arrived or working): they may still offer, urgent requests included, but
             // must say when they will be free. The customer sees that beside the other offers and decides.
-            if (request.AvailableFromUtc is null && await _bookings.IsArtisanBusyAsync(profile.Id, ct))
+            if (request.AvailableFromUtc is null && await _bookings.IsArtisanBusyAsync(profile.Id, _clock.UtcNow, ct))
                 throw new ArgumentException(ArtisanBusy.NeedsTime);
+            await _capacity.EnsureRoomAsync(profile.Id, ct);
         }
         if (request.VisitFirst && isDirectQuote)
             throw new ArgumentException("This job was sent to you. Accept it to visit first, or send your price.");
@@ -202,10 +205,12 @@ public sealed class GetBookingBidsHandler
     private readonly IBookingRepository _bookings;
     private readonly IBidRepository _bids;
     private readonly ICatalogueRepository _catalogue;
+    private readonly IClock _clock;
 
     public GetBookingBidsHandler(
-        IBookingRepository bookings, IBidRepository bids, ICatalogueRepository catalogue)
+        IBookingRepository bookings, IBidRepository bids, ICatalogueRepository catalogue, IClock clock)
     {
+        _clock = clock;
         _bookings = bookings;
         _bids = bids;
         _catalogue = catalogue;
@@ -221,7 +226,7 @@ public sealed class GetBookingBidsHandler
         var bids = (await _bids.ListForBookingAsync(bookingId, ct)).Where(b => b.IsVisibleToCustomer).ToList();
         var result = new List<BidDto>(bids.Count);
         var jobsDone = await _bookings.CountCompletedForArtisansAsync(bids.Select(b => b.ArtisanId).Distinct().ToList(), ct);
-        var busy = new HashSet<Guid>(await _bookings.ListBusyArtisanIdsAsync(ct));
+        var busy = new HashSet<Guid>(await _bookings.ListBusyArtisanIdsAsync(_clock.UtcNow, ct));
         foreach (var bid in bids)
         {
             // Bids are few per request — per-bid profile lookups are fine and keep the trust data (jobs done,
@@ -252,11 +257,13 @@ public sealed class AcceptBidHandler
     private readonly IBidRepository _bids;
     private readonly NotificationEmitter _notifications;
     private readonly IClock _clock;
+    private readonly ArtisanCapacity _capacity;
 
     public AcceptBidHandler(
         IBookingRepository bookings, IBidRepository bids,
-        NotificationEmitter notifications, IClock clock)
+        NotificationEmitter notifications, IClock clock, ArtisanCapacity capacity)
     {
+        _capacity = capacity;
         _bookings = bookings;
         _bids = bids;
         _notifications = notifications;
@@ -275,6 +282,9 @@ public sealed class AcceptBidHandler
 
         var now = _clock.UtcNow;
         var statusBeforeAccept = booking.Status;
+        // Picking an offer on an open request hands the artisan a new job: they must have room for it.
+        if (statusBeforeAccept == BookingStatus.Open)
+            await _capacity.EnsureRoomAsync(winner.ArtisanId, ct, forCustomerName: winner.ArtisanName);
         if (winner.Kind == BidKind.VisitFirst)
         {
             // "Visit first": the artisan is assigned; the visit fee (if any) is paid now and credited against the
@@ -282,6 +292,7 @@ public sealed class AcceptBidHandler
             if (statusBeforeAccept != BookingStatus.Open)
                 throw new ConflictException("An offer to visit can only be picked on an open request.");
             booking.AcceptVisitBid(winner.ArtisanId, winner.ArtisanName, winner.VisitFeeNaira, now);
+            booking.SetPromisedStart(winner.AvailableFromUtc);
             foreach (var other in bids.Where(b => b.Id != winner.Id)) other.MarkClosed(now);
         }
         else
@@ -304,6 +315,7 @@ public sealed class AcceptBidHandler
             winner.ArtisanId, winner.ArtisanName, winner.AmountNaira, now,
             winner.WorkmanshipNaira, winner.MaterialsNaira);
         winner.MarkAccepted(now);
+        if (winner.AvailableFromUtc is { } promised) booking.SetPromisedStart(promised);
         foreach (var other in bids.Where(b => b.Id != winner.Id))
             other.MarkClosed(now);
     }

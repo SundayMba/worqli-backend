@@ -37,7 +37,9 @@ public sealed record PlatformSettingsDto(
     int QuoteReviewThresholdNaira = 50000,
     decimal QuoteReviewRangeFactor = 1.5m,
     /// <summary>Whether the customer app shows not-yet-bookable services as "Coming soon".</summary>
-    bool ShowComingSoonServices = false);
+    bool ShowComingSoonServices = false,
+    /// <summary>Most accepted, unfinished jobs one artisan may hold at once.</summary>
+    int MaxActiveJobs = 3);
 
 /// <summary>Update the platform settings (PUT /api/v1/admin/settings). All fields required.</summary>
 public sealed record UpdatePlatformSettingsRequest(
@@ -57,7 +59,8 @@ public sealed record UpdatePlatformSettingsRequest(
     int DirectOfferWindowMinutes = 60,
     /// <summary>Pricing levers. Omitted (null) keeps the stored values so older admin builds still save.</summary>
     PricingSettingsRequest? Pricing = null,
-    bool ShowComingSoonServices = false);
+    bool ShowComingSoonServices = false,
+    int MaxActiveJobs = 3);
 
 /// <summary>The pricing levers (part of PUT /api/v1/admin/settings).</summary>
 public sealed record PricingSettingsRequest(

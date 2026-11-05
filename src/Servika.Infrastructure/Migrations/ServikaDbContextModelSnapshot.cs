@@ -147,6 +147,9 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<int>("ApprovedRepairsNaira")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("ArrivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("ArtisanId")
                         .HasColumnType("uuid");
 
@@ -285,6 +288,9 @@ namespace Servika.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<DateTimeOffset?>("PromisedStartUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int?>("RefundedAmountNaira")
                         .HasColumnType("integer");
 
@@ -308,6 +314,9 @@ namespace Servika.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("TripStartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("TypicalRangeMaxNaira")
                         .HasColumnType("integer");
@@ -2058,6 +2067,11 @@ namespace Servika.Infrastructure.Migrations
 
                     b.Property<DateTimeOffset?>("FeesStartAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("MaxActiveJobs")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(3);
 
                     b.Property<int>("MaxCommissionDebtNaira")
                         .HasColumnType("integer");

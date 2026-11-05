@@ -149,6 +149,22 @@ public sealed class Booking
     /// drives the live elapsed-time display on the job screen.</summary>
     public DateTimeOffset? WorkStartedAtUtc { get; private set; }
 
+    /// <summary>When the artisan set off (On the way) and reached the customer (Arrived).</summary>
+    public DateTimeOffset? TripStartedAtUtc { get; private set; }
+    public DateTimeOffset? ArrivedAtUtc { get; private set; }
+
+    /// <summary>The "free from" time on the offer the customer picked, if the artisan named one. Setting off more than
+    /// <see cref="LateStartGrace"/> after it counts as a late start (ops only, never shown to customers).</summary>
+    public DateTimeOffset? PromisedStartUtc { get; private set; }
+
+    public static readonly TimeSpan LateStartGrace = TimeSpan.FromMinutes(30);
+
+    /// <summary>True when the artisan named a time and set off well after it.</summary>
+    public bool StartedLate =>
+        PromisedStartUtc is { } promised && TripStartedAtUtc is { } left && left > promised + LateStartGrace;
+
+    public void SetPromisedStart(DateTimeOffset? promisedStartUtc) => PromisedStartUtc = promisedStartUtc;
+
     /// <summary>When the artisan submitted proof of completed work (→ AwaitingConfirmation).</summary>
     public DateTimeOffset? WorkSubmittedAtUtc { get; private set; }
 
@@ -578,7 +594,7 @@ public sealed class Booking
     }
 
     /// <summary>The artisan starts the trip to the customer. Accepted → OnMyWay.</summary>
-    public void StartTrip()
+    public void StartTrip(DateTimeOffset? now = null)
     {
         if (Status is not BookingStatus.Accepted)
             throw new InvalidBookingStateException(
@@ -588,16 +604,18 @@ public sealed class Booking
                 "Waiting for the customer to pay the visit. Set off once it is secured.");
 
         Status = BookingStatus.OnMyWay;
+        TripStartedAtUtc = now ?? DateTimeOffset.UtcNow;
     }
 
     /// <summary>The artisan reaches the customer. OnMyWay → Arrived.</summary>
-    public void Arrive()
+    public void Arrive(DateTimeOffset? now = null)
     {
         if (Status is not BookingStatus.OnMyWay)
             throw new InvalidBookingStateException(
                 $"Arrival can only be marked while OnMyWay (this one is {Status}).");
 
         Status = BookingStatus.Arrived;
+        ArrivedAtUtc = now ?? DateTimeOffset.UtcNow;
     }
 
     /// <summary>

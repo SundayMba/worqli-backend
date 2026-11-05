@@ -28,7 +28,13 @@ public sealed record AdminArtisanDto(
     /// admin spot checks — these names render on the customer Home rail.</summary>
     IReadOnlyList<string>? PricedServices = null,
     /// <summary>Admin waived the guarantor requirement for this artisan.</summary>
-    bool GuarantorsWaived = false);
+    bool GuarantorsWaived = false,
+    /// <summary>Jobs where they named a "free from" time and set off, and how many of those they set off more than
+    /// 30 minutes late. Ops only, never shown to customers or the artisan.</summary>
+    int TimedStarts = 0,
+    int LateStarts = 0,
+    /// <summary>Accepted, unfinished jobs right now (the cap is PlatformSettings.MaxActiveJobs).</summary>
+    int ActiveJobs = 0);
 
 /// <summary>An artisan's uploaded work certificate, inlined as a base64 data URI
 /// (like the KYC document images) so the admin can view it in the browser.</summary>

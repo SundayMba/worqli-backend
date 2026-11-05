@@ -772,6 +772,7 @@ public sealed class ServikaDbContext : DbContext
             settings.Property(s => s.CardFeeFlatNaira).HasDefaultValue(100);
             settings.Property(s => s.CardFeeFlatFromNaira).HasDefaultValue(2500);
             settings.Property(s => s.CardFeeCapNaira).HasDefaultValue(2000);
+            settings.Property(s => s.MaxActiveJobs).HasDefaultValue(3);
             settings.Property(s => s.TransferFeeTier1Naira).HasDefaultValue(10);
             settings.Property(s => s.TransferFeeTier1MaxNaira).HasDefaultValue(5000);
             settings.Property(s => s.TransferFeeTier2Naira).HasDefaultValue(25);

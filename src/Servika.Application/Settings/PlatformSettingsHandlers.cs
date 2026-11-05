@@ -16,7 +16,7 @@ internal static class PlatformSettingsMapping
             s.FeesStartAtUtc, s.CardFeeRate, s.CardFeeFlatNaira, s.CardFeeFlatFromNaira, s.CardFeeCapNaira,
             s.TransferFeeTier1Naira, s.TransferFeeTier1MaxNaira, s.TransferFeeTier2Naira, s.TransferFeeTier2MaxNaira, s.TransferFeeTier3Naira,
             s.FeeNoticeStage, s.FeeNoticeSentAtUtc, FeePolicy.UsersBearFees(s, now), updatedByName, s.AllowCashPayments, s.OfferWindowMinutes, s.DirectOfferWindowMinutes,
-            s.DiagnosisFeeNaira, s.QuoteReviewThresholdNaira, s.QuoteReviewRangeFactor, s.ShowComingSoonServices);
+            s.DiagnosisFeeNaira, s.QuoteReviewThresholdNaira, s.QuoteReviewRangeFactor, s.ShowComingSoonServices, s.MaxActiveJobs);
 }
 
 /// <summary>Reads the current platform settings (admin).</summary>
@@ -73,7 +73,8 @@ public sealed class UpdatePlatformSettingsHandler
             request.AllowCashPayments,
             request.OfferWindowMinutes,
             request.DirectOfferWindowMinutes,
-            request.ShowComingSoonServices);
+            request.ShowComingSoonServices,
+            request.MaxActiveJobs);
         if (request.Pricing is { } p)
             settings.UpdatePricing(p.DiagnosisFeeNaira, p.QuoteReviewThresholdNaira, p.QuoteReviewRangeFactor, now);
         if (request.Fees is { } f)

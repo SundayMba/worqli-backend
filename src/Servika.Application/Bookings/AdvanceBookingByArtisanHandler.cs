@@ -24,12 +24,14 @@ public sealed class AdvanceBookingByArtisanHandler
     private readonly ArtisanBookingDtoBuilder _dto;
     private readonly AssignmentService _assignment;
     private readonly IClock _clock;
+    private readonly ArtisanCapacity _capacity;
 
     public AdvanceBookingByArtisanHandler(
         IBookingRepository bookings, ICatalogueRepository catalogue,
         NotificationEmitter notifications, Payments.RefundService refunds,
-        ArtisanBookingDtoBuilder dto, AssignmentService assignment, IClock clock)
+        ArtisanBookingDtoBuilder dto, AssignmentService assignment, IClock clock, ArtisanCapacity capacity)
     {
+        _capacity = capacity;
         _dto = dto;
         _assignment = assignment;
         _bookings = bookings;
@@ -57,14 +59,15 @@ public sealed class AdvanceBookingByArtisanHandler
                 // Only verified artisans take work (the catalogue already hides the rest).
                 if (profile.VerificationStatus != Domain.Catalogue.ArtisanVerificationStatus.Verified)
                     throw new ConflictException("Your profile must be verified before you can accept jobs.");
+                await _capacity.EnsureRoomAsync(profile.Id, ct);
                 booking.Accept(now);
                 break;
             case ArtisanBookingAction.Reject:
                 booking.Reject();
                 reassign = true;
                 break;
-            case ArtisanBookingAction.StartTrip: booking.StartTrip(); break;
-            case ArtisanBookingAction.Arrive: booking.Arrive(); break;
+            case ArtisanBookingAction.StartTrip: booking.StartTrip(now); break;
+            case ArtisanBookingAction.Arrive: booking.Arrive(now); break;
             case ArtisanBookingAction.StartWork: booking.StartWork(_clock.UtcNow); break;
             case ArtisanBookingAction.Cancel:
                 booking.Cancel(now);
