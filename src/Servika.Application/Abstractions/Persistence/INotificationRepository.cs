@@ -13,11 +13,12 @@ public interface INotificationRepository
 {
     void Add(Notification notification);
 
-    /// <summary>The user's notifications, newest first.</summary>
-    Task<IReadOnlyList<Notification>> ListForUserAsync(Guid userId, CancellationToken ct);
+    /// <summary>The user's notifications, newest first. With an <paramref name="audience"/>, only that
+    /// app's notices plus those meant for either app; null = everything.</summary>
+    Task<IReadOnlyList<Notification>> ListForUserAsync(Guid userId, NotificationAudience? audience, CancellationToken ct);
 
-    /// <summary>How many of the user's notifications are unread (badge count).</summary>
-    Task<int> CountUnreadAsync(Guid userId, CancellationToken ct);
+    /// <summary>How many of the user's notifications are unread (badge count), filtered like the list.</summary>
+    Task<int> CountUnreadAsync(Guid userId, NotificationAudience? audience, CancellationToken ct);
 
     /// <summary>Whether the user already has an unread chat notification for this
     /// conversation — used to coalesce a burst of messages into one feed entry.</summary>
@@ -29,7 +30,7 @@ public interface INotificationRepository
 
     /// <summary>Marks all of the user's unread notifications read; returns the count
     /// affected.</summary>
-    Task<int> MarkAllReadAsync(Guid userId, DateTimeOffset now, CancellationToken ct);
+    Task<int> MarkAllReadAsync(Guid userId, NotificationAudience? audience, DateTimeOffset now, CancellationToken ct);
 
     Task<int> SaveChangesAsync(CancellationToken ct);
 }

@@ -17,12 +17,19 @@ public sealed class PushToken
     /// <summary>"ios" / "android" (informational).</summary>
     public string Platform { get; private set; } = string.Empty;
 
+    /// <summary>Which app registered the token: "customer" or "pro". Null for builds from
+    /// before the apps said, which keep receiving every push.</summary>
+    public string? App { get; private set; }
+
+    public const string CustomerApp = "customer";
+    public const string ProApp = "pro";
+
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset LastSeenAtUtc { get; private set; }
 
     private PushToken() { }
 
-    public static PushToken Register(Guid userId, string token, string? platform, DateTimeOffset now)
+    public static PushToken Register(Guid userId, string token, string? platform, DateTimeOffset now, string? app = null)
     {
         if (userId == Guid.Empty)
             throw new ArgumentException("User is required.", nameof(userId));
@@ -35,16 +42,25 @@ public sealed class PushToken
             UserId = userId,
             Token = token.Trim(),
             Platform = string.IsNullOrWhiteSpace(platform) ? "unknown" : platform.Trim().ToLowerInvariant(),
+            App = NormalizeApp(app),
             CreatedAt = now,
             LastSeenAtUtc = now,
         };
     }
 
     /// <summary>Re-point an existing token to this user + refresh its last-seen.</summary>
-    public void Reassign(Guid userId, string? platform, DateTimeOffset now)
+    public void Reassign(Guid userId, string? platform, DateTimeOffset now, string? app = null)
     {
         UserId = userId;
+        App = NormalizeApp(app);
         if (!string.IsNullOrWhiteSpace(platform)) Platform = platform.Trim().ToLowerInvariant();
         LastSeenAtUtc = now;
+    }
+
+    /// <summary>"customer" or "pro" (any case, trimmed); anything else is null.</summary>
+    public static string? NormalizeApp(string? app)
+    {
+        var v = app?.Trim().ToLowerInvariant();
+        return v is CustomerApp or ProApp ? v : null;
     }
 }

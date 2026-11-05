@@ -21,7 +21,8 @@ namespace Servika.Api.Controllers;
 [Tags("Notifications")]
 public sealed class NotificationsController : ControllerBase
 {
-    /// <summary>The current user's notifications, newest first.</summary>
+    /// <summary>The current user's notifications, newest first. <c>?audience=customer|artisan</c> lists
+    /// only that app's notices (plus ones meant for both); without it, everything.</summary>
     /// <response code="200">The notification feed (empty if none).</response>
     /// <response code="401">Not signed in.</response>
     [HttpGet]
@@ -29,22 +30,24 @@ public sealed class NotificationsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<IReadOnlyList<NotificationDto>>> GetMine(
         [FromServices] GetNotificationsHandler handler,
+        [FromQuery] string? audience,
         CancellationToken ct)
     {
-        return Ok(await handler.HandleAsync(CurrentUserId(), ct));
+        return Ok(await handler.HandleAsync(CurrentUserId(), audience, ct));
     }
 
     /// <summary>The current user's unread count (for the bell badge).</summary>
-    /// <response code="200">The unread count.</response>
+    /// <response code="200">The unread count (same <c>?audience=</c> filter as the list).</response>
     /// <response code="401">Not signed in.</response>
     [HttpGet("unread-count")]
     [ProducesResponseType(typeof(UnreadCountDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<UnreadCountDto>> GetUnreadCount(
         [FromServices] GetUnreadCountHandler handler,
+        [FromQuery] string? audience,
         CancellationToken ct)
     {
-        return Ok(await handler.HandleAsync(CurrentUserId(), ct));
+        return Ok(await handler.HandleAsync(CurrentUserId(), audience, ct));
     }
 
     /// <summary>Mark one notification read.</summary>
@@ -64,7 +67,7 @@ public sealed class NotificationsController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>Mark all the current user's notifications read.</summary>
+    /// <summary>Mark all the current user's notifications read (only that app's with <c>?audience=</c>).</summary>
     /// <response code="204">All marked read.</response>
     /// <response code="401">Not signed in.</response>
     [HttpPost("read-all")]
@@ -72,9 +75,10 @@ public sealed class NotificationsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> MarkAllRead(
         [FromServices] MarkAllNotificationsReadHandler handler,
+        [FromQuery] string? audience,
         CancellationToken ct)
     {
-        await handler.HandleAsync(CurrentUserId(), ct);
+        await handler.HandleAsync(CurrentUserId(), audience, ct);
         return NoContent();
     }
 
@@ -93,7 +97,7 @@ public sealed class NotificationsController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Token))
             throw new ArgumentException("A push token is required.");
-        await handler.HandleAsync(CurrentUserId(), request.Token, request.Platform, ct);
+        await handler.HandleAsync(CurrentUserId(), request.Token, request.Platform, request.App, ct);
         return NoContent();
     }
 

@@ -16,7 +16,9 @@ public sealed record NotificationDto(
     bool IsRead,
     DateTimeOffset CreatedAt,
     /// <summary>Fine-grained event kind ("KycApproved", "OpenJob", "BidPlaced"...); null on old rows.</summary>
-    string? Kind);
+    string? Kind,
+    /// <summary>Which app the notice belongs to: "Customer", "Artisan" or "Any".</summary>
+    string Audience = "Any");
 
 /// <summary>Unread badge count (GET /api/v1/notifications/unread-count).</summary>
 public sealed record UnreadCountDto(int Count);

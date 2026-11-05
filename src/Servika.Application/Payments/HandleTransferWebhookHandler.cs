@@ -1,3 +1,4 @@
+using Servika.Domain.Notifications;
 using Servika.Application.Abstractions.Payments;
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Time;
@@ -60,7 +61,7 @@ public sealed class HandleTransferWebhookHandler
         {
             withdrawal.MarkPaid(_gateway.Provider, null, now);
             _notifications.PayoutSent(
-                withdrawal.UserId, withdrawal.NetNaira, withdrawal.AccountNumberMasked);
+                withdrawal.UserId, withdrawal.NetNaira, withdrawal.AccountNumberMasked, AudienceFor(withdrawal));
         }
         else
         {
@@ -71,9 +72,17 @@ public sealed class HandleTransferWebhookHandler
                 withdrawal.AmountNaira, null, null,
                 $"Reversal for failed payout {withdrawal.Id}", now));
             WithdrawalService.RecordTransferFee(_wallet, withdrawal, reverse: true, now);
-            _notifications.PayoutFailed(withdrawal.UserId, withdrawal.AmountNaira);
+            _notifications.PayoutFailed(withdrawal.UserId, withdrawal.AmountNaira, AudienceFor(withdrawal));
         }
 
         await _withdrawals.SaveChangesAsync(ct);
     }
+
+    /// <summary>Artisan earnings are withdrawn in Servika Pro; referral cash in the customer app.</summary>
+    private static NotificationAudience AudienceFor(Withdrawal withdrawal) => withdrawal.OwnerType switch
+    {
+        WalletOwnerType.Artisan => NotificationAudience.Artisan,
+        WalletOwnerType.Referrer => NotificationAudience.Customer,
+        _ => NotificationAudience.Any,
+    };
 }

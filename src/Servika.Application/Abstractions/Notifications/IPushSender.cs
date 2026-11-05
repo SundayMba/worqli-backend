@@ -28,6 +28,9 @@ public interface INotificationPushDispatcher
 {
     /// <param name="kind">Fine-grained event kind (sent as "kind" in the push data).</param>
     /// <param name="type">Coarse notification type ("Booking"/"Payment"/"System"/"Chat"/"OpenJob").</param>
+    /// <param name="audience">Which app the notice belongs to; push goes only to tokens of that app
+    /// (plus tokens from older builds that did not say which app they are).</param>
     void Dispatch(Guid userId, string title, string body, Guid? bookingId, Guid? conversationId = null,
-        string? kind = null, string? type = null);
+        string? kind = null, string? type = null,
+        Servika.Domain.Notifications.NotificationAudience audience = Servika.Domain.Notifications.NotificationAudience.Any);
 }

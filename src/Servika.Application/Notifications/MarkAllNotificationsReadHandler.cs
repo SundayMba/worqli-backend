@@ -15,6 +15,6 @@ public sealed class MarkAllNotificationsReadHandler
         _clock = clock;
     }
 
-    public Task HandleAsync(Guid userId, CancellationToken ct) =>
-        _notifications.MarkAllReadAsync(userId, _clock.UtcNow, ct);
+    public Task HandleAsync(Guid userId, string? audience, CancellationToken ct) =>
+        _notifications.MarkAllReadAsync(userId, NotificationAudienceFilter.ParseQuery(audience), _clock.UtcNow, ct);
 }

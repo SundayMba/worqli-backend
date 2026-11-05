@@ -594,6 +594,12 @@ public sealed class ServikaDbContext : DbContext
             notification.Property(n => n.Title).IsRequired().HasMaxLength(120);
             notification.Property(n => n.Body).HasMaxLength(500);
             notification.Property(n => n.Kind).HasMaxLength(40);
+            // Which app the notice belongs to. The default backfills existing rows as Any
+            // (seen in both apps, as before). Any is the enum's zero value, so a sentinel
+            // stops EF treating it as "unset"; every insert writes the real value.
+            notification.Property(n => n.Audience).HasConversion<string>().HasMaxLength(16)
+                .HasDefaultValue(NotificationAudience.Any)
+                .HasSentinel((NotificationAudience)(-1));
 
             // A notification belongs to its recipient; it dies with the user.
             notification.HasOne<User>()
@@ -802,6 +808,8 @@ public sealed class ServikaDbContext : DbContext
             pt.HasIndex(t => t.UserId);
             pt.Property(t => t.Token).IsRequired().HasMaxLength(200);
             pt.Property(t => t.Platform).HasMaxLength(20);
+            // "customer" / "pro"; null = an older build that did not say (gets every push).
+            pt.Property(t => t.App).HasMaxLength(16);
             pt.HasOne<User>().WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 

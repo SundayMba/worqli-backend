@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Servika.Application.Abstractions.Notifications;
 using Servika.Application.Abstractions.Persistence;
+using Servika.Application.Notifications;
+using Servika.Domain.Notifications;
 
 namespace Servika.Infrastructure.Notifications;
 
@@ -29,7 +31,7 @@ public sealed class NotificationPushDispatcher : INotificationPushDispatcher
     }
 
     public void Dispatch(Guid userId, string title, string body, Guid? bookingId, Guid? conversationId = null,
-        string? kind = null, string? type = null)
+        string? kind = null, string? type = null, NotificationAudience audience = NotificationAudience.Any)
     {
         _ = Task.Run(async () =>
         {
@@ -45,7 +47,8 @@ public sealed class NotificationPushDispatcher : INotificationPushDispatcher
                 using var scope = _scopeFactory.CreateScope();
                 var realtime = scope.ServiceProvider.GetService<INotificationRealtimePublisher>();
                 if (realtime is not null)
-                    await realtime.PublishAsync(userId, title, body, bookingId, conversationId, kind, type, CancellationToken.None);
+                    await realtime.PublishAsync(userId, title, body, bookingId, conversationId, kind, type,
+                        audience.ToString(), CancellationToken.None);
             }
             catch (Exception ex)
             {
@@ -57,16 +60,20 @@ public sealed class NotificationPushDispatcher : INotificationPushDispatcher
                 using var scope = _scopeFactory.CreateScope();
                 var tokens = scope.ServiceProvider.GetRequiredService<IPushTokenRepository>();
                 var registered = await tokens.ListForUserAsync(userId, CancellationToken.None);
-                if (registered.Count == 0) return;
+                // One account can be signed into both apps: a Pro notice goes only to Pro devices
+                // and a customer notice only to customer-app devices (older builds get everything).
+                var targets = NotificationAudienceFilter.TokensFor(registered, audience);
+                if (targets.Count == 0) return;
 
                 var data = new Dictionary<string, string>();
                 if (bookingId is { } b) data["bookingId"] = b.ToString();
                 if (conversationId is { } c) data["conversationId"] = c.ToString();
                 if (!string.IsNullOrWhiteSpace(kind)) data["kind"] = kind;
                 if (!string.IsNullOrWhiteSpace(type)) data["type"] = type;
+                data["audience"] = audience.ToString();
 
                 var dead = await _sender.SendAsync(
-                    registered.Select(t => t.Token).ToList(), title, body,
+                    targets, title, body,
                     data.Count > 0 ? data : null, CancellationToken.None);
 
                 // A device that uninstalled the app is reported back by Expo; forget it so

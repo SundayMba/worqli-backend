@@ -16,14 +16,14 @@ public sealed class RegisterPushTokenHandler
         _clock = clock;
     }
 
-    public async Task HandleAsync(Guid userId, string token, string? platform, CancellationToken ct)
+    public async Task HandleAsync(Guid userId, string token, string? platform, string? app, CancellationToken ct)
     {
         var now = _clock.UtcNow;
         var existing = await _tokens.FindByTokenAsync(token.Trim(), ct);
         if (existing is null)
-            _tokens.Add(PushToken.Register(userId, token, platform, now));
+            _tokens.Add(PushToken.Register(userId, token, platform, now, app));
         else
-            existing.Reassign(userId, platform, now); // e.g. same device, new login
+            existing.Reassign(userId, platform, now, app); // e.g. same device, new login
         await _tokens.SaveChangesAsync(ct);
     }
 }
