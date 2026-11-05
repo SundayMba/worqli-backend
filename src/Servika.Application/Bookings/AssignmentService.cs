@@ -55,9 +55,6 @@ public sealed class AssignmentService
 
         var recipients = await _catalogue.ListArtisanRecipientsInCategoryAsync(booking.CategorySlug, ct);
         var restricted = new HashSet<Guid>(await _standing.GetRestrictedProfileIdsAsync(ct));
-        // An urgent request skips artisans who are on a job right now (ArtisanBusy).
-        if (booking.Urgency == Urgency.Urgent)
-            restricted.UnionWith(await _bookings.ListBusyArtisanIdsAsync(ct));
         var eligible = recipients
             .Where(r => !restricted.Contains(r.ProfileId) && OpenJobMatching.Accepts(r.Rules, booking, now))
             .ToList();

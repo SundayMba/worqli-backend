@@ -99,15 +99,10 @@ public sealed class SubmitBidHandler
                 throw new ConflictException("Settle your service fees to bid on new jobs.");
             if (OpenJobMatching.RefusalReason(profile, booking, _clock.UtcNow) is { } refusal)
                 throw new ConflictException(refusal);
-            // On another job right now (arrived or working): urgent requests need someone who can leave now, and
-            // any other offer must say when they can come.
-            if (await _bookings.IsArtisanBusyAsync(profile.Id, ct))
-            {
-                if (booking.Urgency == Urgency.Urgent)
-                    throw new ConflictException(ArtisanBusy.UrgentRefusal);
-                if (request.AvailableFromUtc is null)
-                    throw new ArgumentException(ArtisanBusy.NeedsTime);
-            }
+            // On another job right now (arrived or working): they may still offer, urgent requests included, but
+            // must say when they will be free. The customer sees that beside the other offers and decides.
+            if (request.AvailableFromUtc is null && await _bookings.IsArtisanBusyAsync(profile.Id, ct))
+                throw new ArgumentException(ArtisanBusy.NeedsTime);
         }
         if (request.VisitFirst && isDirectQuote)
             throw new ArgumentException("This job was sent to you. Accept it to visit first, or send your price.");
@@ -226,12 +221,14 @@ public sealed class GetBookingBidsHandler
         var bids = (await _bids.ListForBookingAsync(bookingId, ct)).Where(b => b.IsVisibleToCustomer).ToList();
         var result = new List<BidDto>(bids.Count);
         var jobsDone = await _bookings.CountCompletedForArtisansAsync(bids.Select(b => b.ArtisanId).Distinct().ToList(), ct);
+        var busy = new HashSet<Guid>(await _bookings.ListBusyArtisanIdsAsync(ct));
         foreach (var bid in bids)
         {
             // Bids are few per request — per-bid profile lookups are fine and keep the trust data (jobs done,
             // certificate, photo) live. No rating: ratings are for ops only.
             var profile = await _catalogue.GetArtisanByIdAsync(bid.ArtisanId, ct);
-            result.Add(bid.ToDto(profile, DistanceToJobKm(booking, profile), completedJobs: jobsDone.GetValueOrDefault(bid.ArtisanId)));
+            result.Add(bid.ToDto(profile, DistanceToJobKm(booking, profile), completedJobs: jobsDone.GetValueOrDefault(bid.ArtisanId))
+                with { ArtisanBusy = busy.Contains(bid.ArtisanId) });
         }
         return result;
     }

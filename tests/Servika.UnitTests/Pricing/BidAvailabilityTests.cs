@@ -48,7 +48,6 @@ public class BidAvailabilityTests
     [Fact]
     public void Busy_wording_has_no_em_dashes()
     {
-        Assert.DoesNotContain('—', ArtisanBusy.UrgentRefusal);
         Assert.DoesNotContain('—', ArtisanBusy.NeedsTime);
     }
 }
