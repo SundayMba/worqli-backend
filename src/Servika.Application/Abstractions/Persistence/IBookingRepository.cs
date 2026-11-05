@@ -59,6 +59,12 @@ public interface IBookingRepository
     /// <summary>How many bookings this customer has completed — the artisan-side trust line.</summary>
     Task<int> CountCompletedForCustomerAsync(Guid customerId, CancellationToken ct);
 
+    /// <summary>True while one of the artisan's jobs is Arrived or In progress (see <c>ArtisanBusy</c>).</summary>
+    Task<bool> IsArtisanBusyAsync(Guid artisanProfileId, CancellationToken ct);
+
+    /// <summary>Artisan profile ids with a job Arrived or In progress right now.</summary>
+    Task<IReadOnlyCollection<Guid>> ListBusyArtisanIdsAsync(CancellationToken ct);
+
     /// <summary>Completed-booking counts per artisan profile, in one query (absent = 0).</summary>
     Task<IReadOnlyDictionary<Guid, int>> CountCompletedForArtisansAsync(
         IReadOnlyCollection<Guid> artisanProfileIds, CancellationToken ct);

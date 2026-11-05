@@ -39,7 +39,9 @@ public sealed record BidDto(
     string? ReviewNote = null,
     /// <summary>"Price" or "VisitFirst" (no price yet; <see cref="VisitFeeNaira"/> to come and look).</summary>
     string Kind = "Price",
-    int VisitFeeNaira = 0);
+    int VisitFeeNaira = 0,
+    /// <summary>When the artisan can come; null = as soon as they are picked.</summary>
+    DateTimeOffset? AvailableFromUtc = null);
 
 /// <summary>POST /api/v1/bookings/{id}/bids/{bidId}/counter body: the customer's
 /// proposed WORKMANSHIP price (materials stay as itemised).</summary>
@@ -60,4 +62,6 @@ public sealed record SubmitBidRequest(
     /// <summary>"I need to see it first": no price yet, only <see cref="VisitFeeNaira"/> (₦0 = free visit).
     /// Open jobs only; the price follows after the visit.</summary>
     bool VisitFirst = false,
-    int VisitFeeNaira = 0);
+    int VisitFeeNaira = 0,
+    /// <summary>When the artisan can come. Required while they are busy on another job (Arrived or In progress).</summary>
+    DateTimeOffset? AvailableFromUtc = null);

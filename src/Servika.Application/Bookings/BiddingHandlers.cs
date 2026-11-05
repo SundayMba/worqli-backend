@@ -99,6 +99,15 @@ public sealed class SubmitBidHandler
                 throw new ConflictException("Settle your service fees to bid on new jobs.");
             if (OpenJobMatching.RefusalReason(profile, booking, _clock.UtcNow) is { } refusal)
                 throw new ConflictException(refusal);
+            // On another job right now (arrived or working): urgent requests need someone who can leave now, and
+            // any other offer must say when they can come.
+            if (await _bookings.IsArtisanBusyAsync(profile.Id, ct))
+            {
+                if (booking.Urgency == Urgency.Urgent)
+                    throw new ConflictException(ArtisanBusy.UrgentRefusal);
+                if (request.AvailableFromUtc is null)
+                    throw new ArgumentException(ArtisanBusy.NeedsTime);
+            }
         }
         if (request.VisitFirst && isDirectQuote)
             throw new ArgumentException("This job was sent to you. Accept it to visit first, or send your price.");
@@ -144,6 +153,8 @@ public sealed class SubmitBidHandler
                 workmanship, materials, request.MaterialsNote, now);
             _bids.Add(bid);
         }
+
+        bid.SetAvailability(request.AvailableFromUtc, now);
 
         if (booking.IsCustomQuote && booking.CustomPriceBookItemId is not null)
         {
@@ -487,5 +498,6 @@ internal static class BidMapping
             bid.Review.ToString(),
             forArtisan ? bid.ReviewNote : null,
             bid.Kind.ToString(),
-            bid.VisitFeeNaira);
+            bid.VisitFeeNaira,
+            bid.AvailableFromUtc);
 }

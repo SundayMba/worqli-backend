@@ -1,6 +1,7 @@
 using Servika.Application.Abstractions.Persistence;
 using Servika.Contracts.Bookings;
 using Servika.Domain.Catalogue;
+using Servika.Domain.Bookings;
 
 namespace Servika.Application.Bookings;
 
@@ -48,8 +49,11 @@ public sealed class GetOpenJobsHandler
             return Array.Empty<BookingSummaryDto>();
         var rules = OpenJobMatching.RulesOf(profile);
         var open = await _bookings.ListOpenInCategoriesAsync(profile.CategorySlugs, ct);
+        // On a job right now: urgent requests are for artisans who can leave now (ArtisanBusy).
+        var busy = await _bookings.IsArtisanBusyAsync(profile.Id, ct);
         return open
             .Where(b => OpenJobMatching.Accepts(rules, b, now))
+            .Where(b => !(busy && b.Urgency == Urgency.Urgent))
             .Select(b => b.ToSummaryDto(artisanSide: true))
             .ToList();
     }

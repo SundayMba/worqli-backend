@@ -137,6 +137,17 @@ public sealed class BookingRepository : IBookingRepository
     public Task<int> CountCompletedForCustomerAsync(Guid customerId, CancellationToken ct) =>
         _db.Bookings.CountAsync(b => b.CustomerId == customerId && b.Status == BookingStatus.Completed, ct);
 
+    public Task<bool> IsArtisanBusyAsync(Guid artisanProfileId, CancellationToken ct) =>
+        _db.Bookings.AnyAsync(b => b.ArtisanId == artisanProfileId
+            && (b.Status == BookingStatus.Arrived || b.Status == BookingStatus.InProgress), ct);
+
+    public async Task<IReadOnlyCollection<Guid>> ListBusyArtisanIdsAsync(CancellationToken ct) =>
+        await _db.Bookings
+            .Where(b => b.ArtisanId != null && (b.Status == BookingStatus.Arrived || b.Status == BookingStatus.InProgress))
+            .Select(b => b.ArtisanId!.Value)
+            .Distinct()
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyDictionary<Guid, int>> CountCompletedForArtisansAsync(
         IReadOnlyCollection<Guid> artisanProfileIds, CancellationToken ct)
     {

@@ -43,6 +43,9 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<Guid>("ArtisanUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("AvailableFromUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("BookingId")
                         .HasColumnType("uuid");
 
