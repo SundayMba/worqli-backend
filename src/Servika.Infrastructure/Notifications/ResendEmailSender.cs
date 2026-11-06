@@ -28,9 +28,27 @@ public sealed class ResendEmailSender : IOtpSender
         _logger = logger;
     }
 
-    public async Task SendAsync(string destination, string code, OtpPurpose purpose, CancellationToken ct)
+    public Task SendAsync(string destination, string code, OtpPurpose purpose, CancellationToken ct)
     {
         var (subject, html) = BuildEmail(code, purpose);
+        return DeliverAsync(destination, subject, html, purpose.ToString(), ct);
+    }
+
+    public Task SendAccountExistsNoticeAsync(string destination, CancellationToken ct)
+    {
+        const string html = """
+            <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0F172A">
+              <h2 style="margin:0 0 8px;font-size:20px">You already have a Servika account</h2>
+              <p style="margin:0 0 16px;font-size:14px;line-height:20px;color:#64748B">Someone just tried to create a new account with this email. No code was sent and nothing changed.</p>
+              <p style="margin:0 0 16px;font-size:14px;line-height:20px;color:#64748B">If it was you, sign in instead. Forgot your password? Tap "Forgot it?" on the sign-in screen.</p>
+              <p style="margin:24px 0 0;font-size:12px;line-height:18px;color:#94A3B8">If it wasn't you, you can ignore this email. Your account is safe.</p>
+            </div>
+            """;
+        return DeliverAsync(destination, "You already have a Servika account", html, "AccountExists", ct);
+    }
+
+    private async Task DeliverAsync(string destination, string subject, string html, string kind, CancellationToken ct)
+    {
 
         var client = _httpClientFactory.CreateClient("resend");
         client.DefaultRequestHeaders.Authorization =
@@ -56,7 +74,7 @@ public sealed class ResendEmailSender : IOtpSender
                 "We couldn't send your verification email. Please try again.");
         }
 
-        _logger.LogInformation("Sent {Purpose} email to {Destination} via Resend", purpose, destination);
+        _logger.LogInformation("Sent {Kind} email via Resend", kind);
     }
 
     private (string Subject, string Html) BuildEmail(string code, OtpPurpose purpose)

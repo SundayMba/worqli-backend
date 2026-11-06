@@ -25,4 +25,10 @@ public sealed class LoggingOtpSender : IOtpSender
             purpose, destination, code);
         return Task.CompletedTask;
     }
+
+    public Task SendAccountExistsNoticeAsync(string destination, CancellationToken ct)
+    {
+        _logger.LogWarning("[DEV-OTP] account-exists notice to={Destination}", destination);
+        return Task.CompletedTask;
+    }
 }

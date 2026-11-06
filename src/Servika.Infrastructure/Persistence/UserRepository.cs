@@ -25,12 +25,16 @@ public sealed class UserRepository : IUserRepository
     public Task<User?> FindByEmailAsync(string normalizedEmail, CancellationToken ct) =>
         _db.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, ct);
 
-    public Task<User?> FindByEmailOrPhoneAsync(string emailOrPhone, CancellationToken ct)
+    public async Task<User?> FindByEmailOrPhoneAsync(string emailOrPhone, CancellationToken ct)
     {
-        var normalizedEmail = emailOrPhone.Trim().ToLowerInvariant();
-        var phone = emailOrPhone.Trim();
-        return _db.Users.FirstOrDefaultAsync(
-            u => u.Email == normalizedEmail || u.PhoneNumber == phone, ct);
+        var value = emailOrPhone.Trim();
+        if (value.Length == 0) return null;
+        // An email is only ever matched as an email, so a phone field can never shadow someone's address.
+        if (value.Contains('@'))
+            return await _db.Users.FirstOrDefaultAsync(u => u.Email == value.ToLowerInvariant(), ct);
+        // Phones are not unique: when two accounts carry the same number, the number identifies nobody.
+        var matches = await _db.Users.Where(u => u.PhoneNumber == value).Take(2).ToListAsync(ct);
+        return matches.Count == 1 ? matches[0] : null;
     }
 
     public Task<User?> FindByIdAsync(Guid id, CancellationToken ct) =>

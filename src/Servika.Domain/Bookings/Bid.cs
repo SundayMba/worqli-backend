@@ -225,6 +225,8 @@ public sealed class Bid
             throw new InvalidBookingStateException("This bid is closed and can't be changed.");
         if (workmanshipNaira < 0)
             throw new ArgumentException("Workmanship can't be negative.", nameof(workmanshipNaira));
+        if (workmanshipNaira > BidMaterialLine.MaxLineNaira)
+            throw new ArgumentException("That labour price is too large.", nameof(workmanshipNaira));
         if (materials.Count > BidMaterialLine.MaxLines)
             throw new ArgumentException(
                 $"At most {BidMaterialLine.MaxLines} material lines.", nameof(materials));

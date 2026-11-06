@@ -69,6 +69,7 @@ public sealed class WithdrawalService
         if (request.AmountNaira < minNaira)
             throw new ConflictException($"Minimum withdrawal is ₦{minNaira:N0}.");
 
+        // Cheap early answer; the real check happens again under the wallet lock below.
         var available = await _wallet.GetBalanceAsync(ownerType, ownerId, ct);
         if (request.AmountNaira > available)
             throw new ConflictException($"Insufficient balance. Available: ₦{available:N0}.");
@@ -107,7 +108,16 @@ public sealed class WithdrawalService
                 $"Withdrawals are paused for a short while as Servika tops up its payout account. Your ₦{request.AmountNaira:N0} is safe in your balance. Please try again later.");
         }
 
-        var withdrawal = Withdrawal.Request(
+        // Reserve under a per-owner lock and commit BEFORE any money moves: two withdrawals sent at once now
+        // run one after the other, and the second sees the first one's debit.
+        Withdrawal withdrawal;
+        await using (var walletLock = await _wallet.LockOwnerAsync(ownerType, ownerId, ct))
+        {
+        available = await _wallet.GetBalanceAsync(ownerType, ownerId, ct);
+        if (request.AmountNaira > available)
+            throw new ConflictException($"Insufficient balance. Available: ₦{available:N0}.");
+
+        withdrawal = Withdrawal.Request(
             ownerType, ownerId, userId, request.AmountNaira,
             request.BankName, request.AccountNumber, accountName, now, fee, bearer);
         _withdrawals.Add(withdrawal);
@@ -120,6 +130,8 @@ public sealed class WithdrawalService
                 ? $"Payout to {withdrawal.BankName} {withdrawal.AccountNumberMasked} (₦{withdrawal.NetNaira:N0} after ₦{fee:N0} transfer charge)"
                 : $"Payout to {withdrawal.BankName} {withdrawal.AccountNumberMasked}", now));
         RecordTransferFee(_wallet, withdrawal, reverse: false, now);
+        await walletLock.CommitAsync(ct);
+        }
 
         // Disburse the NET amount. The stub succeeds synchronously; Paystack Transfers
         // accepts the transfer and returns Pending — the real result then arrives on

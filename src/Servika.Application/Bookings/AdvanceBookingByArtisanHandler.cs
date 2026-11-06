@@ -25,13 +25,15 @@ public sealed class AdvanceBookingByArtisanHandler
     private readonly AssignmentService _assignment;
     private readonly IClock _clock;
     private readonly ArtisanCapacity _capacity;
+    private readonly Catalogue.GuarantorGate _guarantorGate;
 
     public AdvanceBookingByArtisanHandler(
         IBookingRepository bookings, ICatalogueRepository catalogue,
         NotificationEmitter notifications, Payments.RefundService refunds,
-        ArtisanBookingDtoBuilder dto, AssignmentService assignment, IClock clock, ArtisanCapacity capacity)
+        ArtisanBookingDtoBuilder dto, AssignmentService assignment, IClock clock, ArtisanCapacity capacity, Catalogue.GuarantorGate guarantorGate)
     {
         _capacity = capacity;
+        _guarantorGate = guarantorGate;
         _dto = dto;
         _assignment = assignment;
         _bookings = bookings;
@@ -60,6 +62,7 @@ public sealed class AdvanceBookingByArtisanHandler
                 if (profile.VerificationStatus != Domain.Catalogue.ArtisanVerificationStatus.Verified)
                     throw new ConflictException("Your profile must be verified before you can accept jobs.");
                 await _capacity.EnsureRoomAsync(profile.Id, ct);
+                await _guarantorGate.EnsureAsync(profile, ct);
                 booking.Accept(now);
                 break;
             case ArtisanBookingAction.Reject:

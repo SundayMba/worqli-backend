@@ -100,7 +100,7 @@ public sealed class User
             id: Guid.NewGuid(),
             fullName: fullName.Trim(),
             email: email.Trim().ToLowerInvariant(),
-            phoneNumber: (phoneNumber ?? string.Empty).Trim(),
+            phoneNumber: NormalizePhone(phoneNumber),
             passwordHash: passwordHash,
             role: role,
             createdAt: createdAt);
@@ -126,8 +126,23 @@ public sealed class User
     {
         if (string.IsNullOrWhiteSpace(fullName))
             throw new ArgumentException("Full name is required.", nameof(fullName));
+        var phone = NormalizePhone(phoneNumber);
         FullName = fullName.Trim();
-        PhoneNumber = phoneNumber?.Trim() ?? string.Empty;
+        // A new number has not been verified yet.
+        if (!string.Equals(phone, PhoneNumber, StringComparison.Ordinal)) PhoneVerifiedAtUtc = null;
+        PhoneNumber = phone;
+    }
+
+    /// <summary>
+    /// Spaces, dashes and brackets removed; then 7 to 15 digits with an optional leading +, or empty. Anything else
+    /// (an email, letters) is refused, because sign-in looks accounts up by email or phone.
+    /// </summary>
+    public static string NormalizePhone(string? phoneNumber)
+    {
+        var phone = System.Text.RegularExpressions.Regex.Replace(phoneNumber ?? string.Empty, @"[\s\-()]", "");
+        if (phone.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(phone, @"^\+?[0-9]{7,15}$"))
+            throw new ArgumentException("Enter a phone number using digits only.");
+        return phone;
     }
 
     /// <summary>Assigns the user's referral share code (once).</summary>

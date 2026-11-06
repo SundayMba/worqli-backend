@@ -375,12 +375,14 @@ public sealed class NotificationEmitter
     }
 
     /// <summary>Tell one eligible artisan a job near them is open for bids.</summary>
-    public void OpenJobPosted(Guid artisanUserId, Booking booking)
+    public void OpenJobPosted(Guid artisanUserId, Booking booking, bool needsGuarantors = false)
     {
         var service = string.IsNullOrWhiteSpace(booking.ServiceName) ? "job" : booking.ServiceName;
         Add(artisanUserId, NotificationAudience.Artisan, NotificationType.OpenJob, NotificationKinds.OpenJob,
             "New job near you",
-            $"{service} in {Bookings.AssignmentService.Area(booking)}. Send your price, or offer to visit first.",
+            needsGuarantors
+                ? $"{service} in {Bookings.AssignmentService.Area(booking)}. Add your guarantors to send a price."
+                : $"{service} in {Bookings.AssignmentService.Area(booking)}. Send your price, or offer to visit first.",
             booking.Id);
     }
 

@@ -18,14 +18,17 @@ public sealed class ResetPasswordHandler
     private readonly IOtpService _otp;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IClock _clock;
+    private readonly IAuthThrottle _throttle;
 
     public ResetPasswordHandler(
         IUserRepository users,
         IVerificationCodeRepository codes,
         IOtpService otp,
         IPasswordHasher passwordHasher,
-        IClock clock)
+        IClock clock,
+        IAuthThrottle throttle)
     {
+        _throttle = throttle;
         _users = users;
         _codes = codes;
         _otp = otp;
@@ -36,9 +39,11 @@ public sealed class ResetPasswordHandler
     public async Task HandleAsync(ResetPasswordRequest request, CancellationToken ct)
     {
         if (request.NewPassword != request.ConfirmPassword)
-            throw new ArgumentException("Passwords do not match.", nameof(request));
+            throw new ArgumentException("Passwords do not match.");
         if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
-            throw new ArgumentException("Password must be at least 8 characters.", nameof(request));
+            throw new ArgumentException("Password must be at least 8 characters.");
+        if (!request.NewPassword.Any(char.IsDigit))
+            throw new ArgumentException("Password must contain a number.");
 
         // A 6-digit code isn't unique by hash, so match it against the latest
         // PasswordReset code for this specific account (same shape as verify-otp).
@@ -62,6 +67,11 @@ public sealed class ResetPasswordHandler
         user.ChangePassword(_passwordHasher.Hash(request.NewPassword));
         code.Consume(now);
         await _users.SaveChangesAsync(ct);
+
+        // Whoever knew the old password is signed out everywhere, and the owner can sign in again at once.
+        await _users.RevokeAllRefreshTokensAsync(user.Id, now, ct);
+        _throttle.Reset("login:" + user.Email);
+        if (!string.IsNullOrEmpty(user.PhoneNumber)) _throttle.Reset("login:" + user.PhoneNumber.ToLowerInvariant());
     }
 
     // Length-aware comparison that does not short-circuit on the first byte.

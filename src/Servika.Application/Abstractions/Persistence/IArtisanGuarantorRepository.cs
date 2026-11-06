@@ -7,6 +7,9 @@ public interface IArtisanGuarantorRepository
 {
     Task<IReadOnlyList<ArtisanGuarantor>> ListForUserAsync(Guid artisanUserId, CancellationToken ct);
     Task<int> CountForUserAsync(Guid artisanUserId, CancellationToken ct);
+
+    /// <summary>Guarantors that count (not denied by a reviewer), per artisan user, for many at once.</summary>
+    Task<IReadOnlyDictionary<Guid, int>> CountForUsersAsync(IReadOnlyCollection<Guid> artisanUserIds, CancellationToken ct);
     /// <summary>Tracked fetch scoped to the owner, or null.</summary>
     Task<ArtisanGuarantor?> FindForUserAsync(Guid id, Guid artisanUserId, CancellationToken ct);
     /// <summary>Tracked fetch by id (admin), or null.</summary>

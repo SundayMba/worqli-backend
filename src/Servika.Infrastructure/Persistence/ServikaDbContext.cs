@@ -298,6 +298,8 @@ public sealed class ServikaDbContext : DbContext
             // the same booking at once (two bids accepted, a counter taken while another bid is picked) cannot
             // both win: the second save fails and is answered with a 409.
             booking.Property(b => b.Status).IsConcurrencyToken();
+            // Same for the materials advance: a double "approve" must not credit the artisan twice.
+            booking.Property(b => b.MaterialsAdvanceStatus).IsConcurrencyToken();
 
             // A customer's history is listed by customer id + creation time.
             booking.HasIndex(b => b.CustomerId);
@@ -349,6 +351,10 @@ public sealed class ServikaDbContext : DbContext
         modelBuilder.Entity<Payment>(payment =>
         {
             payment.ToTable("payments");
+            // The webhook and the app's verify call can settle the same payment at the same moment. The update
+            // checks the status it read; the second save fails (409, retried as a no-op) instead of writing the
+            // ledger twice.
+            payment.Property(p => p.Status).IsConcurrencyToken();
 
             payment.HasKey(p => p.Id);
 

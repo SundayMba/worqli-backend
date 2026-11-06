@@ -51,7 +51,7 @@ public sealed class GetOpenJobsHandler
         var open = await _bookings.ListOpenInCategoriesAsync(profile.CategorySlugs, ct);
         return open
             .Where(b => OpenJobMatching.Accepts(rules, b, now))
-            .Select(b => b.ToSummaryDto(artisanSide: true))
+            .Select(b => OpenJobPrivacy.Coarsen(b.ToSummaryDto(artisanSide: true)))
             .ToList();
     }
 }
@@ -80,6 +80,7 @@ public sealed class GetOpenJobDetailHandler
         var booking = await _bookings.FindByIdReadOnlyAsync(bookingId, ct);
         if (booking is null || booking.Status != Domain.Bookings.BookingStatus.Open || !profile.CategorySlugs.Contains(booking.CategorySlug))
             throw new Common.NotFoundException("This request was not found.");
-        return await _dto.BuildAsync(booking, await _bids.CountActiveForBookingAsync(booking.Id, ct), ct);
+        var dto = await _dto.BuildAsync(booking, await _bids.CountActiveForBookingAsync(booking.Id, ct), ct);
+        return OpenJobPrivacy.Coarsen(dto, profile.VerificationStatus == ArtisanVerificationStatus.Verified);
     }
 }

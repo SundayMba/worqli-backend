@@ -237,6 +237,7 @@ namespace Servika.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("MaterialsAdvanceStatus")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(16)
@@ -1799,6 +1800,7 @@ namespace Servika.Infrastructure.Migrations
                         .HasDefaultValue(0);
 
                     b.Property<string>("Status")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");

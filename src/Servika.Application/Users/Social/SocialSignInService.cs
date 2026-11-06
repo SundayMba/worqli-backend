@@ -40,7 +40,7 @@ public sealed class SocialSignInService
     public async Task<AuthResponse> SignInAsync(string email, string? fullName, CancellationToken ct)
     {
         var now = _clock.UtcNow;
-        var user = await _users.FindByEmailOrPhoneAsync(email, ct);
+        var user = await _users.FindByEmailAsync(email.Trim().ToLowerInvariant(), ct);
 
         if (user is null)
         {
@@ -69,8 +69,16 @@ public sealed class SocialSignInService
 
             // An existing password account signing in with a provider for the first time: the provider's
             // attestation satisfies verify-to-finish too.
+            //
+            // Security: an unverified account was never proven to belong to this email's owner. Someone else may
+            // have signed up with it first and set the password. The provider proves the owner is the one here
+            // now, so the old password is replaced with an unusable one and any session it opened is ended.
             if (user.EmailVerifiedAtUtc is null)
+            {
+                user.ChangePassword(_passwordHasher.Hash(Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))));
+                await _users.RevokeAllRefreshTokensAsync(user.Id, now, ct);
                 user.MarkEmailVerified(now);
+            }
         }
 
         var access = _jwt.GenerateAccessToken(user);

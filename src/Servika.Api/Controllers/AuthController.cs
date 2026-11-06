@@ -37,6 +37,7 @@ public sealed class AuthController : ControllerBase
     /// <response code="201">Account created; verification code emailed.</response>
     /// <response code="400">Validation failed (e.g. password too short, bad role).</response>
     /// <response code="409">An account with this email already exists.</response>
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     [HttpPost("register")]
     [ProducesResponseType(typeof(RegisterResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -59,6 +60,7 @@ public sealed class AuthController : ControllerBase
     /// </remarks>
     /// <response code="200">Authenticated — session, or verificationRequired.</response>
     /// <response code="401">Invalid email/phone or password.</response>
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     [HttpPost("login")]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -81,6 +83,7 @@ public sealed class AuthController : ControllerBase
     /// <response code="200">Session issued (tokens + profile).</response>
     /// <response code="401">Token invalid/expired/for another app, or Google sign-in not configured.</response>
     /// <response code="403">Account suspended.</response>
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     [HttpPost("google")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -102,6 +105,7 @@ public sealed class AuthController : ControllerBase
     /// <response code="200">Session issued (tokens + profile).</response>
     /// <response code="401">Token invalid/expired/for another app, or Apple sign-in not configured.</response>
     /// <response code="403">Account suspended.</response>
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     [HttpPost("apple")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -155,6 +159,7 @@ public sealed class AuthController : ControllerBase
     /// </remarks>
     /// <response code="200">Code accepted; <c>verified=true</c>.</response>
     /// <response code="400">Code invalid, expired, or already used.</response>
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     [HttpPost("verify-otp")]
     [ProducesResponseType(typeof(VerifyOtpResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -170,6 +175,7 @@ public sealed class AuthController : ControllerBase
     /// <remarks>Always reports success so account existence is never revealed.</remarks>
     /// <response code="200">Request accepted; a code is sent if the account exists.</response>
     /// <response code="429">Asked again too soon — wait before retrying.</response>
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     [HttpPost("resend-otp")]
     [ProducesResponseType(typeof(ResendOtpResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
@@ -184,6 +190,7 @@ public sealed class AuthController : ControllerBase
     /// <summary>Start a password reset.</summary>
     /// <remarks>If the account exists, a reset token is sent. Always returns success.</remarks>
     /// <response code="200"><c>resetStarted=true</c>.</response>
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     [HttpPost("forgot-password")]
     [ProducesResponseType(typeof(ForgotPasswordResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ForgotPasswordResponse>> ForgotPassword(
@@ -198,6 +205,7 @@ public sealed class AuthController : ControllerBase
     /// <remarks>Requires the token, the new password, and its confirmation (min 8 chars).</remarks>
     /// <response code="200">Password changed.</response>
     /// <response code="400">Token invalid/expired, or passwords don't match / too weak.</response>
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     [HttpPatch("reset-password")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -325,6 +333,7 @@ public sealed class AuthController : ControllerBase
     /// <response code="400">Too short, no number, mismatch, or same as before.</response>
     /// <response code="401">Current password is wrong, or not signed in.</response>
     [Authorize]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     [HttpPost("change-password")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

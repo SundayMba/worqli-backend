@@ -29,4 +29,16 @@ public interface IWalletRepository
         WalletOwnerType ownerType, CancellationToken ct);
 
     Task<int> SaveChangesAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Opens a transaction holding a lock on one owner's wallet until it is committed or disposed. Two requests
+    /// for the same owner then run one after the other, so both cannot spend the same balance.
+    /// </summary>
+    Task<IWalletLock> LockOwnerAsync(WalletOwnerType ownerType, Guid ownerId, CancellationToken ct);
+}
+
+public interface IWalletLock : IAsyncDisposable
+{
+    /// <summary>Saves pending changes and commits, releasing the lock.</summary>
+    Task CommitAsync(CancellationToken ct);
 }

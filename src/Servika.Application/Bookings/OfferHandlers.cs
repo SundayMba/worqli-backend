@@ -72,11 +72,13 @@ public sealed class RespondToOfferHandler
     private readonly ArtisanBookingDtoBuilder _dto;
     private readonly IClock _clock;
     private readonly ArtisanCapacity _capacity;
+    private readonly Catalogue.GuarantorGate _guarantorGate;
 
     public RespondToOfferHandler(IJobOfferRepository offers, IBookingRepository bookings, ICatalogueRepository catalogue,
-        AssignmentService assignment, NotificationEmitter notifications, ArtisanBookingDtoBuilder dto, IClock clock, ArtisanCapacity capacity)
+        AssignmentService assignment, NotificationEmitter notifications, ArtisanBookingDtoBuilder dto, IClock clock, ArtisanCapacity capacity, Catalogue.GuarantorGate guarantorGate)
     {
         _capacity = capacity;
+        _guarantorGate = guarantorGate;
         _offers = offers;
         _bookings = bookings;
         _catalogue = catalogue;
@@ -97,6 +99,7 @@ public sealed class RespondToOfferHandler
         if (offer is null || !offer.IsLive(now))
             throw new ConflictException("This offer is no longer open. It went to the next artisan.");
         await _capacity.EnsureRoomAsync(profile.Id, ct);
+        await _guarantorGate.EnsureAsync(profile, ct);
 
         Booking assigned;
         if (offer.Source == JobOfferSource.Direct)

@@ -41,24 +41,10 @@ public sealed class ResendOtpHandler
         var ttl = OtpPolicy.TtlSecondsFor(purpose);
 
         var user = await _users.FindByEmailOrPhoneAsync(request.EmailOrPhone ?? string.Empty, ct);
-        if (user is not null)
-        {
-            var now = _clock.UtcNow;
-
-            var last = await _codes.FindLatestAsync(user.Id, purpose, ct);
-            if (last is not null && (now - last.CreatedAtUtc).TotalSeconds < OtpPolicy.ResendCooldownSeconds)
-                throw new TooManyRequestsException("Please wait before requesting another code.");
-
-            // Both account-verification and password-reset use 6-digit codes
-            // entered in-app.
-            var code = _otp.GenerateNumericCode();
-
-            _codes.Add(VerificationCode.Issue(user.Id, purpose, _otp.Hash(code), now.AddSeconds(ttl), now));
-
-            // Send before commit so a delivery failure leaves no dangling code.
-            await _sender.SendAsync(user.Email, code, purpose, ct);
-            await _codes.SaveChangesAsync(ct);
-        }
+        // Only an account still waiting on a code gets one: a verified account never needs a fresh
+        // verification code, and saying nothing different keeps the answer the same for everyone.
+        if (user is not null && (purpose == OtpPurpose.PasswordReset || user.EmailVerifiedAtUtc is null))
+            await QuietCodeIssuer.IssueAsync(user, purpose, _clock.UtcNow, _codes, _otp, _sender, ct);
 
         return new ResendOtpResponse(Sent: true, ExpiresInSeconds: ttl);
     }
