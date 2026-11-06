@@ -27,13 +27,15 @@ public sealed class SubmitBidHandler
     private readonly IPlatformSettingsRepository _settings;
     private readonly IClock _clock;
     private readonly ArtisanCapacity _capacity;
+    private readonly Catalogue.GuarantorGate _guarantorGate;
 
     public SubmitBidHandler(
         IBookingRepository bookings, IBidRepository bids, ICatalogueRepository catalogue,
         NotificationEmitter notifications, Payments.ArtisanStandingService standing, IClock clock,
-        IPlatformSettingsRepository settings, ArtisanCapacity capacity)
+        IPlatformSettingsRepository settings, ArtisanCapacity capacity, Catalogue.GuarantorGate guarantorGate)
     {
         _capacity = capacity;
+        _guarantorGate = guarantorGate;
         _settings = settings;
         _bookings = bookings;
         _bids = bids;
@@ -109,6 +111,9 @@ public sealed class SubmitBidHandler
         }
         if (request.VisitFirst && isDirectQuote)
             throw new ArgumentException("This job was sent to you. Accept it to visit first, or send your price.");
+        // Taking on new work needs guarantors; quoting on a job already accepted does not.
+        if (!isDirectQuote || booking.Status == BookingStatus.Pending)
+            await _guarantorGate.EnsureAsync(profile, ct);
 
         var now = _clock.UtcNow;
         // Itemised quote: labour + material lines (total derived). A legacy

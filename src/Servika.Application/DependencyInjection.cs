@@ -112,6 +112,7 @@ public static class DependencyInjection
         // Assignment: Servika offers each request to one artisan at a time, in rotation.
         services.AddScoped<AssignmentService>();
         services.AddScoped<ArtisanCapacity>();
+        services.AddScoped<Catalogue.GuarantorGate>();
         services.AddScoped<GetMyOffersHandler>();
         services.AddScoped<RespondToOfferHandler>();
         services.AddScoped<OfferSweepHandler>();

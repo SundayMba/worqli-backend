@@ -66,16 +66,7 @@ public sealed class SubmitKycHandler
             !ArtisanKyc.LivenessMethods.Contains((request.Liveness.Method ?? "").Trim().ToLowerInvariant()))
             throw new ArgumentException($"Unknown liveness method '{request.Liveness.Method}'.");
 
-        // Guarantors are required unless the admin switched the rule off or waived it for this artisan.
-        var settings = await _settings.GetOrCreateAsync(ct);
-        var profileForPolicy = await _catalogue.GetArtisanByUserIdAsync(artisanUserId, ct);
-        if (settings.RequireGuarantors && !(profileForPolicy?.GuarantorsWaived ?? false))
-        {
-            var have = await _guarantors.CountForUserAsync(artisanUserId, ct);
-            if (have < settings.RequiredGuarantorCount)
-                throw new ConflictException(
-                    $"Add {settings.RequiredGuarantorCount} guarantor{(settings.RequiredGuarantorCount == 1 ? "" : "s")} before sending your application. You have {have}.");
-        }
+        // Guarantors do not hold up the application: they are needed before taking work (GuarantorGate).
 
         var selfie = DecodeImage(request.SelfieBase64, "selfie");
         var idImage = DecodeImage(request.IdImageBase64, "ID document");

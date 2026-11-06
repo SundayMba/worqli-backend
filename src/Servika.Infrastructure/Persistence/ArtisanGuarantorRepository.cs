@@ -21,8 +21,16 @@ public sealed class ArtisanGuarantorRepository : IArtisanGuarantorRepository
             .OrderBy(g => g.CreatedAt)
             .ToListAsync(ct);
 
+    // A guarantor the reviewer called and who said they do not vouch does not count.
     public Task<int> CountForUserAsync(Guid artisanUserId, CancellationToken ct) =>
-        _db.ArtisanGuarantors.CountAsync(g => g.ArtisanUserId == artisanUserId, ct);
+        _db.ArtisanGuarantors.CountAsync(g => g.ArtisanUserId == artisanUserId && g.ContactStatus != GuarantorContactStatus.Denied, ct);
+
+    public async Task<IReadOnlyDictionary<Guid, int>> CountForUsersAsync(IReadOnlyCollection<Guid> artisanUserIds, CancellationToken ct) =>
+        await _db.ArtisanGuarantors
+            .Where(g => artisanUserIds.Contains(g.ArtisanUserId) && g.ContactStatus != GuarantorContactStatus.Denied)
+            .GroupBy(g => g.ArtisanUserId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
 
     public Task<ArtisanGuarantor?> FindForUserAsync(Guid id, Guid artisanUserId, CancellationToken ct) =>
         _db.ArtisanGuarantors.FirstOrDefaultAsync(g => g.Id == id && g.ArtisanUserId == artisanUserId, ct);

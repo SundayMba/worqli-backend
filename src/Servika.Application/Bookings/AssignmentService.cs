@@ -26,12 +26,14 @@ public sealed class AssignmentService
     private readonly IAdminAlerts _alerts;
     private readonly Payments.RefundService _refunds;
     private readonly IBookingRepository _bookings;
+    private readonly IArtisanGuarantorRepository _guarantors;
 
     public AssignmentService(
         IJobOfferRepository offers, ICatalogueRepository catalogue, Payments.ArtisanStandingService standing,
         IPlatformSettingsRepository settings, NotificationEmitter notifications, IAdminAlerts alerts,
-        Payments.RefundService refunds, IBookingRepository bookings)
+        Payments.RefundService refunds, IBookingRepository bookings, IArtisanGuarantorRepository guarantors)
     {
+        _guarantors = guarantors;
         _bookings = bookings;
         _refunds = refunds;
         _offers = offers;
@@ -77,7 +79,17 @@ public sealed class AssignmentService
             return 0;
         }
 
-        foreach (var r in eligible) _notifications.OpenJobPosted(r.UserId, booking);
+        // Artisans still missing guarantors see the job (they can look) and are told what they need to bid.
+        var settings = await _settings.GetOrCreateAsync(ct);
+        var counts = settings.RequireGuarantors
+            ? await _guarantors.CountForUsersAsync(eligible.Select(r => r.UserId).ToList(), ct)
+            : new Dictionary<Guid, int>();
+        foreach (var r in eligible)
+        {
+            var needs = settings.RequireGuarantors && !r.GuarantorsWaived
+                && counts.GetValueOrDefault(r.UserId) < settings.RequiredGuarantorCount;
+            _notifications.OpenJobPosted(r.UserId, booking, needs);
+        }
         booking.RecordOffer(now);
         return eligible.Count;
     }
