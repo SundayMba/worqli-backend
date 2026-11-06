@@ -17,7 +17,7 @@ internal static class CatalogueMapping
     public static ArtisanSummaryDto ToSummaryDto(this ArtisanProfile a, double? distanceKm, int completedJobs) =>
         new(a.Id, a.ImageKey, a.FullName, a.Specialty, a.Rating, a.ReviewCount,
             distanceKm, a.IsAvailable, a.Accent,
-            a.Latitude, a.Longitude, a.PhotoUrl(), a.HasCertificate,
+            PublicPoint(a.Latitude), PublicPoint(a.Longitude), a.PhotoUrl(), a.HasCertificate,
             a.VerificationStatus == ArtisanVerificationStatus.Verified, completedJobs);
 
     public static ArtisanDetailDto ToDetailDto(
@@ -68,4 +68,10 @@ internal static class CatalogueMapping
         a.PendingGalleryPhotoKeys
             .Select(k => $"/api/v1/artisans/{a.Id}/gallery/{k}")
             .ToList();
+
+    /// <summary>
+    /// An artisan's pin is often their home. Public responses carry it rounded to about a kilometre: enough for a
+    /// map pin and "2 km away", not enough to find a door. Distances are worked out on the exact point server-side.
+    /// </summary>
+    internal static double? PublicPoint(double? v) => v is { } x ? Math.Round(x, 2) : null;
 }

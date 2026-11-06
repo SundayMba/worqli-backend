@@ -136,9 +136,10 @@ public sealed class AssignmentService
         foreach (var live in await _offers.ListLiveForBookingAsync(bookingId, ct)) live.Withdraw(now);
     }
 
+    /// <summary>The area only, never the street: this goes into notifications to artisans not yet picked.</summary>
     internal static string Area(Booking booking)
     {
-        var first = (booking.AddressText ?? string.Empty).Split(',')[0].Trim();
-        return string.IsNullOrWhiteSpace(first) ? "your area" : first;
+        var area = OpenJobPrivacy.Area(booking.AddressText);
+        return area.StartsWith("Area shown", StringComparison.Ordinal) ? "your area" : area;
     }
 }

@@ -8,6 +8,8 @@ public sealed record BidMaterialLine(string Name, int Quantity, int UnitPriceNai
 {
     public const int MaxNameLength = 80;
     public const int MaxLines = 20;
+    /// <summary>Upper bound for one line and for labour, so totals of 20 lines always fit an int.</summary>
+    public const int MaxLineNaira = 50_000_000;
 
     public int TotalNaira => Quantity * UnitPriceNaira;
 
@@ -22,6 +24,8 @@ public sealed record BidMaterialLine(string Name, int Quantity, int UnitPriceNai
             throw new ArgumentException("Material quantity must be at least 1.", nameof(quantity));
         if (unitPriceNaira < 0)
             throw new ArgumentException("Material price can't be negative.", nameof(unitPriceNaira));
+        if (quantity > 10_000 || (long)quantity * unitPriceNaira > MaxLineNaira)
+            throw new ArgumentException("That material line is too large. Check the quantity and price.", nameof(quantity));
         return new BidMaterialLine(n, quantity, unitPriceNaira);
     }
 }

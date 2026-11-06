@@ -55,4 +55,39 @@ public sealed class WalletRepository : IWalletRepository
             .ToDictionaryAsync(x => x.OwnerId, x => x.Balance, ct);
 
     public Task<int> SaveChangesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
+
+    public async Task<IWalletLock> LockOwnerAsync(WalletOwnerType ownerType, Guid ownerId, CancellationToken ct)
+    {
+        var tx = await _db.Database.BeginTransactionAsync(ct);
+        // Postgres transaction-scoped advisory lock keyed by the owner; released on commit or rollback.
+        var key = BitConverter.ToInt64(ownerId.ToByteArray(), 0) ^ (long)ownerType;
+        await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+        return new WalletLock(_db, tx);
+    }
+
+    private sealed class WalletLock : IWalletLock
+    {
+        private readonly ServikaDbContext _db;
+        private readonly Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction _tx;
+        private bool _done;
+
+        public WalletLock(ServikaDbContext db, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction tx)
+        {
+            _db = db;
+            _tx = tx;
+        }
+
+        public async Task CommitAsync(CancellationToken ct)
+        {
+            await _db.SaveChangesAsync(ct);
+            await _tx.CommitAsync(ct);
+            _done = true;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (!_done) await _tx.RollbackAsync();
+            await _tx.DisposeAsync();
+        }
+    }
 }

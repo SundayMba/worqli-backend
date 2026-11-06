@@ -38,22 +38,7 @@ public sealed class ForgotPasswordHandler
     {
         var user = await _users.FindByEmailOrPhoneAsync(request.EmailOrPhone ?? string.Empty, ct);
         if (user is not null)
-        {
-            var now = _clock.UtcNow;
-            // 6-digit numeric code (entered in-app), not a long link token.
-            var code = _otp.GenerateNumericCode();
-
-            _codes.Add(VerificationCode.Issue(
-                user.Id,
-                OtpPurpose.PasswordReset,
-                _otp.Hash(code),
-                now.AddSeconds(OtpPolicy.ResetTokenTtlSeconds),
-                now));
-
-            // Send before commit: a delivery failure leaves no dangling code.
-            await _sender.SendAsync(user.Email, code, OtpPurpose.PasswordReset, ct);
-            await _codes.SaveChangesAsync(ct);
-        }
+            await Otp.QuietCodeIssuer.IssueAsync(user, OtpPurpose.PasswordReset, _clock.UtcNow, _codes, _otp, _sender, ct);
 
         return new ForgotPasswordResponse(ResetStarted: true);
     }
