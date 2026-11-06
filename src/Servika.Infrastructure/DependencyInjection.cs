@@ -61,6 +61,7 @@ public static class DependencyInjection
         // Clock is stateless (Singleton); the repository wraps the per-request
         // DbContext, so it must share its Scoped lifetime.
         services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton<Servika.Application.Abstractions.Security.IAuthThrottle, Security.InMemoryAuthThrottle>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IAccountEraser, AccountEraser>();
 

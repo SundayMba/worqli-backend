@@ -223,9 +223,45 @@ builder.Services.AddHealthChecks();
 // send + a few verify attempts — never trips it. Returns 429 when exceeded.
 // (Behind a proxy/LB, register forwarded-headers so the client IP is real.)
 const string PhoneOtpRateLimit = "phone-otp";
+
+// Caddy on the same host fronts the API and puts the caller's address in X-Forwarded-For. Without this every
+// request would look like it came from Caddy, and the per-IP limits below would share one bucket for everyone.
+// Only private/loopback senders are trusted: port 8080 is firewalled from the internet, so they can only be Caddy.
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+    foreach (var (prefix, bits) in new[] { ("127.0.0.0", 8), ("10.0.0.0", 8), ("172.16.0.0", 12), ("192.168.0.0", 16) })
+        options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(System.Net.IPAddress.Parse(prefix), bits));
+    options.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+});
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // The apps show a ProblemDetails title, so say something a person can act on.
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/problem+json";
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            status = 429,
+            title = "Too many tries. Wait a few minutes and try again.",
+        }, token);
+    };
+    // Sign-in, sign-up, codes and password reset: a ceiling per address against password guessing and code
+    // guessing. Generous enough for a family behind one router; the per-email throttle does the finer work.
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(5),
+            }));
     options.AddPolicy(PhoneOtpRateLimit, httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -284,6 +320,7 @@ using (var scope = app.Services.CreateScope())
 
 // First in the pipeline so it catches exceptions from everything downstream and
 // turns our use-case exceptions into clean ProblemDetails responses.
+app.UseForwardedHeaders();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 // Swagger exposes the full API surface + an auth-primed "try it" console, so it's

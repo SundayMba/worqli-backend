@@ -30,6 +30,7 @@ public sealed class RegisterUserHandler
     private readonly IOtpService _otp;
     private readonly IOtpSender _sender;
     private readonly IClock _clock;
+    private readonly IAuthThrottle _throttle;
 
     public RegisterUserHandler(
         IUserRepository users,
@@ -39,8 +40,10 @@ public sealed class RegisterUserHandler
         IPasswordHasher passwordHasher,
         IOtpService otp,
         IOtpSender sender,
-        IClock clock)
+        IClock clock,
+        IAuthThrottle throttle)
     {
+        _throttle = throttle;
         _users = users;
         _codes = codes;
         _referrals = referrals;
@@ -60,7 +63,15 @@ public sealed class RegisterUserHandler
         // Normalise the same way the Domain does, so the duplicate check matches.
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
         if (await _users.EmailExistsAsync(normalizedEmail, ct))
-            throw new EmailAlreadyInUseException(normalizedEmail);
+        {
+            // Never say "that email is taken": it tells a stranger who has an account. Answer exactly as for a
+            // new address, do the same hashing work so the timing matches, and email the owner instead of a code
+            // (at most every 10 minutes, so nobody can flood their inbox through this form).
+            _ = _passwordHasher.Hash(request.Password);
+            if (_throttle.TryClaim("exists:" + normalizedEmail, TimeSpan.FromMinutes(10), _clock.UtcNow))
+                await _sender.SendAccountExistsNoticeAsync(normalizedEmail, ct);
+            return new RegisterResponse(Email: normalizedEmail, VerificationRequired: true);
+        }
 
         var now = _clock.UtcNow;
 

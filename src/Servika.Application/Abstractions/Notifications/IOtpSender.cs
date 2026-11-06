@@ -11,4 +11,7 @@ namespace Servika.Application.Abstractions.Notifications;
 public interface IOtpSender
 {
     Task SendAsync(string destination, string code, OtpPurpose purpose, CancellationToken ct);
+
+    /// <summary>Someone tried to sign up with an address that already has an account: tell its owner, send no code.</summary>
+    Task SendAccountExistsNoticeAsync(string destination, CancellationToken ct);
 }

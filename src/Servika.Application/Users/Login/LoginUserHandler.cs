@@ -25,6 +25,11 @@ public sealed class LoginUserHandler
     private readonly IJwtTokenGenerator _jwt;
     private readonly IRefreshTokenGenerator _refreshTokens;
     private readonly IClock _clock;
+    private readonly IAuthThrottle _throttle;
+
+    // A real BCrypt hash nobody's password matches, checked when the account does not exist so a wrong email
+    // takes as long to refuse as a wrong password (otherwise the response time gives the answer away).
+    private static string? _decoyHash;
 
     public LoginUserHandler(
         IUserRepository users,
@@ -34,8 +39,10 @@ public sealed class LoginUserHandler
         IOtpSender sender,
         IJwtTokenGenerator jwt,
         IRefreshTokenGenerator refreshTokens,
-        IClock clock)
+        IClock clock,
+        IAuthThrottle throttle)
     {
+        _throttle = throttle;
         _users = users;
         _codes = codes;
         _passwordHasher = passwordHasher;
@@ -48,12 +55,26 @@ public sealed class LoginUserHandler
 
     public async Task<LoginResponse> HandleAsync(LoginRequest request, CancellationToken ct)
     {
-        var user = await _users.FindByEmailOrPhoneAsync(request.EmailOrPhone?.Trim() ?? string.Empty, ct);
+        var identifier = request.EmailOrPhone?.Trim() ?? string.Empty;
+        var throttleKey = "login:" + identifier.ToLowerInvariant();
+        var started = _clock.UtcNow;
 
-        // Same generic failure whether the user is missing or the password is
-        // wrong — never disclose which, to avoid account enumeration.
-        if (user is null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
+        // Too many wrong tries for this email or phone, whether or not it has an account.
+        if (_throttle.IsBlocked(throttleKey, started))
+            throw new TooManyRequestsException("Too many tries. Wait 15 minutes, or reset your password.");
+
+        var user = await _users.FindByEmailOrPhoneAsync(identifier, ct);
+
+        // Same generic failure, and the same work, whether the user is missing or the password is wrong:
+        // never disclose which, to avoid account enumeration.
+        var hash = user?.PasswordHash ?? (_decoyHash ??= _passwordHasher.Hash(Guid.NewGuid().ToString("N")));
+        var passwordOk = _passwordHasher.Verify(request.Password ?? string.Empty, hash);
+        if (user is null || !passwordOk)
+        {
+            _throttle.RecordFailure(throttleKey, started);
             throw new InvalidCredentialsException();
+        }
+        _throttle.Reset(throttleKey);
 
         // An admin-suspended account can't sign in.
         if (user.IsSuspended)
