@@ -7,7 +7,7 @@ namespace Servika.Application.Catalogue;
 /// </summary>
 public static class BookingCodes
 {
-    public const string LinkBase = "https://servika.com.ng/a/";
+    public const string LinkBase = "https://www.servika.com.ng/a/";
     public const int MaxLength = 16;
 
     public static string Generate(string fullName)
