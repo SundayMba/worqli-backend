@@ -6,7 +6,8 @@ using Servika.Domain.Bookings;
 namespace Servika.Application.Bookings;
 
 /// <summary>
-/// The open jobs a signed-in artisan can bid on: in their trades, accepted by their work rules, newest first.
+/// The open jobs a signed-in artisan can bid on: in their trades and within reach of their base (see
+/// <see cref="OpenJobMatching.PoolAccepts"/>), nearest first, then newest. Unpinned jobs come last.
 /// A pending artisan may read the pool (bidding needs Verified server-side); a restricted or away one sees none.
 /// </summary>
 public sealed class GetOpenJobsHandler
@@ -50,8 +51,12 @@ public sealed class GetOpenJobsHandler
         var rules = OpenJobMatching.RulesOf(profile);
         var open = await _bookings.ListOpenInCategoriesAsync(profile.CategorySlugs, ct);
         return open
-            .Where(b => OpenJobMatching.Accepts(rules, b, now))
-            .Select(b => OpenJobPrivacy.Coarsen(b.ToSummaryDto(artisanSide: true)))
+            .Where(b => OpenJobMatching.PoolAccepts(rules, b, now))
+            .Select(b => (Booking: b, Km: OpenJobMatching.DistanceKm(rules, b)))
+            .OrderBy(x => x.Km is null)
+            .ThenBy(x => x.Km ?? 0)
+            .ThenByDescending(x => x.Booking.CreatedAt)
+            .Select(x => OpenJobPrivacy.Coarsen(x.Booking.ToSummaryDto(artisanSide: true)))
             .ToList();
     }
 }

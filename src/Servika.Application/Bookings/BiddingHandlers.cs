@@ -513,5 +513,6 @@ internal static class BidMapping
             forArtisan ? bid.ReviewNote : null,
             bid.Kind.ToString(),
             bid.VisitFeeNaira,
-            bid.AvailableFromUtc);
+            bid.AvailableFromUtc,
+            ArtisanArea: string.IsNullOrWhiteSpace(profile?.Location) ? null : profile.Location.Trim());
 }

@@ -262,7 +262,7 @@ public sealed class ArtisanProfile
 
     /// <summary>How far the artisan will travel for open jobs (km). Informational
     /// at launch; the customer search still uses proximity ranking.</summary>
-    public int WorkRadiusKm { get; private set; } = 8;
+    public int WorkRadiusKm { get; private set; } = 80;
     /// <summary>Opted in to urgent ("emergency") requests.</summary>
     public bool AcceptsEmergency { get; private set; }
     /// <summary>Working hours as a small JSON blob the apps own (per weekday).</summary>

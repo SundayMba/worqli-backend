@@ -43,7 +43,9 @@ public sealed record BidDto(
     /// <summary>When the artisan can come; null = as soon as they are picked.</summary>
     DateTimeOffset? AvailableFromUtc = null,
     /// <summary>On another job right now (arrived or working). Shown to the customer with the free-from time.</summary>
-    bool ArtisanBusy = false);
+    bool ArtisanBusy = false,
+    /// <summary>The area the artisan works from, as they typed it (e.g. "Ajah, Lagos"). Never a street.</summary>
+    string? ArtisanArea = null);
 
 /// <summary>POST /api/v1/bookings/{id}/bids/{bidId}/counter body: the customer's
 /// proposed WORKMANSHIP price (materials stay as itemised).</summary>

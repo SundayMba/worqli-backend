@@ -260,7 +260,7 @@ public sealed class ServikaDbContext : DbContext
             artisan.Property(a => a.PayoutBankName).HasMaxLength(80);
             artisan.Property(a => a.PayoutAccountNumber).HasMaxLength(10);
             artisan.Property(a => a.PayoutAccountName).HasMaxLength(120);
-            artisan.Property(a => a.WorkRadiusKm).HasDefaultValue(8);
+            artisan.Property(a => a.WorkRadiusKm).HasDefaultValue(80);
             artisan.Property(a => a.AcceptsEmergency).HasDefaultValue(false);
             artisan.Property(a => a.WorkingHoursJson).HasMaxLength(2000);
 

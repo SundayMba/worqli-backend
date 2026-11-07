@@ -838,7 +838,7 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<int>("WorkRadiusKm")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
-                        .HasDefaultValue(8);
+                        .HasDefaultValue(80);
 
                     b.Property<string>("WorkingHoursJson")
                         .HasMaxLength(2000)

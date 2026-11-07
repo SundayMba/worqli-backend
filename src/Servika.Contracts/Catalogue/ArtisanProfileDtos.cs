@@ -41,7 +41,7 @@ public sealed record MyArtisanProfileDto(
     string? PayoutAccountMasked = null,
     string? PayoutAccountName = null,
     /// <summary>Work preferences (design 49) and away mode (design 64).</summary>
-    int WorkRadiusKm = 8,
+    int WorkRadiusKm = 80,
     bool AcceptsEmergency = false,
     string? WorkingHoursJson = null,
     DateTimeOffset? AwayUntilUtc = null,
