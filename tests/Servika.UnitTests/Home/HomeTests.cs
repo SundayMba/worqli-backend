@@ -9,11 +9,12 @@ public class HomeTests
     private static ArtisanWorkRules Rules(double? lat, double? lng, int radius = 8) => new(lat, lng, radius, true, null);
 
     [Fact]
-    public void Covers_a_point_inside_the_radius_only()
+    public void Covers_any_point_the_open_pool_reaches_whatever_the_alert_radius()
     {
-        var lekki = Rules(6.4474, 3.4700);
+        var lekki = Rules(6.4474, 3.4700, radius: 8);
         Assert.True(GetAvailabilityHandler.Covers(lekki, 6.4500, 3.4800));      // ~1 km
-        Assert.False(GetAvailabilityHandler.Covers(lekki, 6.6000, 3.3500));     // ~21 km
+        Assert.True(GetAvailabilityHandler.Covers(lekki, 6.6000, 3.3500));      // ~21 km, outside the alert radius
+        Assert.False(GetAvailabilityHandler.Covers(lekki, 7.3775, 3.9470));     // Ibadan, ~115 km
     }
 
     [Fact]
@@ -22,7 +23,7 @@ public class HomeTests
         Assert.False(GetAvailabilityHandler.Covers(Rules(null, null), 6.6, 3.35));
         Assert.True(GetAvailabilityHandler.Covers(Rules(null, null), null, null));
         Assert.True(GetAvailabilityHandler.Covers(Rules(6.4474, 3.47), null, null));
-        Assert.True(GetAvailabilityHandler.Covers(Rules(6.4474, 3.47, radius: 0), 9.0, 7.4));
+        Assert.False(GetAvailabilityHandler.Covers(Rules(6.4474, 3.47, radius: 0), 9.0, 7.4));   // Abuja is out of reach
     }
 
     [Fact]

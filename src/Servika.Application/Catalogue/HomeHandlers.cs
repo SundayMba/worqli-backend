@@ -7,8 +7,9 @@ using Servika.Domain.Catalogue;
 namespace Servika.Application.Catalogue;
 
 /// <summary>
-/// The availability line on Home: checked artisans who could take a job at this point now (online,
-/// not away, point inside their own work radius), and how many cover it at all. Counts only, no names.
+/// The availability line on Home: checked artisans who would see a job posted at this point (not away,
+/// base within the open pool's reach, <see cref="Bookings.OpenJobMatching.PoolMaxKm"/>) and how many of
+/// them are online now. Counts only, no names.
 /// </summary>
 public sealed class GetAvailabilityHandler
 {
@@ -38,14 +39,15 @@ public sealed class GetAvailabilityHandler
         return new AvailabilityDto(available, covering);
     }
 
-    /// <summary>The point is inside the artisan's radius. With no point given every artisan counts; an
-    /// artisan with no pinned base does not count for a known point (Home must never claim coverage it
-    /// cannot show), and no radius means no limit.</summary>
+    /// <summary>The artisan would see a job at this point: their base is within the open pool's reach (the
+    /// same rule the open-jobs list uses; their alert radius does not matter). With no point given every
+    /// artisan counts; an artisan with no pinned base does not count for a known point (Home must never
+    /// claim coverage it cannot show).</summary>
     public static bool Covers(ArtisanWorkRules rules, double? lat, double? lng)
     {
         if (lat is not { } la || lng is not { } ln) return true;
         if (rules.Latitude is not { } aLat || rules.Longitude is not { } aLng) return false;
-        return rules.WorkRadiusKm <= 0 || GeoDistance.Km(la, ln, aLat, aLng) <= rules.WorkRadiusKm;
+        return GeoDistance.Km(la, ln, aLat, aLng) <= Bookings.OpenJobMatching.PoolMaxKm;
     }
 }
 
