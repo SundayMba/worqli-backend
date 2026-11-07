@@ -1,3 +1,4 @@
+using Servika.Application.Abstractions.Notifications;
 using Servika.Application.Abstractions.Persistence;
 using Servika.Application.Abstractions.Time;
 using Servika.Contracts.Catalogue;
@@ -53,18 +54,37 @@ public sealed class RecordServiceInterestHandler
 {
     private readonly ICatalogueRepository _catalogue;
     private readonly IClock _clock;
+    private readonly IAdminAlerts _alerts;
 
-    public RecordServiceInterestHandler(ICatalogueRepository catalogue, IClock clock)
+    public RecordServiceInterestHandler(ICatalogueRepository catalogue, IClock clock, IAdminAlerts alerts)
     {
         _catalogue = catalogue;
         _clock = clock;
+        _alerts = alerts;
     }
 
     public async Task HandleAsync(Guid? userId, RecordServiceInterestRequest request, CancellationToken ct)
     {
-        _catalogue.AddServiceInterest(ServiceInterest.Record(
-            request.CategorySlug, request.Note, request.AreaLabel, request.Latitude, request.Longitude, userId, _clock.UtcNow));
+        var interest = ServiceInterest.Record(
+            request.CategorySlug, request.Note, request.AreaLabel, request.Latitude, request.Longitude, userId, _clock.UtcNow);
+        _catalogue.AddServiceInterest(interest);
         await _catalogue.SaveChangesAsync(ct);
+
+        // Tell ops after it is saved. The note is the customer's own words, so phone numbers and emails are hidden
+        // (alerts never carry personal details) and it is cut short.
+        var service = interest.CategorySlug is { } slug
+            ? (await _catalogue.GetCategoryBySlugAsync(slug, ct))?.Name ?? slug
+            : null;
+        var lines = new List<string>();
+        if (service is not null) lines.Add($"Service: {service}");
+        if (interest.Note is { } note)
+        {
+            var safe = Chat.ChatContentPolicy.Redact(note);
+            lines.Add($"They wrote: \"{(safe.Length > 140 ? safe[..140] + "…" : safe)}\"");
+        }
+        lines.Add($"Area: {interest.AreaLabel ?? "not given"} · {(userId is null ? "guest" : "signed in")}");
+        _alerts.Send(new AdminAlert(AdminAlertKind.ServiceRequest, "Someone asked for a service", lines,
+            "/service-requests", "See all requests"));
     }
 }
 

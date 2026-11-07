@@ -24,6 +24,7 @@ public sealed class HomeController : ControllerBase
     }
 
     /// <summary>"Tell us what you need": a service or an area Servika does not offer yet. Guests may send it.</summary>
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     [HttpPost("api/v1/service-interest")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

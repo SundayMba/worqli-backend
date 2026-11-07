@@ -20,6 +20,8 @@ public enum AdminAlertKind
     ServicePostToReview,
     /// <summary>An estate or facility manager asked to talk to Servika.</summary>
     EstateEnquiry,
+    /// <summary>A customer asked for a service or an area Servika does not offer yet.</summary>
+    ServiceRequest,
 }
 
 /// <summary>
