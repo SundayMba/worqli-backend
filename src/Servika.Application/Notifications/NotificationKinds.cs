@@ -22,6 +22,8 @@ public static class NotificationKinds
     public const string ArtisanOnTheWay = "ArtisanOnTheWay";
     public const string ArtisanArrived = "ArtisanArrived";
     public const string WorkStarted = "WorkStarted";
+    public const string DoorCodeConfirmed = "DoorCodeConfirmed";
+    public const string DoorCodeLocked = "DoorCodeLocked";
     public const string BidPlaced = "BidPlaced";
     public const string BidAccepted = "BidAccepted";
     public const string CounterOffer = "CounterOffer";

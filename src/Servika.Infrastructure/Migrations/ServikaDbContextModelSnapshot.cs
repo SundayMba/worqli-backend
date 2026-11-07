@@ -208,6 +208,18 @@ namespace Servika.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("DisputedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DoorCode")
+                        .HasColumnType("text");
+
+                    b.Property<int>("DoorCodeAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("DoorCodeConfirmedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DoorCodeLockedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int?>("InitialQuoteAmountNaira")
                         .HasColumnType("integer");
 

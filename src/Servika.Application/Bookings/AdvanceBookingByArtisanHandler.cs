@@ -70,7 +70,7 @@ public sealed class AdvanceBookingByArtisanHandler
                 reassign = true;
                 break;
             case ArtisanBookingAction.StartTrip: booking.StartTrip(now); break;
-            case ArtisanBookingAction.Arrive: booking.Arrive(now); break;
+            case ArtisanBookingAction.Arrive: booking.Arrive(now, DoorCodes.New()); break;
             case ArtisanBookingAction.StartWork: booking.StartWork(_clock.UtcNow); break;
             case ArtisanBookingAction.Cancel:
                 booking.Cancel(now);

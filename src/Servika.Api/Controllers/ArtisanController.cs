@@ -252,6 +252,17 @@ public sealed class ArtisanController : ControllerBase
         Guid id, [FromServices] AdvanceBookingByArtisanHandler handler, CancellationToken ct) =>
         Advance(id, ArtisanBookingAction.Arrive, handler, ct);
 
+    /// <summary>Enter the door code the customer read out. 400 = wrong (tries left in the message),
+    /// 409 = locked after too many wrong tries (the customer must show a new code).</summary>
+    [HttpPost("{id:guid}/door-code")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BookingDetailDto>> ConfirmDoorCode(
+        Guid id, [FromBody] ConfirmDoorCodeRequest request, [FromServices] ConfirmDoorCodeHandler handler, CancellationToken ct) =>
+        Ok(await handler.HandleAsync(CurrentUserId(), id, request.Code, ct));
+
     /// <summary>Begin the work (Arrived → InProgress).</summary>
     [HttpPost("{id:guid}/start")]
     public Task<ActionResult<BookingDetailDto>> Start(

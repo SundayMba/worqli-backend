@@ -65,6 +65,7 @@ public sealed class ProposeRepairsHandler
             throw new ConflictException("This is a custom job. Send your itemised quote first.");
         if (booking.Status is not (BookingStatus.Arrived or BookingStatus.InProgress))
             throw new ConflictException("Repairs are added once you are at the job.");
+        booking.EnsureDoorCodeConfirmed();
         if (booking.PaidNaira <= 0 || booking.AmountDueNaira > 0)
             throw new ConflictException("Wait until the customer has paid for what is already agreed.");
 

@@ -230,6 +230,15 @@ public sealed class BookingsController : ControllerBase
         return File(file.Content, file.ContentType);
     }
 
+    /// <summary>Show a new door code (after too many wrong tries, or any time before it is confirmed).</summary>
+    [HttpPost("{id:guid}/door-code/new")]
+    [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<BookingDetailDto>> NewDoorCode(
+        Guid id, [FromServices] ReissueDoorCodeHandler handler, CancellationToken ct) =>
+        Ok(await handler.HandleAsync(CurrentUserId(), id, ct));
+
     [HttpPost("{id:guid}/cancel")]
     [ProducesResponseType(typeof(BookingDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

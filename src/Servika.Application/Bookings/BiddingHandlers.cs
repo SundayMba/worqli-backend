@@ -74,6 +74,8 @@ public sealed class SubmitBidHandler
         var isDirectQuote = booking.ArtisanId == profile.Id
             && booking.Status is BookingStatus.Pending or BookingStatus.Accepted
                 or BookingStatus.OnMyWay or BookingStatus.Arrived;
+        // Nothing is priced from inside the home until the artisan has entered the door code.
+        if (isDirectQuote && booking.Status == BookingStatus.Arrived) booking.EnsureDoorCodeConfirmed();
         if (isDirectQuote && booking.IsCustomQuote)
         {
             // A custom job is quoted after the paid visit, once, before the customer accepts.

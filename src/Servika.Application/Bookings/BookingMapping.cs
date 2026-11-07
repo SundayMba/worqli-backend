@@ -97,7 +97,12 @@ internal static class BookingMapping
             b.AmountDueNaira,
             b.IsCustomQuote,
             b.TypicalRangeMinNaira,
-            b.TypicalRangeMaxNaira);
+            b.TypicalRangeMaxNaira,
+            DoorCode: artisanSide is null && b.DoorCodePending ? b.DoorCode : null,
+            DoorCodeRequired: b.DoorCodePending,
+            DoorCodeConfirmedAtUtc: b.DoorCodeConfirmedAtUtc,
+            DoorCodeLocked: b.DoorCodePending && b.DoorCodeLocked,
+            DoorCodeAttemptsLeft: b.DoorCodePending ? b.DoorCodeAttemptsLeft : 0);
 
     /// <summary>What the artisan actually receives for the job: the agreed amount
     /// minus Servika's commission at the booking's rate (rounded exactly like

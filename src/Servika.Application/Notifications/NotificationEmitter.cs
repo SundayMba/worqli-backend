@@ -83,7 +83,9 @@ public sealed class NotificationEmitter
             ArtisanBookingAction.StartTrip =>
                 (NotificationKinds.ArtisanOnTheWay, "Artisan on the way", $"{who} is on the way. Put cash and small valuables away before they arrive."),
             ArtisanBookingAction.Arrive =>
-                (NotificationKinds.ArtisanArrived, "Artisan arrived", $"{who} is at your door. Check it is the person in the app before you let them in."),
+                booking.DoorCodePending
+                    ? (NotificationKinds.ArtisanArrived, "Artisan arrived", $"{who} is at your door. Open Servika for your door code and give it to them before you let them in.")
+                    : (NotificationKinds.ArtisanArrived, "Artisan arrived", $"{who} is at your door. Check it is the person in the app before you let them in."),
             ArtisanBookingAction.StartWork =>
                 (NotificationKinds.WorkStarted, "Work started", $"{who} has started your {service} job."),
             ArtisanBookingAction.Cancel =>
@@ -94,6 +96,25 @@ public sealed class NotificationEmitter
 
         if (title.Length == 0) return; // nothing to announce for this action
         Add(booking.CustomerId, NotificationAudience.Customer, NotificationType.Booking, kind, title, body, booking.Id);
+    }
+
+    /// <summary>The artisan entered the right door code: it is them at the door.</summary>
+    public void DoorCodeConfirmed(Booking booking)
+    {
+        var who = booking.ArtisanName ?? "Your artisan";
+        Add(booking.CustomerId, NotificationAudience.Customer, NotificationType.Booking, NotificationKinds.DoorCodeConfirmed,
+            "Door code confirmed", $"{who} entered your door code. It is them at your door.", booking.Id);
+    }
+
+    /// <summary>Five wrong door codes: tell the customer not to open up, and alert ops.</summary>
+    public void DoorCodeLocked(Booking booking)
+    {
+        var who = booking.ArtisanName ?? "the artisan";
+        Add(booking.CustomerId, NotificationAudience.Customer, NotificationType.Booking, NotificationKinds.DoorCodeLocked,
+            "Wrong door code", $"The door code was entered wrongly {Booking.MaxDoorCodeAttempts} times. Do not open up until you are sure it is {who}. You can show a new code in the app.", booking.Id);
+        _alerts.Send(new AdminAlert(AdminAlertKind.DoorCodeLocked, "Door code locked",
+            new[] { $"{booking.ServiceName}, {who}", $"{Booking.MaxDoorCodeAttempts} wrong codes at the customer's door." },
+            $"/bookings/{booking.Id}", "Open booking"));
     }
 
     /// <summary>The honest refund sentence for an artisan cancellation.</summary>

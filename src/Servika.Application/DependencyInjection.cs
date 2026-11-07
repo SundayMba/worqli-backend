@@ -106,6 +106,8 @@ public static class DependencyInjection
         services.AddScoped<GetArtisanJobsHandler>();
         services.AddScoped<GetArtisanJobByIdHandler>();
         services.AddScoped<AdvanceBookingByArtisanHandler>();
+        services.AddScoped<ConfirmDoorCodeHandler>();
+        services.AddScoped<ReissueDoorCodeHandler>();
 
         services.AddScoped<GetArtisanJobCompletionHandler>();
 

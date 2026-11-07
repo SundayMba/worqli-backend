@@ -607,8 +607,9 @@ public sealed class Booking
         TripStartedAtUtc = now ?? DateTimeOffset.UtcNow;
     }
 
-    /// <summary>The artisan reaches the customer. OnMyWay → Arrived.</summary>
-    public void Arrive(DateTimeOffset? now = null)
+    /// <summary>The artisan reaches the customer. OnMyWay → Arrived. With a door code, the customer's app
+    /// shows it and the artisan must enter it before going in (see <see cref="ConfirmDoorCode"/>).</summary>
+    public void Arrive(DateTimeOffset? now = null, string? doorCode = null)
     {
         if (Status is not BookingStatus.OnMyWay)
             throw new InvalidBookingStateException(
@@ -616,6 +617,79 @@ public sealed class Booking
 
         Status = BookingStatus.Arrived;
         ArrivedAtUtc = now ?? DateTimeOffset.UtcNow;
+        if (doorCode is not null) SetDoorCode(doorCode);
+    }
+
+    // ── Door code: the customer reads it out, the artisan types it in ──
+
+    /// <summary>Wrong tries before the code locks and the customer must show a new one.</summary>
+    public const int MaxDoorCodeAttempts = 5;
+
+    /// <summary>The 4-digit code the customer reads out at the door. Never sent to the artisan.</summary>
+    public string? DoorCode { get; private set; }
+    public DateTimeOffset? DoorCodeConfirmedAtUtc { get; private set; }
+    public int DoorCodeAttempts { get; private set; }
+    public DateTimeOffset? DoorCodeLockedAtUtc { get; private set; }
+
+    /// <summary>A code was issued on arrival and the artisan has not entered it yet.</summary>
+    public bool DoorCodePending => DoorCode is not null && DoorCodeConfirmedAtUtc is null;
+    public bool DoorCodeLocked => DoorCodeLockedAtUtc is not null;
+    public int DoorCodeAttemptsLeft => Math.Max(0, MaxDoorCodeAttempts - DoorCodeAttempts);
+
+    private void SetDoorCode(string code)
+    {
+        if (code.Length != 4 || !code.All(char.IsAsciiDigit))
+            throw new ArgumentException("A door code is four digits.");
+        DoorCode = code;
+        DoorCodeConfirmedAtUtc = null;
+        DoorCodeAttempts = 0;
+        DoorCodeLockedAtUtc = null;
+    }
+
+    /// <summary>The artisan types the code the customer read out. A wrong code counts a try; the fifth
+    /// wrong try locks it until the customer shows a new one.</summary>
+    public DoorCodeOutcome ConfirmDoorCode(string entered, DateTimeOffset now)
+    {
+        if (Status is not BookingStatus.Arrived)
+            throw new InvalidBookingStateException("The door code is entered once you have arrived.");
+        if (DoorCode is null || DoorCodeConfirmedAtUtc is not null) return DoorCodeOutcome.Confirmed;
+        if (DoorCodeLocked) return DoorCodeOutcome.Locked;
+
+        var given = (entered ?? "").Trim();
+        // Fixed-time compare, so the time taken says nothing about how close a guess was.
+        var match = given.Length == DoorCode.Length
+            && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.ASCII.GetBytes(given), System.Text.Encoding.ASCII.GetBytes(DoorCode));
+        if (match)
+        {
+            DoorCodeConfirmedAtUtc = now;
+            return DoorCodeOutcome.Confirmed;
+        }
+        DoorCodeAttempts++;
+        if (DoorCodeAttempts >= MaxDoorCodeAttempts)
+        {
+            DoorCodeLockedAtUtc = now;
+            return DoorCodeOutcome.Locked;
+        }
+        return DoorCodeOutcome.Wrong;
+    }
+
+    /// <summary>The customer shows a new code (after a lock, or if they want to). Only before it is confirmed.</summary>
+    public void ReissueDoorCode(string code)
+    {
+        if (Status is not BookingStatus.Arrived)
+            throw new InvalidBookingStateException("A new door code can only be shown while the artisan is at your door.");
+        if (DoorCodeConfirmedAtUtc is not null)
+            throw new InvalidBookingStateException("The code was already confirmed.");
+        SetDoorCode(code);
+    }
+
+    /// <summary>Nothing happens inside the home until the artisan has entered the door code.
+    /// Bookings that arrived before door codes existed have none and pass.</summary>
+    public void EnsureDoorCodeConfirmed()
+    {
+        if (DoorCodePending)
+            throw new InvalidBookingStateException("Ask the customer for the door code and enter it first.");
     }
 
     /// <summary>
@@ -629,6 +703,7 @@ public sealed class Booking
         if (Status is not BookingStatus.Arrived)
             throw new InvalidBookingStateException(
                 $"Work can only start once the artisan has Arrived (this one is {Status}).");
+        EnsureDoorCodeConfirmed();
         if (InitialQuoteAmountNaira is null or <= 0)
             throw new InvalidBookingStateException(
                 "A price must be agreed before work starts — send the customer your quote first.");

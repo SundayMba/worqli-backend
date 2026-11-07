@@ -22,6 +22,8 @@ public enum AdminAlertKind
     EstateEnquiry,
     /// <summary>A customer asked for a service or an area Servika does not offer yet.</summary>
     ServiceRequest,
+    /// <summary>Five wrong door codes at a customer's door.</summary>
+    DoorCodeLocked,
 }
 
 /// <summary>

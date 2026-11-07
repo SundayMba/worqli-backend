@@ -84,4 +84,16 @@ public sealed record BookingDetailDto(
     /// <summary>A custom job: a paid visit, then an itemised quote checked against the typical range.</summary>
     bool IsCustomQuote = false,
     int? TypicalRangeMinNaira = null,
-    int? TypicalRangeMaxNaira = null);
+    int? TypicalRangeMaxNaira = null,
+    /// <summary>The 4-digit code the customer reads out at the door. Customer-side only, and only until
+    /// the artisan enters it; never sent to the artisan.</summary>
+    string? DoorCode = null,
+    /// <summary>The artisan has arrived and must still enter the door code.</summary>
+    bool DoorCodeRequired = false,
+    DateTimeOffset? DoorCodeConfirmedAtUtc = null,
+    /// <summary>Too many wrong codes: the customer must show a new one.</summary>
+    bool DoorCodeLocked = false,
+    int DoorCodeAttemptsLeft = 0);
+
+/// <summary>POST /api/v1/artisan/jobs/{id}/door-code body: the code the customer read out.</summary>
+public sealed record ConfirmDoorCodeRequest(string? Code);

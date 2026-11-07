@@ -166,6 +166,7 @@ public sealed class AdminAlertDispatcher : IAdminAlerts
         AdminAlertKind.ServicePostToReview => "🖼️",
         AdminAlertKind.EstateEnquiry => "🏢",
         AdminAlertKind.ServiceRequest => "💡",
+        AdminAlertKind.DoorCodeLocked => "🚪",
         _ => "☀️",
     };
 
